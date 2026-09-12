@@ -1,0 +1,14 @@
+{
+  "name": "sullu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EXACONTROL monorepo (Backend + exacontrol frontend) - repo tooling",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1"
+  }
+}
