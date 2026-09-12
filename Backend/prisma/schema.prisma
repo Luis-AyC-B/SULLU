@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Rol {
+  id       Int    @id @default(autoincrement())
+  nombre   String @unique
+  permisos Json
+
+  usuarios Usuario[]
+
+  @@map("roles")
+}
+
+model Usuario {
+  id           Int    @id @default(autoincrement())
+  nombre       String
+  email        String @unique
+  passwordHash String @map("password_hash")
+  rolId        Int    @map("rol_id")
+
+  rol               Rol                @relation(fields: [rolId], references: [id])
+  cargasEstudiantes CargaEstudiantes[] @relation("UsuarioCarga")
+  examenes          Examen[]           @relation("UsuarioDocente")
+  ingresos          Ingreso[]          @relation("UsuarioRegistra")
+
+  @@map("usuarios")
+}
+
+model CargaEstudiantes {
+  id                Int      @id @default(autoincrement())
+  archivoNombre     String   @map("archivo_nombre")
+  fechaCarga        DateTime @map("fecha_carga")
+  cargadoPor        Int      @map("cargado_por")
+  cantidadRegistros Int      @map("cantidad_registros")
+
+  usuario     Usuario      @relation("UsuarioCarga", fields: [cargadoPor], references: [id])
+  estudiantes Estudiante[]
+
+  @@map("cargas_estudiantes")
+}
+
+model Estudiante {
+  id                  Int    @id @default(autoincrement())
+  codigoUniversitario String @unique @map("codigo_universitario")
+  ci                  String
+  nombre              String
+  carrera             String
+  cargaId             Int    @map("carga_id")
+
+  carga          CargaEstudiantes @relation(fields: [cargaId], references: [id])
+  codigosQr      CodigoQr[]
+  habilitaciones Habilitacion[]
+  ingresos       Ingreso[]
+
+  @@map("estudiantes")
+}
+
+model Ambiente {
+  id        Int    @id @default(autoincrement())
+  nombre    String
+  capacidad Int
+
+  examenes Examen[]
+
+  @@map("ambientes")
+}
+
+model Examen {
+  id          Int      @id @default(autoincrement())
+  asignatura  String
+  fecha       DateTime
+  hora        DateTime
+  duracionMin Int      @map("duracion_min")
+  ambienteId  Int      @map("ambiente_id")
+  docenteId   Int      @map("docente_id")
+
+  ambiente       Ambiente       @relation(fields: [ambienteId], references: [id])
+  docente        Usuario        @relation("UsuarioDocente", fields: [docenteId], references: [id])
+  ingresos       Ingreso[]
+  habilitaciones Habilitacion[]
+
+  @@map("examenes")
+}
+
+model CodigoQr {
+  id           Int      @id @default(autoincrement())
+  estudianteId Int      @map("estudiante_id")
+  token        String   @unique
+  generadoEn   DateTime @map("generado_en")
+  expiraEn     DateTime @map("expira_en")
+
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id])
+
+  @@map("codigos_qr")
+}
+
+model Ingreso {
+  id            Int      @id @default(autoincrement())
+  estudianteId  Int      @map("estudiante_id")
+  examenId      Int      @map("examen_id")
+  fechaHora     DateTime @map("fecha_hora")
+  metodo        String
+  registradoPor Int      @map("registrado_por")
+
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id])
+  examen     Examen     @relation(fields: [examenId], references: [id])
+  usuario    Usuario    @relation("UsuarioRegistra", fields: [registradoPor], references: [id])
+
+  @@map("ingresos")
+}
+
+model Habilitacion {
+  id           Int     @id @default(autoincrement())
+  estudianteId Int     @map("estudiante_id")
+  examenId     Int     @map("examen_id")
+  habilitado   Boolean
+  motivo       String?
+
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id])
+  examen     Examen     @relation(fields: [examenId], references: [id])
+
+  @@map("habilitaciones")
+}
