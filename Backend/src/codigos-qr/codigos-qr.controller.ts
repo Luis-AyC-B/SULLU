@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { CodigosQrService } from './codigos-qr.service';
 import { CreateCodigosQrDto } from './dto/create-codigos-qr.dto';
 import { UpdateCodigosQrDto } from './dto/update-codigos-qr.dto';
@@ -23,7 +31,10 @@ export class CodigosQrController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCodigosQrDto: UpdateCodigosQrDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateCodigosQrDto: UpdateCodigosQrDto,
+  ) {
     return this.codigosQrService.update(+id, updateCodigosQrDto);
   }
 

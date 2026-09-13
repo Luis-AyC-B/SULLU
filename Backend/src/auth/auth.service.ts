@@ -1,9 +1,6 @@
-import {
-  Injectable,
-  NotImplementedException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -13,7 +10,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, _password: string): Promise<never> {
+  async validateUser(email: string, password: string) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { email },
       include: { rol: true },
@@ -22,17 +19,33 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    throw new NotImplementedException(
-      'Falta una librería de hashing (bcrypt/argon2) para verificar la contraseña',
-    );
+    const passwordValida = await bcrypt.compare(password, usuario.passwordHash);
+    if (!passwordValida) {
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    return usuario;
   }
 
-  login(usuario: { id: number; email: string; rol: { nombre: string } }) {
+  login(usuario: {
+    id: number;
+    nombre: string;
+    email: string;
+    rol: { nombre: string };
+  }) {
     const payload = {
       sub: usuario.id,
       email: usuario.email,
       rol: usuario.rol.nombre,
     };
-    return { access_token: this.jwtService.sign(payload) };
+    return {
+      access_token: this.jwtService.sign(payload),
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        email: usuario.email,
+        rol: usuario.rol.nombre,
+      },
+    };
   }
 }
