@@ -25,6 +25,12 @@ async function upsertUsuario(
 }
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Refusing to run the dev seed (with well-known passwords) in production',
+    );
+  }
+
   await upsertUsuario(
     'Administrador',
     'Administrador',

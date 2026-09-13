@@ -8,6 +8,7 @@ import {
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { UsuarioResponseDto } from './dto/usuario-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { AuthenticatedUser } from './strategies/jwt.strategy';
@@ -40,12 +41,16 @@ export class AuthController {
   @ApiOperation({
     summary: 'Obtener el usuario autenticado a partir del token JWT',
   })
-  @ApiResponse({ status: 200, description: 'Usuario autenticado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Usuario autenticado',
+    type: UsuarioResponseDto,
+  })
   @ApiResponse({
     status: 401,
     description: 'Token ausente, inválido o expirado',
   })
-  me(@CurrentUser() user: AuthenticatedUser) {
+  me(@CurrentUser() user: AuthenticatedUser): UsuarioResponseDto {
     return user;
   }
 }

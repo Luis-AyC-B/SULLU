@@ -5,12 +5,14 @@ import { jwtSecret } from '../jwt-secret';
 
 export interface JwtPayload {
   sub: number;
+  nombre: string;
   email: string;
   rol: string;
 }
 
 export interface AuthenticatedUser {
-  userId: number;
+  id: number;
+  nombre: string;
   email: string;
   rol: string;
 }
@@ -26,6 +28,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(payload: JwtPayload): AuthenticatedUser {
-    return { userId: payload.sub, email: payload.email, rol: payload.rol };
+    return {
+      id: payload.sub,
+      nombre: payload.nombre,
+      email: payload.email,
+      rol: payload.rol,
+    };
   }
 }
