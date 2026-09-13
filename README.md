@@ -8,6 +8,10 @@ Repositorio del sistema EXACONTROL (control de ingreso a exámenes masivos).
 - `exacontrol/` — Frontend en Next.js.
 - Raíz (`SULLU/`) — solo herramientas de repo (Husky + lint-staged para el pre-commit lint del backend), no es parte de la app.
 
+## Requisitos
+
+- `Backend/` debe correr con **Node.js 20.19.0** — es la versión disponible en el servidor de despliegue (WebTIS). Usa `nvm` (nvm-windows en Windows) para manejar esta versión sin perder otras que tengas instaladas: `nvm install 20.19.0` y `nvm use 20.19.0` antes de trabajar en el Backend. El archivo `Backend/.nvmrc` deja esto documentado.
+
 ## Instalación
 
 Cada carpeta tiene su propio `package.json` y `node_modules` independiente, así que hay que instalar en las tres por separado:
