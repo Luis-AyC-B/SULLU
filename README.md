@@ -45,12 +45,39 @@ cd Backend
 cp .env.example .env
 docker compose up -d
 npx prisma migrate dev
+npx prisma db seed
 npm run start:dev
 ```
 
 - API: `http://localhost:3000`
 - Documentación (Swagger): `http://localhost:3000/api/docs`
 - Health check: `http://localhost:3000/health`
+
+### Datos de prueba (seed)
+
+La base de datos **no se comparte entre desarrolladores** — cada quien tiene su propio contenedor de Docker con sus propios datos, solo el *schema* (`prisma/schema.prisma`) y las migraciones (`prisma/migrations/`) están versionados en el repo.
+
+Para tener usuarios de prueba con los que loguearte, corre:
+
+```
+npx prisma db seed
+```
+
+Crea (o actualiza, si ya existen) estos usuarios:
+
+| Email | Password | Rol |
+|---|---|---|
+| admin@exacontrol.com | admin123 | Administrador |
+| docente@exacontrol.com | docente123 | Docente |
+| control@exacontrol.com | control123 | Personal de control de ingreso |
+
+Si tu base local quedó con datos inconsistentes y quieres empezar de cero (borrar todo, reaplicar migraciones y volver a poblar), un solo comando hace las tres cosas:
+
+```
+npx prisma migrate reset
+```
+
+Pide confirmación por defecto (agrega `--force` para saltarla) y corre el seed automáticamente al final, porque ya está configurado en `package.json` (`"prisma": { "seed": "..." }`).
 
 ### Comandos
 
@@ -72,7 +99,7 @@ npm run start:dev
 - **JWT** (`@nestjs/jwt`, `@nestjs/passport`) — autenticación, con guards por rol (`JwtAuthGuard`, `RolesGuard`, decorador `@Roles()`).
 - **class-validator / class-transformer** — validación de DTOs.
 - **Swagger** — documentación de API autogenerada.
-- **nestjs-pino** — logging estructurado.
+- **nestjs-pino** — logging estructurado, con un filtro global (`HttpExceptionFilter`) que estandariza y loguea todas las respuestas de error.
 - **@nestjs/terminus** — health checks.
 - **Husky + lint-staged** (raíz del repo) — lint automático en cada commit que toque `Backend/**/*.ts`.
 

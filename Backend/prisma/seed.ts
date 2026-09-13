@@ -3,25 +3,46 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  const rolAdmin = await prisma.rol.upsert({
-    where: { nombre: 'Administrador' },
+async function upsertUsuario(
+  nombreRol: string,
+  nombre: string,
+  email: string,
+  password: string,
+) {
+  const rol = await prisma.rol.upsert({
+    where: { nombre: nombreRol },
     update: {},
-    create: { nombre: 'Administrador', permisos: {} },
+    create: { nombre: nombreRol, permisos: {} },
   });
 
-  const passwordHash = await bcrypt.hash('admin123', 10);
+  const passwordHash = await bcrypt.hash(password, 10);
 
   await prisma.usuario.upsert({
-    where: { email: 'admin@exacontrol.com' },
+    where: { email },
     update: {},
-    create: {
-      nombre: 'Administrador',
-      email: 'admin@exacontrol.com',
-      passwordHash,
-      rolId: rolAdmin.id,
-    },
+    create: { nombre, email, passwordHash, rolId: rol.id },
   });
+}
+
+async function main() {
+  await upsertUsuario(
+    'Administrador',
+    'Administrador',
+    'admin@exacontrol.com',
+    'admin123',
+  );
+  await upsertUsuario(
+    'Docente',
+    'Docente de Prueba',
+    'docente@exacontrol.com',
+    'docente123',
+  );
+  await upsertUsuario(
+    'Personal de control de ingreso',
+    'Personal de Control de Prueba',
+    'control@exacontrol.com',
+    'control123',
+  );
 }
 
 main()
