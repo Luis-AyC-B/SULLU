@@ -1,26 +1,51 @@
-import { Injectable } from '@nestjs/common';
-import { CreateUsuarioDto } from './dto/create-usuario.dto';
-import { UpdateUsuarioDto } from './dto/update-usuario.dto';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+
+export interface CreateUsuarioDto {
+  nombre: string;
+  email: string;
+  password: string;
+  rol: 'Administrador' | 'Docente';
+}
 
 @Injectable()
 export class UsuariosService {
-  create(createUsuarioDto: CreateUsuarioDto) {
-    return 'This action adds a new usuario';
-  }
+  private usuarios = [
+    { id: '1', nombre: 'Ana Torres', email: 'docente1@ejemplo.com', rol: 'Docente' },
+  ];
 
-  findAll() {
-    return `This action returns all usuarios`;
-  }
+  async create(dto: CreateUsuarioDto) {
+    const { nombre, email, password, rol } = dto;
 
-  findOne(id: number) {
-    return `This action returns a #${id} usuario`;
-  }
+    // Validación de campos obligatorios
+    if (!nombre || !email || !password || !rol) {
+      throw new BadRequestException('Todos los campos son obligatorios');
+    }
 
-  update(id: number, updateUsuarioDto: UpdateUsuarioDto) {
-    return `This action updates a #${id} usuario`;
-  }
+    // Validación de formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestException('El formato del correo es inválido');
+    }
 
-  remove(id: number) {
-    return `This action removes a #${id} usuario`;
+    // Validación de email único
+    const existe = this.usuarios.find((u) => u.email === email);
+    if (existe) {
+      throw new ConflictException('El correo ya está en uso');
+    }
+
+    // Restricción de rol
+    if (rol !== 'Administrador' && rol !== 'Docente') {
+      throw new BadRequestException('Rol no permitido');
+    }
+
+    const nuevoUsuario = {
+      id: Date.now().toString(),
+      nombre,
+      email,
+      rol,
+    };
+
+    this.usuarios.push(nuevoUsuario);
+    return nuevoUsuario;
   }
 }
