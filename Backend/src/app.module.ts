@@ -5,6 +5,10 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
+import { EstudiantesModule } from './estudiantes/estudiantes.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
+import { ExamenesModule } from './examenes/examenes.module';
+import { AmbientesModule } from './ambientes/ambientes.module';
 
 @Module({
   imports: [
@@ -20,6 +24,10 @@ import { HealthModule } from './health/health.module';
     PrismaModule,
     AuthModule,
     HealthModule,
+    EstudiantesModule,
+    UsuariosModule,
+    ExamenesModule,
+    AmbientesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
