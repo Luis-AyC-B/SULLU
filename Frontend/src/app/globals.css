@@ -1,0 +1,201 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =============================================================================
+   SULLU SRL — paleta de marca + tipografía Geist
+   Tamaños de Headline/Body/Label no venían especificados en la muestra (solo
+   "Aa"), así que se usó una escala tipográfica razonable de 3 niveles. Ajustar
+   los valores de font-size más abajo si el diseño define números exactos.
+   ============================================================================= */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-geist-sans);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* --- base --- */
+  --background: #F5F5F0; /* crema */
+  --foreground: #1A1A1A;
+
+  --card: #FFFFFF;
+  --card-foreground: #1A1A1A;
+
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1A1A;
+
+  /* --- marca --- */
+  --primary: #003770; /* azul marino */
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #D98300; /* naranja */
+  --secondary-foreground: #FFFFFF;
+
+  --muted: #ECECEA;
+  --muted-foreground: #5F5E5A; /* gris */
+
+  --accent: #0F6E56; /* verde azulado */
+  --accent-foreground: #FFFFFF;
+
+  --success: #0F6E56; /* mismo verde: "habilitado" / "disponible" */
+  --success-foreground: #FFFFFF;
+
+  --destructive: #E30613; /* rojo */
+  --destructive-foreground: #FFFFFF;
+
+  --border: #DCDCD9;
+  --input: #DCDCD9;
+  --ring: #003770;
+
+  /* --- gráficos (Recharts, Sprint 3) --- */
+  --chart-1: #003770;
+  --chart-2: #D98300;
+  --chart-3: #0F6E56;
+  --chart-4: #E30613;
+  --chart-5: #5F5E5A;
+
+  /* --- sidebar --- */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1A1A1A;
+  --sidebar-primary: #003770;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #ECECEA;
+  --sidebar-accent-foreground: #1A1A1A;
+  --sidebar-border: #DCDCD9;
+  --sidebar-ring: #003770;
+}
+
+.dark {
+  --background: #14181D;
+  --foreground: #F5F5F0;
+
+  --card: #1B2027;
+  --card-foreground: #F5F5F0;
+
+  --popover: #1B2027;
+  --popover-foreground: #F5F5F0;
+
+  --primary: #4A7FBF; /* azul marino aclarado, para contraste en fondo oscuro */
+  --primary-foreground: #0B1220;
+
+  --secondary: #D98300;
+  --secondary-foreground: #1A1A1A;
+
+  --muted: #262B33;
+  --muted-foreground: #9A9A96;
+
+  --accent: #2BA187;
+  --accent-foreground: #0B1220;
+
+  --success: #2BA187;
+  --success-foreground: #0B1220;
+
+  --destructive: #F04452;
+  --destructive-foreground: #0B1220;
+
+  --border: #2E343C;
+  --input: #2E343C;
+  --ring: #4A7FBF;
+
+  --chart-1: #4A7FBF;
+  --chart-2: #D98300;
+  --chart-3: #2BA187;
+  --chart-4: #F04452;
+  --chart-5: #9A9A96;
+
+  --sidebar: #1B2027;
+  --sidebar-foreground: #F5F5F0;
+  --sidebar-primary: #4A7FBF;
+  --sidebar-primary-foreground: #0B1220;
+  --sidebar-accent: #262B33;
+  --sidebar-accent-foreground: #F5F5F0;
+  --sidebar-border: #2E343C;
+  --sidebar-ring: #4A7FBF;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+@layer utilities {
+  .text-headline {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 2.25rem;   /* 36px */
+    line-height: 2.5rem;
+    letter-spacing: -0.02em;
+  }
+
+  .text-body {
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-size: 1rem;      /* 16px */
+    line-height: 1.5rem;
+  }
+
+  .text-label {
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 0.8125rem; /* 13px */
+    line-height: 1.125rem;
+    letter-spacing: 0.01em;
+  }
+}
