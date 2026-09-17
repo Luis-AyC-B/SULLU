@@ -1,4 +1,4 @@
-import { PageContainer } from "@/shared/components/layout/PageContainer";
+import { PageContainer } from "@/shared/components/layout/pagecontainer";
 
 export default function ExamenesPage() {
   return (

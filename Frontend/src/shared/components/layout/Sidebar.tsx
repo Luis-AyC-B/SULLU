@@ -2,59 +2,43 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
-import { modules } from "@/shared/config/modules";
+import { useUserPermissions } from "@/shared/hooks/useUserPermissions";
 
-interface SidebarProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar() {
   const pathname = usePathname();
+  const modulosPermitidos = useUserPermissions();
+
+  if (modulosPermitidos.length === 0) {
+    return (
+      <aside className="hidden md:flex h-full w-72 flex-col items-center justify-center bg-primary py-4 text-sm text-primary-foreground/60">
+        Sin módulos asignados
+      </aside>
+    );
+  }
 
   return (
-    <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
-          onClick={onClose}
-        />
-      )}
+    <aside className="hidden md:flex h-full w-72 flex-col bg-primary py-4 animate-in slide-in-from-left-4 fade-in duration-300">
+      <nav className="flex flex-col gap-2 overflow-y-auto px-3">
+        {modulosPermitidos.map((modulo) => {
+          const Icon = modulo.icon;
+          const isActive = pathname.startsWith(modulo.ruta);
 
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 flex h-full w-60 flex-col bg-primary py-4 transition-transform duration-200 md:static md:translate-x-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="mb-2 flex items-center justify-end px-3 md:hidden">
-          <button onClick={onClose} aria-label="Cerrar menú">
-            <X className="h-5 w-5 text-primary-foreground" />
-          </button>
-        </div>
-
-        <nav className="flex flex-col gap-1 px-3">
-          {modules.map((modulo) => {
-            const Icon = modulo.icon;
-            const isActive = pathname.startsWith(modulo.ruta);
-
-            return (
-              <Link
-                key={modulo.clave}
-                href={modulo.ruta}
-                onClick={onClose}
-               className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                isActive? "border-l-4 border-destructive bg-primary-foreground/15 text-primary-foreground font-semibold"
-                : "text-primary-foreground/80 hover:bg-primary-foreground/10"
-}`}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                {modulo.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
-    </>
+          return (
+            <Link
+              key={modulo.clave}
+              href={modulo.ruta}
+              className={`flex items-center gap-3 rounded-md px-4 py-3.5 text-sm font-medium transition-all duration-200 ${
+                isActive
+                  ? "border-l-4 border-destructive bg-primary-foreground/15 text-primary-foreground font-semibold"
+                  : "text-primary-foreground/80 hover:translate-x-1 hover:bg-primary-foreground/10"
+              }`}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              {modulo.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </aside>
   );
 }
