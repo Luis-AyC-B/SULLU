@@ -1,60 +1,76 @@
+/* eslint-disable no-console */
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-async function upsertUsuario(
-  nombreRol: string,
-  nombre: string,
-  email: string,
-  password: string,
-) {
-  const rol = await prisma.rol.upsert({
-    where: { nombre: nombreRol },
+async function main() {
+  // 1. Crear roles base requeridos
+  const rolAdmin = await prisma.rol.upsert({
+    where: { nombre: 'Administrador' },
     update: {},
-    create: { nombre: nombreRol, permisos: {} },
+    create: { nombre: 'Administrador' },
   });
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const rolDocente = await prisma.rol.upsert({
+    where: { nombre: 'Docente' },
+    update: {},
+    create: { nombre: 'Docente' },
+  });
+
+  const rolControl = await prisma.rol.upsert({
+    where: { nombre: 'Personal de control de ingreso' },
+    update: {},
+    create: { nombre: 'Personal de control de ingreso' },
+  });
+
+  // 2. Crear usuarios de prueba y asociarlos a sus roles correspondientes
+  await prisma.usuario.upsert({
+    where: { correo: 'admin@exacontrol.com' },
+    update: {},
+    create: {
+      nombre: 'Admin',
+      correo: 'admin@exacontrol.com',
+      password: 'admin123',
+      roles: {
+        create: { rolId: rolAdmin.id },
+      },
+    },
+  });
 
   await prisma.usuario.upsert({
-    where: { email },
+    where: { correo: 'docente@exacontrol.com' },
     update: {},
-    create: { nombre, email, passwordHash, rolId: rol.id },
+    create: {
+      nombre: 'Docente',
+      correo: 'docente@exacontrol.com',
+      password: 'docente123',
+      roles: {
+        create: { rolId: rolDocente.id },
+      },
+    },
   });
-}
 
-async function main() {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'Refusing to run the dev seed (with well-known passwords) in production',
-    );
-  }
+  await prisma.usuario.upsert({
+    where: { correo: 'control@exacontrol.com' },
+    update: {},
+    create: {
+      nombre: 'Control',
+      correo: 'control@exacontrol.com',
+      password: 'control123',
+      roles: {
+        create: { rolId: rolControl.id },
+      },
+    },
+  });
 
-  await upsertUsuario(
-    'Administrador',
-    'Administrador',
-    'admin@exacontrol.com',
-    'admin123',
-  );
-  await upsertUsuario(
-    'Docente',
-    'Docente de Prueba',
-    'docente@exacontrol.com',
-    'docente123',
-  );
-  await upsertUsuario(
-    'Personal de control de ingreso',
-    'Personal de Control de Prueba',
-    'control@exacontrol.com',
-    'control123',
-  );
+  console.log('Seed ejecutado satisfactoriamente.');
 }
 
 main()
-  .then(() => prisma.$disconnect())
-  .catch(async (error) => {
-    console.error(error);
-    await prisma.$disconnect();
+  .catch((e) => {
+    console.error(e);
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });
