@@ -7,14 +7,14 @@ export interface JwtPayload {
   sub: number;
   nombre: string;
   email: string;
-  rol: string;
+  permisos: string[]; // <-- Actualizado de 'rol' a 'permisos'
 }
 
 export interface AuthenticatedUser {
   id: number;
   nombre: string;
   email: string;
-  rol: string;
+  permisos: string[]; // <-- Actualizado de 'rol' a 'permisos'
 }
 
 @Injectable()
@@ -32,7 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       id: payload.sub,
       nombre: payload.nombre,
       email: payload.email,
-      rol: payload.rol,
+      permisos: payload.permisos || [], // <-- Mapeo correcto de los permisos
     };
   }
 }

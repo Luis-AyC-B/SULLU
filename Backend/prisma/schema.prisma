@@ -13,35 +13,278 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Rol {
-  id       Int    @id @default(autoincrement())
-  nombre   String @unique
-  permisos Json
-
-  usuarios Usuario[]
-
-  @@map("roles")
-}
+// ==========================================
+// MÓDULO DE AUTENTICACIÓN Y ROLES
+// ==========================================
 
 model Usuario {
-  id           Int    @id @default(autoincrement())
-  nombre       String
-  email        String @unique
-  passwordHash String @map("password_hash")
-  rolId        Int    @map("rol_id")
+  id        Int       @id @default(autoincrement())
+  nombre    String
+  apellido  String?
+  correo    String    @unique @map("email")
+  password  String    @map("password_hash")
+  telefono  String?
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp()
 
-  rol               Rol                @relation(fields: [rolId], references: [id])
-  cargasEstudiantes CargaEstudiantes[] @relation("UsuarioCarga")
-  examenes          Examen[]           @relation("UsuarioDocente")
-  ingresos          Ingreso[]          @relation("UsuarioRegistra")
+  roles             Usuario_Rol[]
+  alcances          Usuario_Alcance[]
+  examenes          Examen[]             @relation("ResponsableExamen")
+  reservas          ReservaAmbiente[]    @relation("UsuarioReserva")
+  cargasEstudiantes CargaEstudiantes[]   @relation("UsuarioCarga")
+  ingresos          Ingreso[]            @relation("UsuarioRegistra")
+  auditorias        Bitacora_Auditoria[]
 
   @@map("usuarios")
 }
 
+model Modulo {
+  id     Int     @id @default(autoincrement())
+  nombre String  @unique
+  activo Boolean @default(true)
+
+  permisos    Permiso[]
+  rolesModulo Rol_Modulo[]
+
+  @@map("modulos")
+}
+
+model Permiso {
+  id          Int     @id @default(autoincrement())
+  moduloId    Int     @map("modulo_id")
+  clave       String  @unique
+  descripcion String?
+
+  modulo Modulo        @relation(fields: [moduloId], references: [id], onDelete: Cascade)
+  roles  Rol_Permiso[]
+
+  @@map("permisos")
+}
+
+model Rol {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
+  descripcion String?
+  esPlantilla Boolean   @default(false) @map("es_plantilla")
+  deletedAt   DateTime? @map("deleted_at") // <-- Requerido para el Soft Delete de la HU3
+
+  permisos Rol_Permiso[]
+  usuarios Usuario_Rol[]
+  modulos  Rol_Modulo[]
+
+  @@map("roles")
+}
+
+model Rol_Permiso {
+  rolId     Int @map("rol_id")
+  permisoId Int @map("permiso_id")
+
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permisoId])
+  @@map("rol_permiso")
+}
+
+model Usuario_Rol {
+  usuarioId Int @map("usuario_id")
+  rolId     Int @map("rol_id")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, rolId])
+  @@map("usuario_rol")
+}
+
+model Rol_Modulo {
+  rolId    Int @map("rol_id")
+  moduloId Int @map("modulo_id")
+
+  rol    Rol    @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  modulo Modulo @relation(fields: [moduloId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, moduloId])
+  @@map("rol_modulo")
+}
+
+// ==========================================
+// MÓDULO ACADÉMICO Y ALCANCE 
+// ==========================================
+
+model Facultad {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  carreras  Carrera[]
+  ambientes Ambiente[]
+  alcances  Usuario_Alcance[]
+
+  @@map("facultades")
+}
+
+model Carrera {
+  id         Int    @id @default(autoincrement())
+  facultadId Int    @map("id_facultad")
+  nombre     String
+
+  facultad Facultad          @relation(fields: [facultadId], references: [id], onDelete: Cascade)
+  materias Carrera_Materia[]
+  alcances Usuario_Alcance[]
+
+  @@map("carreras")
+}
+
+model Materia {
+  id     Int     @id @default(autoincrement())
+  sigla  String?
+  nombre String
+
+  carreras Carrera_Materia[]
+  alcances Usuario_Alcance[]
+
+  @@map("materias")
+}
+
+model Carrera_Materia {
+  carreraId Int @map("id_carrera")
+  materiaId Int @map("id_materia")
+
+  carrera  Carrera                  @relation(fields: [carreraId], references: [id], onDelete: Cascade)
+  materia  Materia                  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  examenes Examen_Carrera_Materia[]
+
+  @@id([carreraId, materiaId])
+  @@map("carrera_materia")
+}
+
+model Usuario_Alcance {
+  id         Int  @id @default(autoincrement())
+  usuarioId  Int  @map("id_usuario")
+  facultadId Int? @map("id_facultad")
+  carreraId  Int? @map("id_carrera")
+  materiaId  Int? @map("id_materia")
+
+  usuario  Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  facultad Facultad? @relation(fields: [facultadId], references: [id], onDelete: Cascade)
+  carrera  Carrera?  @relation(fields: [carreraId], references: [id], onDelete: Cascade)
+  materia  Materia?  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+
+  @@map("usuario_alcance")
+}
+
+// ==========================================
+// MÓDULO DE RESERVAS Y AMBIENTES
+// ==========================================
+
+model TipoAula {
+  id     Int    @id @default(autoincrement())
+  nombre String
+
+  ambientes Ambiente[]
+
+  @@map("tipo_aula")
+}
+
+model EstadoAula {
+  id     Int    @id @default(autoincrement())
+  nombre String
+
+  ambientes Ambiente[]
+  reservas  ReservaAmbiente[]
+
+  @@map("estado_aula")
+}
+
+model Ambiente {
+  id           Int    @id @default(autoincrement())
+  nombre       String
+  capacidad    Int
+  facultadId   Int?   @map("id_facultad")
+  tipoAulaId   Int?   @map("id_tipoAula")
+  estadoAulaId Int?   @map("id_estadoAula")
+
+  facultad   Facultad?   @relation(fields: [facultadId], references: [id])
+  tipoAula   TipoAula?   @relation(fields: [tipoAulaId], references: [id])
+  estadoAula EstadoAula? @relation(fields: [estadoAulaId], references: [id])
+
+  reservas ReservaAmbiente[]
+
+  @@map("ambientes")
+}
+
+model ReservaAmbiente {
+  id           Int      @id @default(autoincrement())
+  ambienteId   Int      @map("id_ambiente")
+  usuarioId    Int      @map("id_usuario")
+  fecha        DateTime @db.Date
+  horaIni      DateTime @map("hora_ini") @db.Time
+  horaFin      DateTime @map("hora_fin") @db.Time
+  motivo       String?
+  estadoAulaId Int?     @map("id_estadoAula")
+
+  ambiente   Ambiente    @relation(fields: [ambienteId], references: [id], onDelete: Cascade)
+  usuario    Usuario     @relation("UsuarioReserva", fields: [usuarioId], references: [id], onDelete: Cascade)
+  estadoAula EstadoAula? @relation(fields: [estadoAulaId], references: [id])
+
+  examenes Examen[]
+
+  @@map("reserva_ambiente")
+}
+
+// ==========================================
+// MÓDULO DE EXÁMENES E INGRESOS
+// ==========================================
+
+model EstadoExamen {
+  id          Int     @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+
+  examenes Examen[]
+
+  @@map("estado_examen")
+}
+
+model Examen {
+  id                Int      @id @default(autoincrement())
+  reservaAmbienteId Int      @map("id_reservaAmbiente")
+  usuarioId         Int      @map("id_usuario")
+  tipoExamen        String   @map("tipo_examen")
+  normasEx          String?  @map("normas_ex") @db.Text
+  estadoExamId      Int      @map("id_EstadoExam")
+  creadoEn          DateTime @default(now()) @map("creado_en")
+
+  reservaAmbiente ReservaAmbiente @relation(fields: [reservaAmbienteId], references: [id])
+  responsable     Usuario         @relation("ResponsableExamen", fields: [usuarioId], references: [id])
+  estado          EstadoExamen    @relation(fields: [estadoExamId], references: [id])
+
+  carrerasMaterias Examen_Carrera_Materia[]
+  estudiantes      Examen_Estudiante[]
+  ingresos         Ingreso[]
+
+  @@map("examenes")
+}
+
+model Examen_Carrera_Materia {
+  examenId  Int @map("id_examen")
+  carreraId Int @map("id_carrera")
+  materiaId Int @map("id_materia")
+
+  examen          Examen          @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  carrera_materia Carrera_Materia @relation(fields: [carreraId, materiaId], references: [carreraId, materiaId], onDelete: Cascade)
+
+  @@id([examenId, carreraId, materiaId])
+  @@map("examen_carrera_materia")
+}
+
+// ==========================================
+// MÓDULO DE ESTUDIANTES Y REGISTROS OPERATIVOS
+// ==========================================
+
 model CargaEstudiantes {
   id                Int      @id @default(autoincrement())
   archivoNombre     String   @map("archivo_nombre")
-  fechaCarga        DateTime @map("fecha_carga")
+  fechaCarga        DateTime @map("fecha_carga") @db.Timestamp()
   cargadoPor        Int      @map("cargado_por")
   cantidadRegistros Int      @map("cantidad_registros")
 
@@ -52,56 +295,42 @@ model CargaEstudiantes {
 }
 
 model Estudiante {
-  id                  Int    @id @default(autoincrement())
-  codigoUniversitario String @unique @map("codigo_universitario")
-  ci                  String
-  nombre              String
-  carrera             String
-  cargaId             Int    @map("carga_id")
+  id       Int     @id @default(autoincrement())
+  cod_sis  String  @unique
+  nombre   String
+  apellido String?
+  ci       String?
+  cargaId  Int?    @map("carga_id")
 
-  carga          CargaEstudiantes @relation(fields: [cargaId], references: [id])
-  codigosQr      CodigoQr[]
-  habilitaciones Habilitacion[]
-  ingresos       Ingreso[]
+  carga     CargaEstudiantes?   @relation(fields: [cargaId], references: [id])
+  examenes  Examen_Estudiante[]
+  codigosQr CodigoQr[]
+  ingresos  Ingreso[]
 
   @@map("estudiantes")
 }
 
-model Ambiente {
-  id        Int    @id @default(autoincrement())
-  nombre    String
-  capacidad Int
+model Examen_Estudiante {
+  estudianteId          Int     @map("id_estudiante")
+  examenId              Int     @map("id_examen")
+  estado_habilitado     Boolean @default(true)
+  motivo_inhabilitacion String? @db.Text
 
-  examenes Examen[]
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  examen     Examen     @relation(fields: [examenId], references: [id], onDelete: Cascade)
 
-  @@map("ambientes")
-}
-
-model Examen {
-  id          Int      @id @default(autoincrement())
-  asignatura  String
-  fecha       DateTime
-  hora        DateTime
-  duracionMin Int      @map("duracion_min")
-  ambienteId  Int      @map("ambiente_id")
-  docenteId   Int      @map("docente_id")
-
-  ambiente       Ambiente       @relation(fields: [ambienteId], references: [id])
-  docente        Usuario        @relation("UsuarioDocente", fields: [docenteId], references: [id])
-  ingresos       Ingreso[]
-  habilitaciones Habilitacion[]
-
-  @@map("examenes")
+  @@id([estudianteId, examenId])
+  @@map("examen_estudiante")
 }
 
 model CodigoQr {
   id           Int      @id @default(autoincrement())
   estudianteId Int      @map("estudiante_id")
   token        String   @unique
-  generadoEn   DateTime @map("generado_en")
-  expiraEn     DateTime @map("expira_en")
+  generadoEn   DateTime @map("generado_en") @db.Timestamp()
+  expiraEn     DateTime @map("expira_en") @db.Timestamp()
 
-  estudiante Estudiante @relation(fields: [estudianteId], references: [id])
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
 
   @@map("codigos_qr")
 }
@@ -110,7 +339,7 @@ model Ingreso {
   id            Int      @id @default(autoincrement())
   estudianteId  Int      @map("estudiante_id")
   examenId      Int      @map("examen_id")
-  fechaHora     DateTime @map("fecha_hora")
+  fechaHora     DateTime @map("fecha_hora") @db.Timestamp()
   metodo        String
   registradoPor Int      @map("registrado_por")
 
@@ -121,15 +350,23 @@ model Ingreso {
   @@map("ingresos")
 }
 
-model Habilitacion {
-  id           Int     @id @default(autoincrement())
-  estudianteId Int     @map("estudiante_id")
-  examenId     Int     @map("examen_id")
-  habilitado   Boolean
-  motivo       String?
+// ==========================================
+// MÓDULO DE AUDITORÍA
+// ==========================================
 
-  estudiante Estudiante @relation(fields: [estudianteId], references: [id])
-  examen     Examen     @relation(fields: [examenId], references: [id])
+model Bitacora_Auditoria {
+  id               Int      @id @default(autoincrement())
+  usuarioId        Int?     @map("usuario_id")
+  accion           String   @db.VarChar(50)
+  modulo           String   @db.VarChar(50)
+  tablaAfectada    String?  @map("tabla_afectada") @db.VarChar(50)
+  registroId       Int?     @map("registro_id")
+  detallesAnterior Json?    @map("detalles_anterior")
+  detallesNuevo    Json?    @map("detalles_nuevo")
+  ipOrigen         String?  @map("ip_origen") @db.VarChar(45)
+  fechaHora        DateTime @default(now()) @map("fecha_hora") @db.Timestamp()
 
-  @@map("habilitaciones")
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@map("bitacora_auditoria")
 }

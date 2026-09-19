@@ -5,10 +5,13 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
+import { ExcludePasswordInterceptor } from './common/interceptors/exclude-password.interceptor';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new ExcludePasswordInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -25,7 +28,15 @@ async function bootstrap() {
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, documentFactory);
-
-  await app.listen(process.env.PORT ?? 3000);
+  // Habilitar peticiones cruzadas desde el frontend
+  app.enableCors({
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:4000',
+      'http://localhost:3002',
+    ],
+    credentials: true,
+  });
+  await app.listen(process.env.PORT ?? 4001);
 }
 void bootstrap();
