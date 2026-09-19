@@ -83,16 +83,12 @@ export function CancelExamDialog({
           >
             Volver
           </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            className={`rounded-lg px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors cursor-pointer ${
-              isHardDelete
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-gray-800 hover:bg-gray-900"
-            }`}
+            <button
+              type="button"
+              onClick={handleConfirm}
+              className="rounded-lg bg-[#003770] hover:bg-[#002a57] px-5 py-2 text-xs font-medium text-white shadow-xs transition-colors cursor-pointer"
           >
-            {isHardDelete ? "Confirmar Cancelación" : "Confirmar Desactivación"}
+            Confirmar
           </button>
         </div>
       </div>

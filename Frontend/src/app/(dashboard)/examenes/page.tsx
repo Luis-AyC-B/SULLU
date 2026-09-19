@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, BookOpen, Wifi, WifiOff, Database } from "lucide-react";
-import { toast, Toaster } from "sonner";
+import { BookOpen, AlertTriangle, X } from "lucide-react";
 import { PageContainer } from "@/shared/components/layout/PageContainer";
 import { useExams } from "@/features/examenes/hooks/useExams";
 import { ExamCard } from "@/features/examenes/components/ExamCard";
@@ -15,15 +14,19 @@ import { ExamFormValues } from "@/features/examenes/schemas/exam.schema";
 export default function ExamenesPage() {
   const {
     filteredExams,
+    materias,    // <--- Extraemos materias de useExams
+    ambientes,   // <--- Extraemos ambientes de useExams
     filters,
     setFilters,
     createExam,
+    updateExam,
     cancelExam,
-    isOnline,
     isLoading,
   } = useExams();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [examToEdit, setExamToEdit] = useState<Exam | null>(null);
+  const [pendingEditValues, setPendingEditValues] = useState<ExamFormValues | null>(null);
   const [examToCancel, setExamToCancel] = useState<Exam | null>(null);
 
   // Permisos dinámicos
@@ -33,34 +36,35 @@ export default function ExamenesPage() {
   const canFilterFacultad = true;
   const canFilterCarrera = true;
 
+  // Crear nuevo examen
   const handleCreateExam = async (values: ExamFormValues) => {
     try {
-      const created = await createExam(values);
-      toast.success(
-        `Examen de ${created.materiaNombre} programado exitosamente.`,
-        {
-          description: "Guardado de forma segura en la base de datos local (IndexedDB).",
-        }
-      );
-    } catch {
-      toast.error("Ocurrió un error al registrar el examen.");
+      await createExam(values);
+    } catch (err) {
+      console.error("Error al crear examen:", err);
     }
   };
 
+  // Cuando presiona "Guardar cambios" en el formulario de edición: abre el modal de confirmación
+  const handleEditFormSubmit = (values: ExamFormValues) => {
+    setPendingEditValues(values);
+  };
+
+  // Cuando presiona "Confirmar" en el modal de confirmación de edición
+  const handleConfirmEdit = async () => {
+    if (examToEdit && pendingEditValues) {
+      await updateExam(examToEdit.id, pendingEditValues);
+      setPendingEditValues(null);
+      setExamToEdit(null);
+    }
+  };
+
+  // Cancelar o desactivar examen
   const handleConfirmCancel = async (examId: string, hardDelete: boolean) => {
     try {
       await cancelExam(examId, hardDelete);
-      if (hardDelete) {
-        toast.success("Examen cancelado y eliminado definitivamente", {
-          description: "El aula y horario han sido liberados del sistema.",
-        });
-      } else {
-        toast.info("Examen desactivado con éxito", {
-          description: "Se conservó en el historial con estado Desactivado.",
-        });
-      }
-    } catch {
-      toast.error("No se pudo procesar la cancelación.");
+    } catch (err) {
+      console.error("Error al cancelar/desactivar examen:", err);
     }
   };
 
@@ -68,41 +72,23 @@ export default function ExamenesPage() {
     <PageContainer
       title="Exámenes"
       subtitle="Registro, programación y control de exámenes"
+      actionLabel={canCreate ? "+ Nuevo examen" : undefined}
+      onAction={canCreate ? () => setIsCreateModalOpen(true) : undefined}
     >
-      <Toaster position="top-right" richColors />
-
       <div className="space-y-6">
-     
-        {/* Barra superior: Contador y Acciones */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-500">
-              {filteredExams.length} {filteredExams.length === 1 ? "examen registrado" : "exámenes registrados"}
-            </h2>
-          </div>
-          {canCreate && (
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0a1f44] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#16366f] transition-all cursor-pointer"
-            >
-              <Plus className="h-4 w-4" />
-              Nuevo examen
-            </button>
-          )}
-        </div>
-
         {/* Barra de Filtros Dinámica */}
         <ExamFilterToolbar
           filters={filters}
           onFilterChange={setFilters}
+          materias={materias}
           canFilterFacultad={canFilterFacultad}
           canFilterCarrera={canFilterCarrera}
         />
 
-        {/* Grid de Exámenes */}
+        {/* Grid de Exámenes (Estrictamente 2 Columnas) */}
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[1, 2, 3].map((n) => (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
                 className="h-48 rounded-xl border border-gray-100 bg-gray-50 animate-pulse p-5"
@@ -110,16 +96,14 @@ export default function ExamenesPage() {
             ))}
           </div>
         ) : filteredExams.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             {filteredExams.map((exam) => (
               <ExamCard
                 key={exam.id}
                 exam={exam}
                 canEdit={canEdit}
                 canCancel={canCancel}
-                onEdit={(e) => {
-                  toast.info(`Editar examen: ${e.materiaNombre}`);
-                }}
+                onEdit={(e) => setExamToEdit(e)}
                 onCancel={(e) => setExamToCancel(e)}
               />
             ))}
@@ -139,12 +123,69 @@ export default function ExamenesPage() {
         )}
       </div>
 
-      {/* Modal de Creación de Examen */}
+      {/* Modal de Creación */}
       <ExamFormModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateExam}
+        materias={materias}
+        ambientes={ambientes}
       />
+
+      {/* Modal de Edición (se abre al hacer clic en el lápiz) */}
+      <ExamFormModal
+        isOpen={Boolean(examToEdit) && !pendingEditValues}
+        onClose={() => setExamToEdit(null)}
+        onSubmit={handleEditFormSubmit}
+        initialData={examToEdit}
+        materias={materias}
+        ambientes={ambientes}
+      />
+
+      {/* Modal de Confirmación de Edición */}
+      {pendingEditValues && examToEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl transition-all">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div className="flex items-center gap-2 text-[#003770]">
+                <AlertTriangle className="h-5 w-5" />
+                <h3 className="text-base font-bold text-gray-900">Confirmar Edición</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingEditValues(null)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-gray-600">
+                ¿Estás seguro de que deseas guardar los cambios para el examen de{" "}
+                <span className="font-bold text-gray-900">{examToEdit.materiaNombre}</span>?
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setPendingEditValues(null)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEdit}
+                className="rounded-lg bg-[#003770] hover:bg-[#002a57] px-5 py-2 text-xs font-medium text-white shadow-xs cursor-pointer"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Diálogo de Cancelación / Desactivación */}
       <CancelExamDialog

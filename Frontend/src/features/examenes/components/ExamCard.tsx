@@ -7,8 +7,8 @@ interface ExamCardProps {
   exam: Exam;
   onEdit?: (exam: Exam) => void;
   onCancel?: (exam: Exam) => void;
-  canEdit?: boolean;   // Control de permiso: Editar_Examen
-  canCancel?: boolean; // Control de permiso: Cancelar_Examen
+  canEdit?: boolean;   
+  canCancel?: boolean; 
 }
 
 export function ExamCard({
@@ -18,7 +18,7 @@ export function ExamCard({
   canEdit = true,
   canCancel = true,
 }: ExamCardProps) {
-  // Configuración de colores de badges según Figma
+  // Configuración de colores de badges 
   const getBadgeStyle = (estado: Exam["estado"]) => {
     switch (estado) {
       case "En curso":
@@ -28,13 +28,13 @@ export function ExamCard({
       case "Finalizado":
         return "bg-gray-100 text-gray-600 border-gray-200";
       case "Desactivado":
-        return "bg-red-50 text-red-600 border-red-200";
+        return "bg-gray-100 text-gray-600 border-gray-200";
       default:
         return "bg-gray-50 text-gray-500 border-gray-200";
     }
   };
 
-  const isFinalizado = exam.estado === "Finalizado" || exam.estado === "Desactivado";
+  const isInactive = exam.estado === "Finalizado" || exam.estado === "Desactivado";
 
   // Regla de 24 horas DESDE SU CREACIÓN:
   // Si fue creado hace menos de 24 horas => "Cancelar" (eliminación física)
@@ -53,23 +53,42 @@ export function ExamCard({
   const isUnder24 = isCreatedUnder24Hours();
   const actionLabel = isUnder24 ? "Cancelar" : "Desactivar";
 
+  // Formatear la fecha a dd/mm/aaaa
+  const formatDateSlash = (dateStr: string) => {
+    if (!dateStr || !dateStr.includes("-")) return dateStr;
+    const [yyyy, mm, dd] = dateStr.split("-");
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-xs transition-all hover:shadow-md flex flex-col justify-between">
       <div>
-        {/* Cabecera de la tarjeta: Badge de Estado + Botón Editar */}
+        {/* Encabezado: Estado + Badge Editado + Botón Editar */}
         <div className="flex items-center justify-between">
-          <span
-            className={`rounded-md border px-2.5 py-0.5 text-xs font-semibold ${getBadgeStyle(
-              exam.estado
-            )}`}
-          >
-            {exam.estado}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* 1. Badge de Estado (Programado, En curso, Finalizado, etc.) */}
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-[6px] text-xs font-semibold border ${getBadgeStyle(
+                exam.estado
+              )}`}
+            >
+              {exam.estado}
+            </span>
 
-          {canEdit && !isFinalizado && (
+            {/* 2. Badge gris de Editado al lado del estado */}
+            {exam.isEdited && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                Editado
+              </span>
+            )}
+          </div>
+
+          {/* Botón de Editar (Lápiz) */}
+          {canEdit && !isInactive && (
             <button
+              type="button"
               onClick={() => onEdit?.(exam)}
-              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
+              className="text-gray-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
               title="Editar examen"
             >
               <Edit3 className="h-4 w-4" />
@@ -77,8 +96,13 @@ export function ExamCard({
           )}
         </div>
 
-        {/* Título: Materia - Tipo de examen */}
-        <h3 className="mt-3 text-base font-bold text-[#0a1f44] leading-snug">
+        {/* Carrera */}
+        <p className="mt-3 text-xs font-medium text-gray-400">
+          {exam.carreraNombre}
+        </p>
+
+        {/* Materia y Tipo de Examen */}
+        <h3 className="text-base font-bold text-[#1A1D23] mt-0.5">
           {exam.materiaNombre} – {exam.tipoExamen}
         </h3>
 
@@ -96,7 +120,7 @@ export function ExamCard({
           <div>
             <span className="text-gray-400 block font-medium">Fecha</span>
             <span className="text-gray-800 font-semibold mt-0.5 block whitespace-nowrap">
-              {exam.fecha}
+              {formatDateSlash(exam.fecha)}  
             </span>
           </div>
           <div>
@@ -118,8 +142,9 @@ export function ExamCard({
           <span>{exam.habilitadosCount} habilitados</span>
         </div>
 
-        {canCancel && !isFinalizado && (
+        {canCancel && !isInactive && (
           <button
+            type="button"
             onClick={() => onCancel?.(exam)}
             className="text-gray-500 hover:text-red-600 font-medium transition-colors cursor-pointer"
           >

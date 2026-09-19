@@ -23,6 +23,7 @@ export interface Exam {
   docenteNombre: string;
   estado: ExamStatus;
   createdAt: string;
+  isEdited?: boolean; 
 }
 
 export interface ExamFilters {
