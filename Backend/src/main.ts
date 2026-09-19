@@ -25,7 +25,11 @@ async function bootstrap() {
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, documentFactory);
-
-  await app.listen(process.env.PORT ?? 3000);
+  // Habilitar peticiones cruzadas desde el frontend
+  app.enableCors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+  });
+  await app.listen(process.env.PORT ?? 3001);
 }
 void bootstrap();
