@@ -1,8 +1,10 @@
 /* eslint-disable */
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
+import { UpdatePasswordDto } from './dto/update-password.dto';
+import { UpdateAlcanceDto } from './dto/update-alcance.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -46,7 +48,7 @@ export class UsuariosService {
   async findAll(page = 1, limit = 10, search?: string, rolId?: number) {
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { deletedAt: null };
     if (search) {
       where.OR = [
         { nombre: { contains: search, mode: 'insensitive' } },
@@ -82,17 +84,98 @@ export class UsuariosService {
       },
     });
 
-    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+    if (!usuario || usuario.deletedAt !== null) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
     return usuario;
   }
 
   async update(id: number, dto: UpdateUsuarioDto) {
     const existe = await this.prisma.usuario.findUnique({ where: { id } });
-    if (!existe) throw new NotFoundException('Usuario no encontrado');
+    if (!existe || existe.deletedAt !== null) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
 
     return this.prisma.usuario.update({
       where: { id },
       data: dto,
     });
+  }
+
+  async updatePassword(id: number, dto: UpdatePasswordDto) {
+    const existe = await this.prisma.usuario.findUnique({ where: { id } });
+    if (!existe || existe.deletedAt !== null) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    await this.prisma.usuario.update({
+      where: { id },
+      data: { password: passwordHash },
+    });
+
+    return { message: 'Contraseña actualizada exitosamente' };
+  }
+
+  async remove(id: number) {
+    const existe = await this.prisma.usuario.findUnique({
+      where: { id },
+      include: {
+        examenes: true,
+        cargasEstudiantes: true,
+        ingresos: true,
+      },
+    });
+
+    if (!existe || existe.deletedAt !== null) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (
+      existe.examenes.length > 0 ||
+      existe.cargasEstudiantes.length > 0 ||
+      existe.ingresos.length > 0
+    ) {
+      throw new BadRequestException(
+        'No se puede eliminar el usuario porque compromete la integridad histórica (tiene exámenes, cargas o ingresos).',
+      );
+    }
+
+    return this.prisma.usuario.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  async updateAlcance(id: number, dto: UpdateAlcanceDto) {
+    const existe = await this.prisma.usuario.findUnique({ where: { id } });
+    if (!existe || existe.deletedAt !== null) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    // Verificar si ya tiene un alcance
+    const alcanceActual = await this.prisma.usuario_Alcance.findFirst({
+      where: { usuarioId: id },
+    });
+
+    if (alcanceActual) {
+      return this.prisma.usuario_Alcance.update({
+        where: { id: alcanceActual.id },
+        data: {
+          facultadId: dto.facultadId,
+          carreraId: dto.carreraId,
+          materiaId: dto.materiaId,
+        },
+      });
+    } else {
+      return this.prisma.usuario_Alcance.create({
+        data: {
+          usuarioId: id,
+          facultadId: dto.facultadId,
+          carreraId: dto.carreraId,
+          materiaId: dto.materiaId,
+        },
+      });
+    }
   }
 }
