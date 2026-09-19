@@ -61,10 +61,11 @@ model Permiso {
 }
 
 model Rol {
-  id          Int     @id @default(autoincrement())
-  nombre      String  @unique
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
   descripcion String?
-  esPlantilla Boolean @default(false) @map("es_plantilla")
+  esPlantilla Boolean   @default(false) @map("es_plantilla")
+  deletedAt   DateTime? @map("deleted_at") // <-- Requerido para el Soft Delete de la HU3
 
   permisos Rol_Permiso[]
   usuarios Usuario_Rol[]
