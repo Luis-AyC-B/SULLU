@@ -1,4 +1,4 @@
-/* eslint-disable prettier/prettier, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
+/* eslint-disable */
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -12,7 +12,6 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string) {
-    // Incluimos las relaciones completas: Usuario -> Usuario_Rol -> Rol -> Rol_Permiso -> Permiso
     const usuario = await this.prisma.usuario.findFirst({
       where: { correo: email },
       include: {
@@ -36,6 +35,10 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
+    if (!usuario.password) {
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
+
     const passwordValida = await bcrypt.compare(password, usuario.password);
 
     if (!passwordValida) {
@@ -45,7 +48,6 @@ export class AuthService {
   }
 
   login(usuario: any) {
-    // Extraer limpiamente las claves de los permisos a través de las tablas intermedias
     const permisosUsuario: string[] = [];
     if (usuario.roles && Array.isArray(usuario.roles)) {
       usuario.roles.forEach((ur: any) => {
@@ -72,7 +74,7 @@ export class AuthService {
     const payload = {
       sub: usuario.id,
       nombre: usuario.nombre,
-      email: usuario.correo || usuario.email || 'admin@exacontrol.com',
+      email: usuario.correo,
       permisos: permisosUsuario, 
     };
 

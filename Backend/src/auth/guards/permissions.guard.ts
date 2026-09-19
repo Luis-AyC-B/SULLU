@@ -1,11 +1,4 @@
-/* eslint-disable prettier/prettier, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
-/**
- * Dev: Gustavo Montaño
- * Date: 18/09/2026
- * Funcionalidad: Intercepta la petición, verifica si el usuario autenticado tiene el permiso exigido por el decorador y valida que el módulo asociado esté activo (HU3 - Task 3bh, 3bi).
- * @param context - Contexto de ejecución de NestJS
- * @return Booleano que permite o deniega el acceso al endpoint
- */
+/* eslint-disable */
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
