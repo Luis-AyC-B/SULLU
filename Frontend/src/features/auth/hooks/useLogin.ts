@@ -8,7 +8,7 @@ export function useLogin() {
   async function login(values: LoginFormValues) {
     const result = await signIn('credentials', { ...values, redirect: false });
     if (result?.error) throw new Error('Credenciales inválidas');
-    router.push('/dashboard');
+    router.push('/roles');
   }
 
   return { login };

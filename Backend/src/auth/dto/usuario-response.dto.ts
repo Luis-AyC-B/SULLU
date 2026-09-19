@@ -1,15 +1,16 @@
+/* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UsuarioResponseDto {
   @ApiProperty({ example: 1 })
-  id: number;
+  id!: number;
 
   @ApiProperty({ example: 'Administrador' })
-  nombre: string;
+  nombre!: string;
 
   @ApiProperty({ example: 'admin@exacontrol.com' })
-  email: string;
+  email!: string;
 
-  @ApiProperty({ example: 'Administrador' })
-  rol: string;
+  @ApiProperty({ example: ['roles.crear', 'roles.ver'] })
+  permisos!: string[];
 }

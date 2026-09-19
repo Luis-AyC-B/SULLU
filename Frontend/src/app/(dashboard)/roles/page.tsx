@@ -1,9 +1,5 @@
-import { PageContainer } from "@/shared/components/layout/PageContainer";
+import { RolesPageContainer } from "@/features/roles/components/RolesPageContainer";
 
 export default function RolesPage() {
-  return (
-    <PageContainer title="Roles" subtitle="Gestión de roles y permisos del sistema">
-      <p className="text-gray-500">Módulo en construccioon</p>
-    </PageContainer>
-  );
+  return <RolesPageContainer />;
 }
