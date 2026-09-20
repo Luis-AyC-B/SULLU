@@ -19,7 +19,8 @@ export class UsuariosService {
       throw new ConflictException('Ya existe un usuario con este correo');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const rawPassword = dto.password || Math.random().toString(36).slice(-8);
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
 
     return this.prisma.$transaction(async (tx) => {
       const usuario = await tx.usuario.create({
@@ -36,7 +37,7 @@ export class UsuariosService {
         await tx.usuario_Rol.createMany({
           data: dto.rolesIds.map((rolId) => ({
             usuarioId: usuario.id,
-            rolId,
+            rolId: Number(rolId),
           })),
         });
       }
@@ -96,9 +97,25 @@ export class UsuariosService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    return this.prisma.usuario.update({
-      where: { id },
-      data: dto,
+    const { rolesIds, ...dataToUpdate } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      if (rolesIds) {
+        await tx.usuario_Rol.deleteMany({ where: { usuarioId: id } });
+        if (rolesIds.length > 0) {
+          await tx.usuario_Rol.createMany({
+            data: rolesIds.map((rolId) => ({
+              usuarioId: id,
+              rolId: Number(rolId),
+            })),
+          });
+        }
+      }
+
+      return tx.usuario.update({
+        where: { id },
+        data: dataToUpdate,
+      });
     });
   }
 
