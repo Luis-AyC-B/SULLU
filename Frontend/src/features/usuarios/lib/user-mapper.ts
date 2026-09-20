@@ -10,7 +10,7 @@ export function mapUsuarioToResumen(usuario: Usuario): UsuarioResumen {
     nombreCompleto: `${usuario.nombre} ${usuario.apellido}`,
     correo: usuario.correo,
     telefono: usuario.telefono,
-    roles: usuario.roles.map((rol) => rol.nombre),
+    roles: (usuario.roles || []).map((ur: any) => ur.rol?.nombre || ur.nombre || 'Desconocido'),
     activo: !usuario.deletedAt,
   };
 }

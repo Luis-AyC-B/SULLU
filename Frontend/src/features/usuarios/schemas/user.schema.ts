@@ -19,9 +19,15 @@ const telefonoSchema = z
 const correoInstitucionalSchema = z
   .string()
   .email("Correo inválido")
-  .refine((val) => val.endsWith("@universidad.edu"), {
-    message: "Debe ser un correo institucional (@universidad.edu)",
-  });
+  .refine(
+    (val) =>
+      val.endsWith("@universidad.edu") ||
+      val.endsWith("@umss.edu") ||
+      val.endsWith("@est.umss.edu"),
+    {
+      message: "Debe ser un correo institucional (@universidad.edu)",
+    }
+  );
 
 const rolesIdsSchema = z
   .array(z.string())
