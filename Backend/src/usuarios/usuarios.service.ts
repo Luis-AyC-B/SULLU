@@ -7,9 +7,14 @@ import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateAlcanceDto } from './dto/update-alcance.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { MailService } from '../mail/mail.service';
+
 @Injectable()
 export class UsuariosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   async create(dto: CreateUsuarioDto) {
     const existe = await this.prisma.usuario.findUnique({
@@ -22,7 +27,7 @@ export class UsuariosService {
     const rawPassword = dto.password || Math.random().toString(36).slice(-8);
     const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const usuario = await tx.usuario.create({
         data: {
           nombre: dto.nombre,
@@ -44,6 +49,11 @@ export class UsuariosService {
 
       return { usuario, reactivado: false };
     });
+
+    // Enviar correo sin bloquear la respuesta si falla
+    this.mailService.enviarCredenciales(dto.correo, rawPassword, dto.nombre).catch(() => {});
+
+    return result;
   }
 
   async findAll(page = 1, limit = 10, search?: string, rolId?: number) {
