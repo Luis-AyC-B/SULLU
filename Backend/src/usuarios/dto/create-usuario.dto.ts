@@ -22,10 +22,11 @@ export class CreateUsuarioDto {
   @IsOptional()
   telefono?: string;
 
-  @ApiProperty({ example: 'temporal123' })
+  @ApiPropertyOptional({ example: 'temporal123' })
   @IsString()
   @MinLength(6)
-  password!: string;
+  @IsOptional()
+  password?: string;
 
   @ApiProperty({ example: [1, 2], description: 'IDs de los roles iniciales' })
   @IsArray()

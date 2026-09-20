@@ -12,8 +12,8 @@ const BASE_URL = "/usuarios";
 export const userService = {
   /** Lista todos los usuarios (el backend excluye o marca los deletedAt según filtro) */
   getAll: async (): Promise<Usuario[]> => {
-    const { data } = await apiClient.get<Usuario[]>(BASE_URL);
-    return data;
+    const { data } = await apiClient.get<any>(BASE_URL);
+    return data.data || data || [];
   },
 
   getById: async (id: number): Promise<Usuario> => {
