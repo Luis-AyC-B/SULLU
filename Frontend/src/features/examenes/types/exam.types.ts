@@ -13,9 +13,9 @@ export interface Exam {
   tipoExamen: ExamType;
   ambienteId: string;
   ambienteNombre: string;
-  fecha: string;          // YYYY-MM-DD
-  horaInicio: string;     // ej: "09:45"
-  horaFin?: string;       // ej: "11:15"
+  fecha: string;         
+  horaInicio: string;    
+  horaFin?: string;       
   duracionMinutos: number;
   habilitadosCount: number;
   normas?: string;
@@ -23,7 +23,8 @@ export interface Exam {
   docenteNombre: string;
   estado: ExamStatus;
   createdAt: string;
-  isEdited?: boolean; 
+  isEdited?: boolean;
+  fueEditado?: boolean; 
 }
 
 export interface ExamFilters {
