@@ -68,6 +68,7 @@ interface BackendExamResponse {
   estudiantes?: unknown[];
   createdAt?: string;
   normas?: string;
+  fueEditado?: boolean; // <--- Agregado para el backend de tu amigo
   isEdited?: boolean;
 }
 
@@ -175,7 +176,8 @@ export function useExams() {
               : "Docente asignado"),
           estado: (e.estado as ExamStatus) || "Programado",
           createdAt: e.createdAt ? String(e.createdAt) : new Date().toISOString(),
-          isEdited: Boolean(e.isEdited),
+          fueEditado: Boolean(e.fueEditado ?? e.isEdited), // <--- Soporta fueEditado del backend
+          isEdited: Boolean(e.fueEditado ?? e.isEdited),   // <--- Mantiene compatibilidad
         }));
 
         setExams(mappedExams);
@@ -278,10 +280,14 @@ export function useExams() {
       const headers = await getAuthHeaders();
       const response = await axios.patch<Exam>(
         `${API_URL}/examenes/${examId}`,
-        values,
+        { ...values, fueEditado: true }, // <--- Enviamos fueEditado: true al backend
         { headers, withCredentials: true }
       );
-      const updatedExam: Exam = { ...response.data, isEdited: true };
+      const updatedExam: Exam = {
+        ...response.data,
+        fueEditado: true,
+        isEdited: true,
+      };
       setExams((prev) => prev.map((e) => (e.id === examId ? updatedExam : e)));
       await dbService.saveExam(updatedExam);
       return updatedExam;

@@ -76,7 +76,7 @@ export function ExamCard({
             </span>
 
             {/* 2. Badge gris de Editado al lado del estado */}
-            {exam.isEdited && (
+            {(exam.fueEditado || exam.isEdited) && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
                 Editado
               </span>
