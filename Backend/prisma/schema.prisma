@@ -185,14 +185,11 @@ model TipoAula {
   @@map("tipo_aula")
 }
 
-model EstadoAula {
-  id     Int    @id @default(autoincrement())
-  nombre String
-
-  ambientes Ambiente[]
-  reservas  ReservaAmbiente[]
-
-  @@map("estado_aula")
+enum EstadoAula {
+  DISPONIBLE
+  RESERVADO
+  MANTENIMIENTO
+  INHABILITADO
 }
 
 model Ambiente {
@@ -205,7 +202,7 @@ model Ambiente {
 
   facultad   Facultad?   @relation(fields: [facultadId], references: [id])
   tipoAula   TipoAula?   @relation(fields: [tipoAulaId], references: [id])
-  estadoAula EstadoAula? @relation(fields: [estadoAulaId], references: [id])
+  estadoAula         EstadoAula?
 
   reservas ReservaAmbiente[]
 
@@ -224,7 +221,7 @@ model ReservaAmbiente {
 
   ambiente   Ambiente    @relation(fields: [ambienteId], references: [id], onDelete: Cascade)
   usuario    Usuario     @relation("UsuarioReserva", fields: [usuarioId], references: [id], onDelete: Cascade)
-  estadoAula EstadoAula? @relation(fields: [estadoAulaId], references: [id])
+  estadoAula         EstadoAula?
 
   examenes Examen[]
 
@@ -235,16 +232,12 @@ model ReservaAmbiente {
 // MÓDULO DE EXÁMENES E INGRESOS
 // ==========================================
 
-model EstadoExamen {
-  id          Int     @id @default(autoincrement())
-  nombre      String
-  descripcion String?
-
-  examenes Examen[]
-
-  @@map("estado_examen")
+enum EstadoExamen {
+  PROGRAMADO
+  EN_CURSO
+  FINALIZADO
+  CANCELADO
 }
-
 model Examen {
   id                Int      @id @default(autoincrement())
   reservaAmbienteId Int      @map("id_reservaAmbiente")
@@ -253,10 +246,11 @@ model Examen {
   normasEx          String?  @map("normas_ex") @db.Text
   estadoExamId      Int      @map("id_EstadoExam")
   creadoEn          DateTime @default(now()) @map("creado_en")
+  fueEditado        Boolean  @default(false) @map("fue_editado")
 
   reservaAmbiente ReservaAmbiente @relation(fields: [reservaAmbienteId], references: [id])
   responsable     Usuario         @relation("ResponsableExamen", fields: [usuarioId], references: [id])
-  estado          EstadoExamen    @relation(fields: [estadoExamId], references: [id])
+  estado             EstadoExamen   @default(PROGRAMADO)
 
   carrerasMaterias Examen_Carrera_Materia[]
   estudiantes      Examen_Estudiante[]

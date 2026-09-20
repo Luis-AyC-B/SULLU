@@ -16,4 +16,11 @@ export class UpdateUsuarioDto {
   @IsString()
   @IsOptional()
   telefono?: string;
+
+  @ApiPropertyOptional({
+    example: [1, 2],
+    description: 'Nuevos IDs de roles para reemplazar los actuales',
+  })
+  @IsOptional()
+  rolesIds?: number[];
 }
