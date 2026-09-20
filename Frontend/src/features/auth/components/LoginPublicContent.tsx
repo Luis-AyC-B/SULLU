@@ -9,11 +9,6 @@ import { ChevronDown, ChevronRight, ArrowRight } from 'lucide-react';
  * Basado fielmente en media_1789852716106.png.
  */
 export function LoginPublicContent() {
-  // Días de Septiembre 2026 (empieza en martes 1 de sept)
-  // L M M J V S D
-  const scheduledDays = [6, 12, 13, 20, 28];
-  const activeDay = 9;
-
   return (
     <section id="noticias" className="bg-[#F8F9FA] py-10 px-4 sm:px-6 lg:px-8 border-b border-slate-200/60">
       <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
