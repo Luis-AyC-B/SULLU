@@ -24,6 +24,7 @@ model Usuario {
   correo    String    @unique @map("email")
   password  String    @map("password_hash")
   telefono  String?
+  sessionId String?   @map("session_id")
   deletedAt DateTime? @map("deleted_at") @db.Timestamp()
 
   roles             Usuario_Rol[]
@@ -246,6 +247,7 @@ model Examen {
   normasEx          String?  @map("normas_ex") @db.Text
   estadoExamId      Int      @map("id_EstadoExam")
   creadoEn          DateTime @default(now()) @map("creado_en")
+  fueEditado        Boolean  @default(false) @map("fue_editado")
 
   reservaAmbiente ReservaAmbiente @relation(fields: [reservaAmbienteId], references: [id])
   responsable     Usuario         @relation("ResponsableExamen", fields: [usuarioId], references: [id])

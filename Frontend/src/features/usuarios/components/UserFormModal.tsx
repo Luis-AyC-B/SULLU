@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Plus, Trash2 } from "lucide-react";
 
 import {
   Dialog,
@@ -14,6 +15,13 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 
 import {
   createUserSchema,
@@ -21,7 +29,8 @@ import {
   CreateUserFormValues,
   EditUserFormValues,
 } from "../schemas/user.schema";
-import { RolBasico, Usuario } from "../types/user.types";
+import { RolBasico, Usuario, CatalogoAcademico } from "../types/user.types";
+import { userService } from "../services/user.service";
 
 type UserFormValues = CreateUserFormValues | EditUserFormValues;
 
@@ -48,6 +57,12 @@ export function UserFormModal({
 }: UserFormModalProps) {
   const isEdit = mode === "edit";
 
+  const [catalogos, setCatalogos] = useState<CatalogoAcademico | null>(null);
+
+  useEffect(() => {
+    userService.getCatalogosAcademicos().then(setCatalogos).catch(console.error);
+  }, []);
+
   const {
     register,
     control,
@@ -63,6 +78,7 @@ export function UserFormModal({
           apellido: usuario?.apellido ?? "",
           telefono: usuario?.telefono ?? "",
           rolesIds: usuario?.roles.map((r) => r.id) ?? [],
+          alcances: usuario?.alcances ?? [],
         }
       : {
           nombre: "",
@@ -70,7 +86,13 @@ export function UserFormModal({
           correo: "",
           telefono: "",
           rolesIds: [],
+          alcances: [],
         },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "alcances",
   });
 
   // Resetea el form cada vez que se abre el modal o cambia el usuario a editar
@@ -84,6 +106,7 @@ export function UserFormModal({
             apellido: usuario?.apellido ?? "",
             telefono: usuario?.telefono ?? "",
             rolesIds: usuario?.roles.map((r) => r.id) ?? [],
+            alcances: usuario?.alcances ?? [],
           }
         : {
             nombre: "",
@@ -91,13 +114,14 @@ export function UserFormModal({
             correo: "",
             telefono: "",
             rolesIds: [],
+            alcances: [],
           }
     );
   }, [open, isEdit, usuario, reset]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="text-headline text-2xl">
             {isEdit ? "Editar usuario" : "Nuevo usuario"}
@@ -105,8 +129,10 @@ export function UserFormModal({
         </DialogHeader>
 
         <form
+          id="user-form"
           onSubmit={handleSubmit(onSubmit)}
-          className="space-y-4 border-t border-border pt-4"
+          className="flex-1 overflow-y-auto space-y-4 border-t border-border pt-4 pr-2 custom-scrollbar"
+          style={{ scrollbarWidth: "thin" }}
         >
           {/* Nombre */}
           <div className="space-y-1.5">
@@ -208,6 +234,131 @@ export function UserFormModal({
             )}
           </div>
 
+          {/* Alcances (Facultad, Carrera, Materia) */}
+          <div className="space-y-4 border-t border-border pt-4">
+            <div className="flex items-center justify-between">
+              <label className="text-label uppercase text-muted-foreground">
+                Materias asignadas (Alcance)
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  append({ facultadId: 0, carreraId: 0, materiaId: 0 })
+                }
+              >
+                <Plus className="mr-2 h-4 w-4" /> Agregar materia
+              </Button>
+            </div>
+
+            {fields.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No tiene materias asignadas.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {fields.map((field, index) => (
+                <div key={field.id} className="flex gap-2 items-end">
+                  {/* Select Facultad */}
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs text-muted-foreground">Facultad</label>
+                    <Controller
+                      control={control}
+                      name={`alcances.${index}.facultadId`}
+                      render={({ field }) => (
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))}
+                          value={field.value ? String(field.value) : ""}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Facultad..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {catalogos?.facultades.map((f) => (
+                              <SelectItem key={f.id} value={String(f.id)}>
+                                {f.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+
+                  {/* Select Carrera */}
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs text-muted-foreground">Carrera</label>
+                    <Controller
+                      control={control}
+                      name={`alcances.${index}.carreraId`}
+                      render={({ field }) => (
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))}
+                          value={field.value ? String(field.value) : ""}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Carrera..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {catalogos?.carreras.map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+
+                  {/* Select Materia */}
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs text-muted-foreground">Materia</label>
+                    <Controller
+                      control={control}
+                      name={`alcances.${index}.materiaId`}
+                      render={({ field }) => (
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))}
+                          value={field.value ? String(field.value) : ""}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Materia..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {catalogos?.materias.map((m) => (
+                              <SelectItem key={m.id} value={String(m.id)}>
+                                {m.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+
+                  {/* Botón Eliminar */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive mb-[2px]"
+                    onClick={() => remove(index)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {errors.alcances && !Array.isArray(errors.alcances) && (
+              <p className="text-label text-destructive">
+                {errors.alcances.message as string}
+              </p>
+            )}
+          </div>
+
           {/* Contraseña temporal: informativa, no editable. La genera el backend */}
           {!isEdit && (
             <div className="space-y-1.5">
@@ -224,21 +375,21 @@ export function UserFormModal({
               </p>
             </div>
           )}
-
-          <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isEdit ? "Guardar cambios" : "Crear usuario"}
-            </Button>
-          </DialogFooter>
         </form>
+
+        <DialogFooter className="pt-4 border-t border-border mt-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={isSubmitting}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" form="user-form" disabled={isSubmitting}>
+            {isEdit ? "Guardar cambios" : "Crear usuario"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

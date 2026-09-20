@@ -32,4 +32,9 @@ export class CreateUsuarioDto {
   @IsArray()
   @IsNotEmpty()
   rolesIds!: number[];
+
+  @ApiPropertyOptional({ example: [{ facultadId: 1, carreraId: 2, materiaId: 3 }] })
+  @IsArray()
+  @IsOptional()
+  alcances?: { facultadId: number; carreraId: number; materiaId: number }[];
 }

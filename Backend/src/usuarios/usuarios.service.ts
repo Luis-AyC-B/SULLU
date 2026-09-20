@@ -16,6 +16,15 @@ export class UsuariosService {
     private readonly mailService: MailService,
   ) {}
 
+  async getCatalogosAcademicos() {
+    const [facultades, carreras, materias] = await Promise.all([
+      this.prisma.facultad.findMany({ orderBy: { nombre: 'asc' } }),
+      this.prisma.carrera.findMany({ orderBy: { nombre: 'asc' } }),
+      this.prisma.materia.findMany({ orderBy: { nombre: 'asc' } }),
+    ]);
+    return { facultades, carreras, materias };
+  }
+
   async create(dto: CreateUsuarioDto) {
     const existe = await this.prisma.usuario.findUnique({
       where: { correo: dto.correo },
@@ -43,6 +52,17 @@ export class UsuariosService {
           data: dto.rolesIds.map((rolId) => ({
             usuarioId: usuario.id,
             rolId: Number(rolId),
+          })),
+        });
+      }
+
+      if (dto.alcances && dto.alcances.length > 0) {
+        await tx.usuario_Alcance.createMany({
+          data: dto.alcances.map((alcance) => ({
+            usuarioId: usuario.id,
+            facultadId: Number(alcance.facultadId),
+            carreraId: Number(alcance.carreraId),
+            materiaId: Number(alcance.materiaId),
           })),
         });
       }
@@ -180,29 +200,25 @@ export class UsuariosService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    // Verificar si ya tiene un alcance
-    const alcanceActual = await this.prisma.usuario_Alcance.findFirst({
-      where: { usuarioId: id },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      // Eliminar los alcances anteriores
+      await tx.usuario_Alcance.deleteMany({
+        where: { usuarioId: id },
+      });
 
-    if (alcanceActual) {
-      return this.prisma.usuario_Alcance.update({
-        where: { id: alcanceActual.id },
-        data: {
-          facultadId: dto.facultadId,
-          carreraId: dto.carreraId,
-          materiaId: dto.materiaId,
-        },
-      });
-    } else {
-      return this.prisma.usuario_Alcance.create({
-        data: {
-          usuarioId: id,
-          facultadId: dto.facultadId,
-          carreraId: dto.carreraId,
-          materiaId: dto.materiaId,
-        },
-      });
-    }
+      // Crear los nuevos
+      if (dto.alcances && dto.alcances.length > 0) {
+        await tx.usuario_Alcance.createMany({
+          data: dto.alcances.map((alcance) => ({
+            usuarioId: id,
+            facultadId: Number(alcance.facultadId),
+            carreraId: Number(alcance.carreraId),
+            materiaId: Number(alcance.materiaId),
+          })),
+        });
+      }
+
+      return { message: 'Alcances actualizados correctamente' };
+    });
   }
 }
