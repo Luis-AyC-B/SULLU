@@ -51,6 +51,13 @@ export class UsuariosController {
     return this.usuariosService.findAll(page || 1, limit || 10, search, rolId);
   }
 
+  @Get('catalogos/academicos')
+  @Permissions('usuarios.ver')
+  @ApiOperation({ summary: 'Obtener facultades, carreras y materias' })
+  getCatalogosAcademicos() {
+    return this.usuariosService.getCatalogosAcademicos();
+  }
+
   @Get(':id')
   @Permissions('usuarios.ver')
   @ApiOperation({ summary: 'Obtener detalle completo de un usuario' })

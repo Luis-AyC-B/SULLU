@@ -1,19 +1,8 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsArray } from 'class-validator';
 
 export class UpdateAlcanceDto {
-  @ApiPropertyOptional({ example: 1 })
-  @IsNumber()
-  @IsOptional()
-  facultadId?: number;
-
-  @ApiPropertyOptional({ example: 2 })
-  @IsNumber()
-  @IsOptional()
-  carreraId?: number;
-
-  @ApiPropertyOptional({ example: 3 })
-  @IsNumber()
-  @IsOptional()
-  materiaId?: number;
+  @ApiProperty({ example: [{ facultadId: 1, carreraId: 2, materiaId: 3 }] })
+  @IsArray()
+  alcances!: { facultadId: number; carreraId: number; materiaId: number }[];
 }
