@@ -68,6 +68,8 @@ export function UserFormModal({
     control,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<UserFormValues>({
     resolver: zodResolver(isEdit ? editUserSchema : createUserSchema),
@@ -121,7 +123,7 @@ export function UserFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
+      <DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-headline text-2xl">
             {isEdit ? "Editar usuario" : "Nuevo usuario"}
@@ -131,7 +133,7 @@ export function UserFormModal({
         <form
           id="user-form"
           onSubmit={handleSubmit(onSubmit)}
-          className="flex-1 overflow-y-auto space-y-4 border-t border-border pt-4 pr-2 custom-scrollbar"
+          className="custom-scrollbar flex-1 space-y-4 overflow-y-auto border-t border-border pt-4 pr-2"
           style={{ scrollbarWidth: "thin" }}
         >
           {/* Nombre */}
@@ -234,123 +236,191 @@ export function UserFormModal({
             )}
           </div>
 
-          {/* Alcances (Facultad, Carrera, Materia) */}
+          {/* Alcances (Facultad, Carrera opcional, Materia opcional) */}
           <div className="space-y-4 border-t border-border pt-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <label className="text-label uppercase text-muted-foreground">
-                Materias asignadas (Alcance)
+                Alcance (Facultad / Carrera / Materia)
               </label>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() =>
                   append({ facultadId: 0, carreraId: 0, materiaId: 0 })
                 }
               >
-                <Plus className="mr-2 h-4 w-4" /> Agregar materia
+                <Plus className="mr-2 h-4 w-4" /> Agregar alcance
               </Button>
             </div>
 
             {fields.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                No tiene materias asignadas.
+                No tiene ningún alcance asignado.
               </p>
             )}
 
             <div className="space-y-3">
-              {fields.map((field, index) => (
-                <div key={field.id} className="flex gap-2 items-end">
-                  {/* Select Facultad */}
-                  <div className="flex-1 space-y-1">
-                    <label className="text-xs text-muted-foreground">Facultad</label>
-                    <Controller
-                      control={control}
-                      name={`alcances.${index}.facultadId`}
-                      render={({ field }) => (
-                        <Select
-                          onValueChange={(val) => field.onChange(Number(val))}
-                          value={field.value ? String(field.value) : ""}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Facultad..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {catalogos?.facultades.map((f) => (
-                              <SelectItem key={f.id} value={String(f.id)}>
-                                {f.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
+              {fields.map((field, index) => {
+                const facultadId = watch(`alcances.${index}.facultadId`);
+                const carreraId = watch(`alcances.${index}.carreraId`);
+                const materiaId = watch(`alcances.${index}.materiaId`);
 
-                  {/* Select Carrera */}
-                  <div className="flex-1 space-y-1">
-                    <label className="text-xs text-muted-foreground">Carrera</label>
-                    <Controller
-                      control={control}
-                      name={`alcances.${index}.carreraId`}
-                      render={({ field }) => (
-                        <Select
-                          onValueChange={(val) => field.onChange(Number(val))}
-                          value={field.value ? String(field.value) : ""}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Carrera..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {catalogos?.carreras.map((c) => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                {c.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
+                const carrerasDeFacultad =
+                  catalogos?.carreras.filter(
+                    (c) => c.facultadId === facultadId
+                  ) ?? [];
 
-                  {/* Select Materia */}
-                  <div className="flex-1 space-y-1">
-                    <label className="text-xs text-muted-foreground">Materia</label>
-                    <Controller
-                      control={control}
-                      name={`alcances.${index}.materiaId`}
-                      render={({ field }) => (
-                        <Select
-                          onValueChange={(val) => field.onChange(Number(val))}
-                          value={field.value ? String(field.value) : ""}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Materia..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {catalogos?.materias.map((m) => (
-                              <SelectItem key={m.id} value={String(m.id)}>
-                                {m.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
+                let resumen = "Elegí al menos una facultad";
+                if (facultadId && !carreraId)
+                  resumen = "Alcance: toda la facultad";
+                else if (facultadId && carreraId && !materiaId)
+                  resumen = "Alcance: toda la carrera";
+                else if (facultadId && carreraId && materiaId)
+                  resumen = "Alcance: solo esa materia";
 
-                  {/* Botón Eliminar */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive mb-[2px]"
-                    onClick={() => remove(index)}
+                return (
+                  <div
+                    key={field.id}
+                    className="rounded-md border border-border p-3"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      {/* Select Facultad */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          Facultad
+                        </label>
+                        <Controller
+                          control={control}
+                          name={`alcances.${index}.facultadId`}
+                          render={({ field }) => (
+                            <Select
+                              onValueChange={(val) => {
+                                field.onChange(Number(val));
+                                // al cambiar de facultad, la carrera y materia
+                                // elegidas antes ya no tienen sentido
+                                setValue(`alcances.${index}.carreraId`, 0);
+                                setValue(`alcances.${index}.materiaId`, 0);
+                              }}
+                              value={field.value ? String(field.value) : ""}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Facultad..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {catalogos?.facultades.map((f) => (
+                                  <SelectItem key={f.id} value={String(f.id)}>
+                                    {f.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+
+                      {/* Select Carrera: filtrada por la facultad elegida; opcional */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          Carrera
+                        </label>
+                        <Controller
+                          control={control}
+                          name={`alcances.${index}.carreraId`}
+                          render={({ field }) => (
+                            <Select
+                              disabled={!facultadId}
+                              onValueChange={(val) => {
+                                field.onChange(Number(val));
+                                setValue(`alcances.${index}.materiaId`, 0);
+                              }}
+                              value={field.value ? String(field.value) : "0"}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue
+                                  placeholder={
+                                    facultadId
+                                      ? "Toda la facultad"
+                                      : "Elegí primero una facultad"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">
+                                  Toda la facultad
+                                </SelectItem>
+                                {carrerasDeFacultad.map((c) => (
+                                  <SelectItem key={c.id} value={String(c.id)}>
+                                    {c.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+
+                      {/* Select Materia: opcional, requiere carrera elegida */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          Materia
+                        </label>
+                        <Controller
+                          control={control}
+                          name={`alcances.${index}.materiaId`}
+                          render={({ field }) => (
+                            <Select
+                              disabled={!carreraId}
+                              onValueChange={(val) =>
+                                field.onChange(Number(val))
+                              }
+                              value={field.value ? String(field.value) : "0"}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue
+                                  placeholder={
+                                    carreraId
+                                      ? "Toda la carrera"
+                                      : "Elegí primero una carrera"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">
+                                  Toda la carrera
+                                </SelectItem>
+                                {/* TODO: idealmente filtrar por carreraId (Carrera_Materia);
+                                    por ahora se listan todas si el catálogo no trae esa relación */}
+                                {catalogos?.materias.map((m) => (
+                                  <SelectItem key={m.id} value={String(m.id)}>
+                                    {m.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+
+                      {/* Botón Eliminar */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="self-end text-destructive sm:mb-[2px]"
+                        onClick={() => remove(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <p className="mt-2 text-label text-muted-foreground">
+                      {resumen}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
             {errors.alcances && !Array.isArray(errors.alcances) && (
               <p className="text-label text-destructive">
@@ -377,7 +447,7 @@ export function UserFormModal({
           )}
         </form>
 
-        <DialogFooter className="pt-4 border-t border-border mt-2">
+        <DialogFooter className="mt-2 border-t border-border pt-4">
           <Button
             type="button"
             variant="ghost"
