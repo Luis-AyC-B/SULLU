@@ -1,3 +1,4 @@
+// src/shared/hooks/useUserPermissions.ts
 "use client";
 
 import { useSession } from "next-auth/react";
@@ -6,9 +7,9 @@ import type { Modulo } from "@/shared/types/modulo";
 
 export function useUserPermissions(): Modulo[] {
   const { data: session } = useSession();
+  const permisos = session?.user?.permisos as string[] | undefined;
 
-  const clavesPermitidas: string[] =
-    session?.permisos ?? modules.map((m) => m.clave);
+  if (!permisos) return [];
 
-  return modules.filter((m) => clavesPermitidas.includes(m.clave));
+  return modules.filter((m) => permisos.includes(`${m.clave}.ver`));
 }

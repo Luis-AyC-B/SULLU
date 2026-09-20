@@ -1,3 +1,4 @@
+// src/shared/lib/api-client.ts
 import axios from 'axios';
 import { getSession } from 'next-auth/react';
 
@@ -7,16 +8,8 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(async (config) => {
   const session = await getSession();
-  const sessionData = session as unknown as {
-    accessToken?: string;
-    user?: { accessToken?: string };
-  };
-
-  const token = sessionData?.accessToken || sessionData?.user?.accessToken;
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (session?.user?.accessToken) {
+    config.headers.Authorization = `Bearer ${session.user.accessToken}`;
   }
-  
   return config;
 });

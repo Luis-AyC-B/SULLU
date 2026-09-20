@@ -1,9 +1,9 @@
+// src/shared/config/modules.ts
 import { 
   Users, 
   Shield, 
   ClipboardCheck, 
-  GraduationCap, 
-  BarChart3 
+  GraduationCap 
 } from "lucide-react";
 import type { Modulo } from "@/shared/types/modulo";
 
@@ -31,11 +31,5 @@ export const modules: Modulo[] = [
     label: "Estudiantes",
     ruta: "/estudiantes",
     icon: GraduationCap,
-  },
-  {
-    clave: "reportes",
-    label: "Reportes",
-    ruta: "/reportes",
-    icon: BarChart3,
   },
 ];
