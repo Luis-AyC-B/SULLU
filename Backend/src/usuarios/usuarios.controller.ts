@@ -36,7 +36,7 @@ export class UsuariosController {
   }
 
   @Get()
-  @Permissions('usuarios.visualizar')
+  @Permissions('usuarios.ver')
   @ApiOperation({ summary: 'Listar usuarios con paginación y búsqueda' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -52,7 +52,7 @@ export class UsuariosController {
   }
 
   @Get(':id')
-  @Permissions('usuarios.visualizar')
+  @Permissions('usuarios.ver')
   @ApiOperation({ summary: 'Obtener detalle completo de un usuario' })
   findOne(@Param('id') id: string) {
     return this.usuariosService.findOne(+id);
@@ -79,7 +79,7 @@ export class UsuariosController {
   }
 
   @Delete(':id')
-  @Permissions('usuarios.eliminar')
+  @Permissions('usuarios.desactivar')
   @ApiOperation({ summary: 'Inhabilitar usuario con protección de registros' })
   remove(@Param('id') id: string) {
     return this.usuariosService.remove(+id);

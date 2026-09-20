@@ -1,15 +1,17 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import { ExamenesService } from './examenes.service';
 import { CreateExameneDto } from './dto/create-examene.dto';
 import { UpdateExameneDto } from './dto/update-examene.dto';
+import { QueryExamenesDto } from './dto/query-examenes.dto';
 
 @Controller('examenes')
 export class ExamenesController {
@@ -20,9 +22,10 @@ export class ExamenesController {
     return this.examenesService.create(createExameneDto);
   }
 
+  // Task 14
   @Get()
-  findAll() {
-    return this.examenesService.findAll();
+  findAll(@Query() query: QueryExamenesDto) {
+    return this.examenesService.findAllParaSelector(query);
   }
 
   @Get(':id')
