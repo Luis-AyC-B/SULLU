@@ -5,6 +5,7 @@ import {
   UpdateUsuarioInput,
   ReactivarUsuarioInput,
   CreateUsuarioResponse,
+  CatalogoAcademico,
 } from "../types/user.types";
 
 const BASE_URL = "/usuarios";
@@ -12,8 +13,8 @@ const BASE_URL = "/usuarios";
 export const userService = {
   /** Lista todos los usuarios (el backend excluye o marca los deletedAt según filtro) */
   getAll: async (): Promise<Usuario[]> => {
-    const { data } = await apiClient.get<any>(BASE_URL);
-    return data.data || data || [];
+    const { data } = await apiClient.get<{ data?: Usuario[] }>(BASE_URL);
+    return data.data || (data as unknown as Usuario[]) || [];
   },
 
   getById: async (id: number): Promise<Usuario> => {
@@ -57,6 +58,11 @@ export const userService = {
       `${BASE_URL}/reactivar`,
       payload
     );
+    return data;
+  },
+
+  getCatalogosAcademicos: async (): Promise<CatalogoAcademico> => {
+    const { data } = await apiClient.get<CatalogoAcademico>(`${BASE_URL}/catalogos/academicos`);
     return data;
   },
 };

@@ -33,6 +33,14 @@ const rolesIdsSchema = z
   .array(z.string())
   .min(1, "Selecciona al menos un rol");
 
+const alcanceSchema = z.object({
+  facultadId: z.number().min(1, "Selecciona una facultad"),
+  carreraId: z.number().min(1, "Selecciona una carrera"),
+  materiaId: z.number().min(1, "Selecciona una materia"),
+});
+
+const alcancesSchema = z.array(alcanceSchema).optional();
+
 // ==========================================================
 // Schema: creación de usuario
 // La contraseña temporal NO se valida acá: la genera el backend
@@ -44,6 +52,7 @@ export const createUserSchema = z.object({
   correo: correoInstitucionalSchema,
   telefono: telefonoSchema,
   rolesIds: rolesIdsSchema,
+  alcances: alcancesSchema,
 });
 
 // ==========================================================
@@ -55,6 +64,7 @@ export const editUserSchema = z.object({
   apellido: nombreSchema,
   telefono: telefonoSchema,
   rolesIds: rolesIdsSchema,
+  alcances: alcancesSchema,
 });
 
 // ==========================================================
