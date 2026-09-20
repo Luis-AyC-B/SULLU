@@ -42,7 +42,7 @@ export class UsuariosService {
         });
       }
 
-      return usuario;
+      return { usuario, reactivado: false };
     });
   }
 
