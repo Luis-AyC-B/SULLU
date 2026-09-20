@@ -246,6 +246,7 @@ model Examen {
   normasEx          String?  @map("normas_ex") @db.Text
   estadoExamId      Int      @map("id_EstadoExam")
   creadoEn          DateTime @default(now()) @map("creado_en")
+  fueEditado        Boolean  @default(false) @map("fue_editado")
 
   reservaAmbiente ReservaAmbiente @relation(fields: [reservaAmbienteId], references: [id])
   responsable     Usuario         @relation("ResponsableExamen", fields: [usuarioId], references: [id])
