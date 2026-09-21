@@ -62,7 +62,7 @@ export class ExamenesController {
   @Get('mis-ambientes')
   getMisAmbientes(@Req() req: RequestWithUser) {
     const userId = req.user?.id || 2;
-    return this.examenesService.getMisAmbientes(userId);
+    return this.examenesService.getMisAmbientes(userId, esAdmin(req));
   }
 
   @Post()

@@ -77,6 +77,8 @@ export class ExamenesService {
       horaInicio: horaISO(e.reservaAmbiente?.horaIni, '08:00'),
       horaFin: horaISO(e.reservaAmbiente?.horaFin, '09:30'),
       fueEditado: Boolean(e.fueEditado),
+      // Alias para que el frontend use siempre "createdAt"
+      createdAt: e.creadoEn?.toISOString() ?? new Date().toISOString(),
     };
   }
 
@@ -177,15 +179,15 @@ export class ExamenesService {
   }
   // Ambientes que el docente tiene reservados: es lo único que ve en el form de aula.
   // Se devuelve una fila por reserva (un mismo ambiente puede tener varias reservas).
-  async getMisAmbientes(usuarioId: number) {
+  async getMisAmbientes(usuarioId: number, isAdmin = false) {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
 
     const reservas = await prisma.reservaAmbiente.findMany({
       where: {
-        usuarioId,
-        fecha: { gte: hoy }, // solo reservas futuras (incluye hoy)
-        examenes: { none: {} }, // sin examen asignado aún
+        ...(isAdmin ? {} : { usuarioId }), // admin ve todas; docente solo las suyas
+        fecha: { gte: hoy },
+        examenes: { none: {} },
       },
       include: { ambiente: true },
       orderBy: { fecha: 'asc' },
