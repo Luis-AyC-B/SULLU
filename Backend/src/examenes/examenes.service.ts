@@ -23,6 +23,14 @@ const EXAMEN_INCLUDE = {
       },
     },
   },
+  // Agregar esto para contar los estudiantes habilitados desde la BD
+  _count: {
+    select: {
+      estudiantes: {
+        where: { estado_habilitado: true },
+      },
+    },
+  },
 };
 
 type ExamenCompleto = Prisma.ExamenGetPayload<{
@@ -79,6 +87,8 @@ export class ExamenesService {
       fueEditado: Boolean(e.fueEditado),
       // Alias para que el frontend use siempre "createdAt"
       createdAt: e.creadoEn?.toISOString() ?? new Date().toISOString(),
+      // Extraemos el conteo que hizo Prisma
+      habilitadosCount: e._count?.estudiantes ?? 0,
     };
   }
 
