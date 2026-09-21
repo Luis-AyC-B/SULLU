@@ -68,11 +68,29 @@ export function ExamFormModal({
     onClose();
   };
 
-  const formatAmbienteLabel = (a: AmbienteOption) => {
-    const parts = a.horarioDisponible.split("|").map((p) => p.trim());
-    const horario = parts[1] || parts[0] || "";
-    return `${a.nombre} \u00A0\u00A0 (${horario})`;
+
+  // Al editar: la reserva actual ya tiene el examen vinculado, por eso getMisAmbientes
+  // no la devuelve (solo trae reservas libres). La agregamos manualmente para que
+  // el select muestre el ambiente correcto.
+  const ambientesConActual = (): AmbienteOption[] => {
+    if (!initialData?.ambienteId) return ambientes;
+    const yaEsta = ambientes.some((a) => a.id === initialData.ambienteId);
+    if (yaEsta) return ambientes;
+    const actual: AmbienteOption = {
+      id: initialData.ambienteId,
+      nombre: initialData.ambienteNombre,
+      horarioDisponible: `${initialData.fecha} | ${initialData.horaInicio} - ${initialData.horaFin}`,
+    };
+    return [actual, ...ambientes];
   };
+  const ambienteOptions = ambientesConActual();
+
+  const formatAmbienteLabel = (a: AmbienteOption) => {
+  const [fecha = "", horario = ""] = a.horarioDisponible.split("|").map((p) => p.trim());
+  const [, mes, dia] = fecha.split("-");
+  const fechaCorta = dia && mes ? `${dia}/${mes}` : fecha;
+  return `${a.nombre} \u00A0 (${fechaCorta} · ${horario})`;
+};
 
   const inputStyle =
     "w-full rounded-lg border px-3 py-2 text-xs font-normal text-[#1A1D23] outline-none transition-colors border-gray-200 focus:border-blue-500 cursor-pointer";
@@ -121,7 +139,7 @@ export function ExamFormModal({
           <FormField label="AMBIENTE" error={errors.ambienteId?.message}>
             <select {...register("ambienteId")} className={inputStyle}>
               <option value="" disabled hidden>Seleccionar ambiente reservado</option>
-              {ambientes.map((a: AmbienteOption) => (
+              {ambienteOptions.map((a: AmbienteOption) => (
                 <option key={a.id} value={a.id} className="py-2.5 my-1">
                   {formatAmbienteLabel(a)}
                 </option>

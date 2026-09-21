@@ -49,6 +49,7 @@ interface BackendExamResponse {
   facultadNombre?: string;
   facultad?: { id?: string | number; nombre?: string };
   tipoExamen?: ExamType;
+  reservaAmbienteId?: string | number;
   ambienteId?: string | number;
   ambienteNombre?: string;
   ambiente?: { id?: string | number; nombre?: string };
@@ -63,7 +64,7 @@ interface BackendExamResponse {
   fecha?: string;
   horaInicio?: string;
   horaFin?: string;
-  estado?: ExamStatus;
+  estado?: ExamStatus | string;
   habilitadosCount?: number;
   estudiantes?: unknown[];
   createdAt?: string;
@@ -87,10 +88,14 @@ interface BackendMateriaResponse {
   facultadNombre?: string;
 }
 
+// Respuesta de GET /examenes/mis-ambientes: una fila por RESERVA del docente
 interface BackendAmbienteResponse {
-  id: string | number;
-  nombre: string;
-  horarioDisponible?: string;
+  reservaAmbienteId: string | number;
+  ambienteId: string | number;
+  ambienteNombre: string;
+  fecha?: string;
+  horaInicio?: string;
+  horaFin?: string;
 }
 
 // Función para normalizar cualquier fecha a "AAAA-MM-DD" sin desfases de zona horaria
@@ -122,8 +127,54 @@ export const normalizeDateString = (val: unknown): string => {
   return "";
 };
 
+// ← FIX: Normaliza el estado que venga del backend (cualquier mayúscula/minúscula
+// o sinónimo) al string EXACTO que espera el front ("Programado", "En curso",
+// "Finalizado", "Desactivado"). Si el backend manda una variante nueva que no
+// está en el mapa, avisa por consola en vez de fallar en silencio.
+export const normalizeEstado = (val: unknown): ExamStatus => {
+  const str = String(val ?? "").trim().toUpperCase();
+
+  const map: Record<string, ExamStatus> = {
+    PROGRAMADO: "Programado",
+    "EN CURSO": "En curso",
+    EN_CURSO: "En curso",
+    FINALIZADO: "Finalizado",
+    DESACTIVADO: "Desactivado",
+    CANCELADO: "Desactivado",
+    INACTIVO: "Desactivado",
+  };
+
+  if (!str) return "Programado";
+
+  const normalized = map[str];
+  if (!normalized) {
+    console.warn(`[normalizeEstado] Estado desconocido recibido del backend: "${val}". Cae a "Programado".`);
+    return "Programado";
+  }
+  return normalized;
+};
+
+
+// Normaliza el tipo de examen que viene del backend al valor EXACTO del select del frontend.
+// Mapea distintas variantes (mayúsculas, abreviaturas, valores legacy del seed) al string correcto.
+export const normalizeTipoExamen = (val: unknown): ExamType => {
+  const raw = String(val ?? "").toLowerCase().trim();
+  if (raw.includes("primer") || raw === "parcial") return "Primer parcial";
+  if (raw.includes("segundo") && raw.includes("parcial")) return "Segundo parcial";
+  if (raw.includes("final")) return "Examen final";
+  if (raw.includes("segunda") || raw.includes("segundo turno") || raw.includes("instancia")) return "Segunda instancia";
+  // Fallback: devolver tal cual (probablemente ya es el valor correcto)
+  return (val as ExamType) || "Primer parcial";
+};
 // URL base de NestJS (puerto 3001)
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+// El select del formulario guarda en "ambienteId" el id de la RESERVA elegida;
+// el backend espera ese valor como "reservaAmbienteId".
+const toPayload = ({ ambienteId, ...rest }: ExamFormValues) => ({
+  ...rest,
+  reservaAmbienteId: Number(ambienteId),
+});
 
 export function useExams() {
   const [exams, setExams] = useState<Exam[]>([]);
@@ -144,7 +195,7 @@ export function useExams() {
     try {
       const session = (await getSession()) as CustomSession | null;
       const token =
-        session?.accessToken || session?.token || session?.user?.token;
+        session?.accessToken || session?.token ||  session?.user?.accessToken || session?.user?.token;
       return token ? { Authorization: `Bearer ${token}` } : {};
     } catch {
       return {};
@@ -195,8 +246,9 @@ export function useExams() {
           carreraNombre: e.carreraNombre || e.carrera?.nombre || e.materia?.carrera?.nombre || "",
           facultadId: String(e.facultadId || e.facultad?.id || e.materia?.carrera?.facultad?.id || ""),
           facultadNombre: e.facultadNombre || e.facultad?.nombre || e.materia?.carrera?.facultad?.nombre || "",
-          tipoExamen: (e.tipoExamen as ExamType) || "Primer parcial",
-          ambienteId: String(e.ambienteId || e.ambiente?.id || ""),
+          tipoExamen: normalizeTipoExamen(e.tipoExamen),
+          // Se prioriza el id de la reserva: es el valor que usa el select del formulario
+          ambienteId: String(e.reservaAmbienteId || e.ambienteId || e.ambiente?.id || ""),
           ambienteNombre: e.ambienteNombre || e.ambiente?.nombre || "Aula asignada",
           fecha: normalizeDateString(e.fecha) || "2026-09-20",
           horaInicio: e.horaInicio || "08:00",
@@ -210,7 +262,7 @@ export function useExams() {
             (e.docente
               ? `${e.docente.nombre || ""} ${e.docente.apellido || ""}`.trim()
               : "Docente asignado"),
-          estado: (e.estado as ExamStatus) || "Programado",
+          estado: normalizeEstado(e.estado),
           createdAt: e.createdAt ? String(e.createdAt) : new Date().toISOString(),
           fueEditado: Boolean(e.fueEditado ?? e.isEdited),
           isEdited: Boolean(e.fueEditado ?? e.isEdited),
@@ -248,13 +300,13 @@ export function useExams() {
       }
 
       const mapped: MateriaOption[] = data.map((m) => ({
-        id: String(m.id),
-        nombre: m.nombre,
-        carreraId: String(m.carreraId || m.carrera?.id || ""),
-        carreraNombre: m.carreraNombre || m.carrera?.nombre || "",
-        facultadId: String(m.facultadId || m.carrera?.facultadId || ""),
-        facultadNombre: m.facultadNombre || m.carrera?.facultad?.nombre || "",
-      }));
+      id: String(m.id),
+      nombre: m.nombre,
+      carreraId: String(m.carreraId ?? m.carrera?.id ?? ""),
+      carreraNombre: m.carreraNombre || m.carrera?.nombre || "",
+      facultadId: String(m.facultadId ?? m.carrera?.facultadId ?? m.carrera?.facultad?.id ?? ""),
+      facultadNombre: m.facultadNombre || m.carrera?.facultad?.nombre || "",
+    }));
       setMaterias(mapped);
     } catch (err) {
       console.warn("Endpoint /materias pendiente de implementación:", err);
@@ -262,12 +314,12 @@ export function useExams() {
     }
   }, []);
 
-  // 3. Cargar ambientes
+  // 3. Cargar ambientes RESERVADOS por el docente (una opción por reserva)
   const loadAmbientes = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
       const response = await axios.get<BackendAmbienteResponse[] | { data: BackendAmbienteResponse[] }>(
-        `${API_URL}/ambientes`,
+        `${API_URL}/examenes/mis-ambientes`,
         { headers, withCredentials: true }
       );
       const rawData = response.data;
@@ -279,13 +331,13 @@ export function useExams() {
       }
 
       const mapped: AmbienteOption[] = data.map((a) => ({
-        id: String(a.id),
-        nombre: a.nombre,
-        horarioDisponible: a.horarioDisponible || "2026-09-20 | 08:00 - 09:30",
+        id: String(a.reservaAmbienteId),
+        nombre: a.ambienteNombre,
+        horarioDisponible: `${a.fecha ?? ""} | ${a.horaInicio ?? ""} - ${a.horaFin ?? ""}`,
       }));
       setAmbientes(mapped);
     } catch (err) {
-      console.warn("Aviso: no se pudieron cargar ambientes del backend:", err);
+      console.warn("Aviso: no se pudieron cargar los ambientes reservados:", err);
       setAmbientes([]);
     }
   }, []);
@@ -336,15 +388,21 @@ export function useExams() {
   const createExam = async (values: ExamFormValues) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await axios.post<Exam>(`${API_URL}/examenes`, values, {
-        headers,
-        withCredentials: true,
-      });
+      const response = await axios.post<Exam>(
+        `${API_URL}/examenes`,
+        toPayload(values),
+        {
+          headers,
+          withCredentials: true,
+        }
+      );
       const newExam: Exam = {
         ...response.data,
+        // Se conserva el id de la reserva para que coincida con el select del formulario
+        ambienteId: values.ambienteId,
         fecha: normalizeDateString(response.data.fecha) || "2026-09-20",
         createdAt: response.data.createdAt || new Date().toISOString(),
-        estado: (response.data.estado as ExamStatus) || "Programado",
+        estado: normalizeEstado(response.data.estado),
       };
       setExams((prev) => (Array.isArray(prev) ? [newExam, ...prev] : [newExam]));
       await dbService.saveExam(newExam);
@@ -361,7 +419,7 @@ export function useExams() {
       const headers = await getAuthHeaders();
       const response = await axios.patch<Exam>(
         `${API_URL}/examenes/${examId}`,
-        values,
+        toPayload(values),
         { headers, withCredentials: true }
       );
 
@@ -369,7 +427,9 @@ export function useExams() {
       const updatedExam: Exam = {
         ...(existingExam || ({} as Exam)),
         ...response.data,
+        ambienteId: values.ambienteId,
         fecha: normalizeDateString(response.data.fecha || existingExam?.fecha),
+        estado: normalizeEstado(response.data.estado ?? existingExam?.estado), // ← FIX
         id: String(examId),
         fueEditado: true,
         isEdited: true,
@@ -387,52 +447,16 @@ export function useExams() {
   };
 
   // Cancelar o desactivar examen
-  const cancelExam = async (examId: string, hardDelete: boolean) => {
+  // El backend decide si es borrado físico (<24h) o lógico (>=24h, queda como Desactivado)
+  const cancelExam = async (examId: string, _hardDelete: boolean) => {
     try {
       const headers = await getAuthHeaders();
-      if (hardDelete) {
-        await axios.delete(`${API_URL}/examenes/${examId}`, {
-          headers,
-          withCredentials: true,
-        });
-        setExams((prev) => (Array.isArray(prev) ? prev.filter((e) => e.id !== examId) : []));
-        await dbService.deleteExam(examId);
-      } else {
-        let responseData: Partial<Exam> = {};
-        try {
-          const response = await axios.patch<Exam>(
-            `${API_URL}/examenes/${examId}`,
-            { estado: "CANCELADO" },
-            { headers, withCredentials: true }
-          );
-          responseData = response.data;
-        } catch {
-          const fallbackResponse = await axios.patch<Exam>(
-            `${API_URL}/examenes/${examId}`,
-            { estado: "Desactivado" },
-            { headers, withCredentials: true }
-          );
-          responseData = fallbackResponse.data;
-        }
-
-        setExams((prev) =>
-          (Array.isArray(prev) ? prev : []).map((e) => {
-            if (e.id === examId) {
-              const updated: Exam = {
-                ...e,
-                ...responseData,
-                id: String(examId),
-                estado: "Desactivado" as ExamStatus,
-                fueEditado: false,
-                isEdited: false,
-              };
-              dbService.saveExam(updated);
-              return updated;
-            }
-            return e;
-          })
-        );
-      }
+      await axios.delete(`${API_URL}/examenes/${examId}`, {
+        headers,
+        withCredentials: true,
+      });
+      // Recarga desde el backend para reflejar el estado real
+      await loadExams();
     } catch (err) {
       console.error("Error cancelando examen en NestJS:", err);
       throw err;

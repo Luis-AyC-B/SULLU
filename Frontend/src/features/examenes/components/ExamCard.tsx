@@ -41,11 +41,11 @@ export function ExamCard({
   // Si pasaron 24 horas o más desde su creación => "Desactivar" (baja lógica)
   const isCreatedUnder24Hours = (): boolean => {
     // Si no tiene fecha de creación o es recién creado, es nuevo => "Cancelar"
-    if (!exam.createdAt) return true;
+    if (!exam.createdAt) return true;  // sin fecha = reciente = Cancelar
     
     const createdTime = new Date(exam.createdAt).getTime();
     // Si la fecha devuelta por la base de datos es inválida => "Cancelar"
-    if (isNaN(createdTime)) return true;
+    if (isNaN(createdTime)) return true;  // fecha invalida = reciente = Cancelar
 
     const now = new Date().getTime();
     const diffHours = (now - createdTime) / (1000 * 60 * 60);

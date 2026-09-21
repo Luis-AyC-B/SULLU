@@ -9,18 +9,40 @@ import {
   Delete,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { ExamenesService } from './examenes.service';
 import { CreateExamenDto } from './dto/create-examen.dto';
 import { UpdateExamenDto } from './dto/update-examen.dto';
 import { QueryExamenDto } from './dto/query-examen.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 interface RequestWithUser {
   user?: {
     id: number;
+    permisos?: string[];
   };
 }
 
+/** El admin se detecta por el permiso 'usuarios.crear' en el token */
+function esAdmin(req: RequestWithUser): boolean {
+  return (req.user?.permisos ?? []).includes('usuarios.crear');
+}
+
+// Convierte los IDs que llegan como texto desde el front (solo si vienen informados).
+function normalizarIds<T extends Record<string, any>>(body: T): T {
+  const out: Record<string, any> = { ...body };
+  for (const campo of ['materiaId', 'ambienteId', 'reservaAmbienteId']) {
+    if (out[campo] !== undefined && out[campo] !== null && out[campo] !== '') {
+      out[campo] = Number(out[campo]);
+    } else {
+      delete out[campo];
+    }
+  }
+  return out as T;
+}
+
+@UseGuards(JwtAuthGuard)
 @Controller('examenes')
 export class ExamenesController {
   constructor(private readonly examenesService: ExamenesService) {}
@@ -33,28 +55,31 @@ export class ExamenesController {
   @Get('mis-materias')
   getMisMaterias(@Req() req: RequestWithUser) {
     const userId = req.user?.id || 2;
-    return this.examenesService.getMateriasDocente(userId);
+    return this.examenesService.getMateriasDocente(userId, esAdmin(req));
+  }
+
+  // Lo que debe listar el select de aula del formulario: solo las reservas del docente.
+  @Get('mis-ambientes')
+  getMisAmbientes(@Req() req: RequestWithUser) {
+    const userId = req.user?.id || 2;
+    return this.examenesService.getMisAmbientes(userId, esAdmin(req));
   }
 
   @Post()
   create(
-    // Extraemos el body crudo para que el ValidationPipe no bloquee los IDs en formato texto
+    // Body crudo para que el ValidationPipe no bloquee los IDs en formato texto
     @Body() body: Record<string, any>,
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user?.id || 2;
-    const payload = {
-      ...body,
-      materiaId: Number(body.materiaId),
-      ambienteId: Number(body.ambienteId),
-    } as CreateExamenDto;
-    return this.examenesService.create(payload, userId);
+    const payload = normalizarIds(body) as CreateExamenDto;
+    return this.examenesService.create(payload, userId, esAdmin(req));
   }
 
   @Get()
   findAll(@Query() query: QueryExamenDto, @Req() req: RequestWithUser) {
     const userId = req.user?.id || 2;
-    return this.examenesService.findAll(query, userId);
+    return this.examenesService.findAll(query, userId, esAdmin(req));
   }
 
   @Patch(':id')
@@ -64,9 +89,7 @@ export class ExamenesController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user?.id || 2;
-    const payload = { ...body } as UpdateExamenDto;
-    if (payload.materiaId) payload.materiaId = Number(payload.materiaId);
-    if (payload.ambienteId) payload.ambienteId = Number(payload.ambienteId);
+    const payload = normalizarIds(body) as UpdateExamenDto;
     return this.examenesService.update(+id, payload, userId);
   }
 
@@ -77,9 +100,7 @@ export class ExamenesController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user?.id || 2;
-    const payload = { ...body } as UpdateExamenDto;
-    if (payload.materiaId) payload.materiaId = Number(payload.materiaId);
-    if (payload.ambienteId) payload.ambienteId = Number(payload.ambienteId);
+    const payload = normalizarIds(body) as UpdateExamenDto;
     return this.examenesService.update(+id, payload, userId);
   }
 
@@ -94,18 +115,14 @@ export class ExamenesController {
   }
 }
 
+@UseGuards(JwtAuthGuard)
 @Controller('materias')
 export class MateriasController {
   constructor(private readonly examenesService: ExamenesService) {}
 
   @Get()
   async getMaterias(@Req() req: RequestWithUser) {
-    console.log('\n=== DEBUG MATERIAS ===');
-    console.log('ID real detectado en el token:', req.user?.id);
-    const userId = 2;
-    console.log('Forzando búsqueda de materias para el usuario:', userId);
-    const materias = await this.examenesService.getMateriasDocente(userId);
-    console.log('Materias que se enviarán al frontend:', materias);
-    return materias;
+    const userId = req.user?.id || 2;
+    return this.examenesService.getMateriasDocente(userId, esAdmin(req));
   }
 }
