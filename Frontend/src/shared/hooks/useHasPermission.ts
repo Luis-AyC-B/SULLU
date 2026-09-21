@@ -3,22 +3,11 @@
 
 import { useSession } from "next-auth/react";
 
-interface SessionWithPermisos {
-  permisos?: string[];
-  user?: {
-    permisos?: string[];
-  };
-}
-
 export function useHasPermission(permiso: string): boolean {
-  const { data: session } = useSession();
-  const sessionObj = session as unknown as SessionWithPermisos | undefined;
+  const { data: session, status } = useSession();
 
-  const permisos = sessionObj?.permisos || sessionObj?.user?.permisos;
+  if (status === "loading") return false;
 
-  if (!permisos || !Array.isArray(permisos)) {
-    return false;
-  }
-
-  return permisos.includes(permiso);
+  const permisos = session?.user?.permisos as string[] | undefined;
+  return !!permisos?.includes(permiso);
 }

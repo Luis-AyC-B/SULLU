@@ -33,6 +33,16 @@ const rolesIdsSchema = z
   .array(z.string())
   .min(1, "Selecciona al menos un rol");
 
+// Alcance: la facultad es obligatoria; carrera y materia son opcionales
+// (0 / null / undefined = sin restricción: toda la facultad / toda la carrera)
+const alcanceSchema = z.object({
+  facultadId: z.number().min(1, "Selecciona una facultad"),
+  carreraId: z.number().nullable().optional(),
+  materiaId: z.number().nullable().optional(),
+});
+
+const alcancesSchema = z.array(alcanceSchema).optional();
+
 // ==========================================================
 // Schema: creación de usuario
 // La contraseña temporal NO se valida acá: la genera el backend
@@ -44,6 +54,7 @@ export const createUserSchema = z.object({
   correo: correoInstitucionalSchema,
   telefono: telefonoSchema,
   rolesIds: rolesIdsSchema,
+  alcances: alcancesSchema,
 });
 
 // ==========================================================
@@ -55,6 +66,7 @@ export const editUserSchema = z.object({
   apellido: nombreSchema,
   telefono: telefonoSchema,
   rolesIds: rolesIdsSchema,
+  alcances: alcancesSchema,
 });
 
 // ==========================================================

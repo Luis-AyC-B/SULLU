@@ -5,6 +5,7 @@ import {
   UpdateUsuarioInput,
   ReactivarUsuarioInput,
   CreateUsuarioResponse,
+  CatalogoAcademico,
 } from "../types/user.types";
 
 const BASE_URL = "/usuarios";
@@ -12,12 +13,8 @@ const BASE_URL = "/usuarios";
 export const userService = {
   /** Lista todos los usuarios (el backend excluye o marca los deletedAt según filtro) */
   getAll: async (): Promise<Usuario[]> => {
-    const { data } = await apiClient.get<Usuario[] | { data: Usuario[] }>(BASE_URL);
-    if (Array.isArray(data)) return data;
-    if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
-      return data.data;
-    }
-    return [];
+    const { data } = await apiClient.get<{ data?: Usuario[] }>(BASE_URL);
+    return data.data || (data as unknown as Usuario[]) || [];
   },
 
   getById: async (id: number): Promise<Usuario> => {
@@ -39,12 +36,25 @@ export const userService = {
     return data;
   },
 
+  /**
+   * Edita datos básicos y roles (PATCH /usuarios/:id) y, si vienen alcances,
+   * los reemplaza con PUT /usuarios/:id/alcance (el PATCH no los recibe).
+   */
   update: async (payload: UpdateUsuarioInput): Promise<Usuario> => {
-    const { id, ...rest } = payload;
-    const { data } = await apiClient.patch<Usuario>(
-      `${BASE_URL}/${id}`,
-      rest
-    );
+    const { id, alcances, ...rest } = payload;
+
+    const { data } = await apiClient.patch<Usuario>(`${BASE_URL}/${id}`, rest);
+
+    if (alcances) {
+      await apiClient.put(`${BASE_URL}/${id}/alcance`, {
+        alcances: alcances.map((a) => ({
+          facultadId: a.facultadId,
+          carreraId: a.carreraId || null,
+          materiaId: a.materiaId || null,
+        })),
+      });
+    }
+
     return data;
   },
 
@@ -60,6 +70,13 @@ export const userService = {
     const { data } = await apiClient.post<CreateUsuarioResponse>(
       `${BASE_URL}/reactivar`,
       payload
+    );
+    return data;
+  },
+
+  getCatalogosAcademicos: async (): Promise<CatalogoAcademico> => {
+    const { data } = await apiClient.get<CatalogoAcademico>(
+      `${BASE_URL}/catalogos/academicos`
     );
     return data;
   },

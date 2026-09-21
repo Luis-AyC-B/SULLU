@@ -68,7 +68,7 @@ interface BackendExamResponse {
   estudiantes?: unknown[];
   createdAt?: string;
   normas?: string;
-  fueEditado?: boolean; // <--- Agregado para el backend de tu amigo
+  fueEditado?: boolean;
   isEdited?: boolean;
 }
 
@@ -139,18 +139,26 @@ export function useExams() {
     }
   }, []);
 
-  // 1. Cargar exámenes del Backend
+  // 1. Cargar exámenes del Backend (con protección total contra no-arrays)
   const loadExams = useCallback(async () => {
     setIsLoading(true);
     try {
       if (navigator.onLine) {
         const headers = await getAuthHeaders();
-        const response = await axios.get<BackendExamResponse[]>(
+        const response = await axios.get<BackendExamResponse[] | { data: BackendExamResponse[] }>(
           `${API_URL}/examenes`,
           { headers, withCredentials: true }
         );
 
-        const data = response.data || [];
+        // Extraer la lista de forma segura (sea array directo o envuelto en .data)
+        const rawData = response.data;
+        let data: BackendExamResponse[] = [];
+        if (Array.isArray(rawData)) {
+          data = rawData;
+        } else if (rawData && typeof rawData === "object" && "data" in rawData && Array.isArray(rawData.data)) {
+          data = rawData.data;
+        }
+
         const mappedExams: Exam[] = data.map((e): Exam => ({
           id: String(e.id),
           materiaId: String(e.materiaId || e.materia?.id || ""),
@@ -176,34 +184,41 @@ export function useExams() {
               : "Docente asignado"),
           estado: (e.estado as ExamStatus) || "Programado",
           createdAt: e.createdAt ? String(e.createdAt) : new Date().toISOString(),
-          fueEditado: Boolean(e.fueEditado ?? e.isEdited), // <--- Soporta fueEditado del backend
-          isEdited: Boolean(e.fueEditado ?? e.isEdited),   // <--- Mantiene compatibilidad
+          fueEditado: Boolean(e.fueEditado ?? e.isEdited),
+          isEdited: Boolean(e.fueEditado ?? e.isEdited),
         }));
 
         setExams(mappedExams);
         await dbService.saveAllExams(mappedExams);
       } else {
         const offlineExams = await dbService.getAllExams();
-        setExams(offlineExams);
+        setExams(Array.isArray(offlineExams) ? offlineExams : []);
       }
     } catch (err) {
       console.warn("Backend no disponible, cargando datos locales:", err);
       const offlineExams = await dbService.getAllExams();
-      setExams(offlineExams);
+      setExams(Array.isArray(offlineExams) ? offlineExams : []);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // 2. Cargar materias
+  // 2. Cargar materias de forma segura
   const loadMaterias = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await axios.get<BackendMateriaResponse[]>(
+      const response = await axios.get<BackendMateriaResponse[] | { data: BackendMateriaResponse[] }>(
         `${API_URL}/materias`,
         { headers, withCredentials: true }
       );
-      const data = response.data || [];
+      const rawData = response.data;
+      let data: BackendMateriaResponse[] = [];
+      if (Array.isArray(rawData)) {
+        data = rawData;
+      } else if (rawData && typeof rawData === "object" && "data" in rawData && Array.isArray(rawData.data)) {
+        data = rawData.data;
+      }
+
       const mapped: MateriaOption[] = data.map((m) => ({
         id: String(m.id),
         nombre: m.nombre,
@@ -215,18 +230,26 @@ export function useExams() {
       setMaterias(mapped);
     } catch (err) {
       console.warn("Endpoint /materias pendiente de implementación:", err);
+      setMaterias([]);
     }
   }, []);
 
-  // 3. Cargar ambientes
+  // 3. Cargar ambientes de forma segura
   const loadAmbientes = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await axios.get<BackendAmbienteResponse[]>(
+      const response = await axios.get<BackendAmbienteResponse[] | { data: BackendAmbienteResponse[] }>(
         `${API_URL}/ambientes`,
         { headers, withCredentials: true }
       );
-      const data = response.data || [];
+      const rawData = response.data;
+      let data: BackendAmbienteResponse[] = [];
+      if (Array.isArray(rawData)) {
+        data = rawData;
+      } else if (rawData && typeof rawData === "object" && "data" in rawData && Array.isArray(rawData.data)) {
+        data = rawData.data;
+      }
+
       const mapped: AmbienteOption[] = data.map((a) => ({
         id: String(a.id),
         nombre: a.nombre,
@@ -235,6 +258,7 @@ export function useExams() {
       setAmbientes(mapped);
     } catch (err) {
       console.warn("Aviso: no se pudieron cargar ambientes del backend:", err);
+      setAmbientes([]);
     }
   }, []);
 
@@ -244,8 +268,9 @@ export function useExams() {
     loadAmbientes();
   }, [loadExams, loadMaterias, loadAmbientes]);
 
-  // Filtros dinámicos
+  // Filtros dinámicos (Protegido con Array.isArray para que NUNCA falle)
   const filteredExams = useMemo(() => {
+    if (!Array.isArray(exams)) return []; // <--- ESTO EVITA EL ERROR A TUS AMIGOS
     return exams.filter((exam) => {
       if (filters.facultadId && exam.facultadId !== filters.facultadId) return false;
       if (filters.carreraId && exam.carreraId !== filters.carreraId) return false;
@@ -265,7 +290,7 @@ export function useExams() {
         withCredentials: true,
       });
       const newExam = response.data;
-      setExams((prev) => [newExam, ...prev]);
+      setExams((prev) => (Array.isArray(prev) ? [newExam, ...prev] : [newExam]));
       await dbService.saveExam(newExam);
       return newExam;
     } catch (err) {
@@ -280,7 +305,7 @@ export function useExams() {
       const headers = await getAuthHeaders();
       const response = await axios.patch<Exam>(
         `${API_URL}/examenes/${examId}`,
-        { ...values, fueEditado: true }, // <--- Enviamos fueEditado: true al backend
+        { ...values, fueEditado: true },
         { headers, withCredentials: true }
       );
       const updatedExam: Exam = {
@@ -288,7 +313,9 @@ export function useExams() {
         fueEditado: true,
         isEdited: true,
       };
-      setExams((prev) => prev.map((e) => (e.id === examId ? updatedExam : e)));
+      setExams((prev) =>
+        Array.isArray(prev) ? prev.map((e) => (e.id === examId ? updatedExam : e)) : [updatedExam]
+      );
       await dbService.saveExam(updatedExam);
       return updatedExam;
     } catch (err) {
@@ -306,7 +333,7 @@ export function useExams() {
           headers,
           withCredentials: true,
         });
-        setExams((prev) => prev.filter((e) => e.id !== examId));
+        setExams((prev) => (Array.isArray(prev) ? prev.filter((e) => e.id !== examId) : []));
         await dbService.deleteExam(examId);
       } else {
         const response = await axios.patch<Exam>(
@@ -315,7 +342,9 @@ export function useExams() {
           { headers, withCredentials: true }
         );
         const updated: Exam = response.data;
-        setExams((prev) => prev.map((e) => (e.id === examId ? updated : e)));
+        setExams((prev) =>
+          Array.isArray(prev) ? prev.map((e) => (e.id === examId ? updated : e)) : []
+        );
         await dbService.saveExam(updated);
       }
     } catch (err) {
