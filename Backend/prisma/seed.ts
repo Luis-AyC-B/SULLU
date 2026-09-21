@@ -419,6 +419,34 @@ async function main() {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const usuarioIds: Record<string, number> = {};
 
+  // --- RE-CREAR ADMINISTRADOR ---
+  const rolAdmin = await prisma.rol.upsert({
+    where: { nombre: 'Administrador' },
+    update: {},
+    create: {
+      nombre: 'Administrador',
+      descripcion: 'Rol de administrador general',
+    },
+  });
+
+  const admin = await prisma.usuario.upsert({
+    where: { correo: 'admin@exacontrol.com' },
+    update: { password: passwordHash },
+    create: {
+      nombre: 'Admin',
+      apellido: 'General',
+      correo: 'admin@exacontrol.com',
+      password: passwordHash,
+    },
+  });
+
+  await prisma.usuario_Rol.upsert({
+    where: { usuarioId_rolId: { usuarioId: admin.id, rolId: rolAdmin.id } },
+    update: {},
+    create: { usuarioId: admin.id, rolId: rolAdmin.id },
+  });
+  // -----------------------------
+
   for (const u of USUARIOS) {
     const rol = await prisma.rol.upsert({
       where: { nombre: u.rol },
