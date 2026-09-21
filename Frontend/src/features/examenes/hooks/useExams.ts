@@ -63,7 +63,7 @@ interface BackendExamResponse {
   fecha?: string;
   horaInicio?: string;
   horaFin?: string;
-  estado?: ExamStatus;
+  estado?: ExamStatus | string;
   habilitadosCount?: number;
   estudiantes?: unknown[];
   createdAt?: string;
@@ -120,6 +120,33 @@ export const normalizeDateString = (val: unknown): string => {
   }
 
   return "";
+};
+
+// ← FIX: Normaliza el estado que venga del backend (cualquier mayúscula/minúscula
+// o sinónimo) al string EXACTO que espera el front ("Programado", "En curso",
+// "Finalizado", "Desactivado"). Si el backend manda una variante nueva que no
+// está en el mapa, avisa por consola en vez de fallar en silencio.
+export const normalizeEstado = (val: unknown): ExamStatus => {
+  const str = String(val ?? "").trim().toUpperCase();
+
+  const map: Record<string, ExamStatus> = {
+    PROGRAMADO: "Programado",
+    "EN CURSO": "En curso",
+    EN_CURSO: "En curso",
+    FINALIZADO: "Finalizado",
+    DESACTIVADO: "Desactivado",
+    CANCELADO: "Desactivado",
+    INACTIVO: "Desactivado",
+  };
+
+  if (!str) return "Programado";
+
+  const normalized = map[str];
+  if (!normalized) {
+    console.warn(`[normalizeEstado] Estado desconocido recibido del backend: "${val}". Cae a "Programado".`);
+    return "Programado";
+  }
+  return normalized;
 };
 
 // URL base de NestJS (puerto 3001)
@@ -188,33 +215,33 @@ export function useExams() {
         }
 
         const mappedExams: Exam[] = data.map((e): Exam => ({
-          id: String(e.id),
-          materiaId: String(e.materiaId || e.materia?.id || ""),
-          materiaNombre: e.materiaNombre || e.materia?.nombre || "Materia",
-          carreraId: String(e.carreraId || e.carrera?.id || e.materia?.carrera?.id || ""),
-          carreraNombre: e.carreraNombre || e.carrera?.nombre || e.materia?.carrera?.nombre || "",
-          facultadId: String(e.facultadId || e.facultad?.id || e.materia?.carrera?.facultad?.id || ""),
-          facultadNombre: e.facultadNombre || e.facultad?.nombre || e.materia?.carrera?.facultad?.nombre || "",
-          tipoExamen: (e.tipoExamen as ExamType) || "Primer parcial",
-          ambienteId: String(e.ambienteId || e.ambiente?.id || ""),
-          ambienteNombre: e.ambienteNombre || e.ambiente?.nombre || "Aula asignada",
-          fecha: normalizeDateString(e.fecha) || "2026-09-20",
-          horaInicio: e.horaInicio || "08:00",
-          horaFin: e.horaFin || "09:30",
-          duracionMinutos: Number(e.duracionMinutos || 90),
-          habilitadosCount: Number(e.habilitadosCount ?? (e.estudiantes?.length ?? 0)),
-          normas: e.normas || "",
-          docenteId: String(e.docenteId || e.docente?.id || ""),
-          docenteNombre:
-            e.docenteNombre ||
-            (e.docente
-              ? `${e.docente.nombre || ""} ${e.docente.apellido || ""}`.trim()
-              : "Docente asignado"),
-          estado: (e.estado as ExamStatus) || "Programado",
-          createdAt: e.createdAt ? String(e.createdAt) : new Date().toISOString(),
-          fueEditado: Boolean(e.fueEditado ?? e.isEdited),
-          isEdited: Boolean(e.fueEditado ?? e.isEdited),
-        }));
+        id: String(e.id),
+        materiaId: String(e.materiaId || e.materia?.id || ""),
+        materiaNombre: e.materiaNombre || e.materia?.nombre || "Materia",
+        carreraId: String(e.carreraId || e.carrera?.id || e.materia?.carrera?.id || ""),
+        carreraNombre: e.carreraNombre || e.carrera?.nombre || e.materia?.carrera?.nombre || "",
+        facultadId: String(e.facultadId || e.facultad?.id || e.materia?.carrera?.facultad?.id || ""),
+        facultadNombre: e.facultadNombre || e.facultad?.nombre || e.materia?.carrera?.facultad?.nombre || "",
+        tipoExamen: (e.tipoExamen as ExamType) || "Primer parcial",
+        ambienteId: String(e.ambienteId || e.ambiente?.id || ""),
+        ambienteNombre: e.ambienteNombre || e.ambiente?.nombre || "Aula asignada",
+        fecha: normalizeDateString(e.fecha),
+        horaInicio: e.horaInicio ?? "",
+        horaFin: e.horaFin ?? "",
+        duracionMinutos: Number(e.duracionMinutos ?? 0),
+        habilitadosCount: Number(e.habilitadosCount ?? (e.estudiantes?.length ?? 0)),
+        normas: e.normas || "",
+        docenteId: String(e.docenteId || e.docente?.id || ""),
+        docenteNombre:
+          e.docenteNombre ||
+          (e.docente
+            ? `${e.docente.nombre || ""} ${e.docente.apellido || ""}`.trim()
+            : "Docente asignado"),
+        estado: normalizeEstado(e.estado),                         // ← FIX
+        createdAt: e.createdAt ? String(e.createdAt) : "",
+        fueEditado: Boolean(e.fueEditado ?? e.isEdited),
+        isEdited: Boolean(e.fueEditado ?? e.isEdited),
+      }));
 
         setExams(mappedExams);
         await dbService.saveAllExams(mappedExams);
@@ -248,13 +275,13 @@ export function useExams() {
       }
 
       const mapped: MateriaOption[] = data.map((m) => ({
-        id: String(m.id),
-        nombre: m.nombre,
-        carreraId: String(m.carreraId || m.carrera?.id || ""),
-        carreraNombre: m.carreraNombre || m.carrera?.nombre || "",
-        facultadId: String(m.facultadId || m.carrera?.facultadId || ""),
-        facultadNombre: m.facultadNombre || m.carrera?.facultad?.nombre || "",
-      }));
+      id: String(m.id),
+      nombre: m.nombre,
+      carreraId: String(m.carreraId ?? m.carrera?.id ?? ""),
+      carreraNombre: m.carreraNombre || m.carrera?.nombre || "",
+      facultadId: String(m.facultadId ?? m.carrera?.facultadId ?? m.carrera?.facultad?.id ?? ""),
+      facultadNombre: m.facultadNombre || m.carrera?.facultad?.nombre || "",
+    }));
       setMaterias(mapped);
     } catch (err) {
       console.warn("Endpoint /materias pendiente de implementación:", err);
@@ -342,9 +369,9 @@ export function useExams() {
       });
       const newExam: Exam = {
         ...response.data,
-        fecha: normalizeDateString(response.data.fecha) || "2026-09-20",
+        fecha: normalizeDateString(response.data.fecha),
         createdAt: response.data.createdAt || new Date().toISOString(),
-        estado: (response.data.estado as ExamStatus) || "Programado",
+        estado: normalizeEstado(response.data.estado),             // ← FIX
       };
       setExams((prev) => (Array.isArray(prev) ? [newExam, ...prev] : [newExam]));
       await dbService.saveExam(newExam);
@@ -370,6 +397,7 @@ export function useExams() {
         ...(existingExam || ({} as Exam)),
         ...response.data,
         fecha: normalizeDateString(response.data.fecha || existingExam?.fecha),
+        estado: normalizeEstado(response.data.estado ?? existingExam?.estado), // ← FIX
         id: String(examId),
         fueEditado: true,
         isEdited: true,
@@ -422,7 +450,12 @@ export function useExams() {
                 ...e,
                 ...responseData,
                 id: String(examId),
-                estado: "Desactivado" as ExamStatus,
+                // ← FIX: se fuerza "Desactivado" pasado por normalizeEstado para
+                // mantener consistencia de tipo. Si el backend NO persiste este
+                // cambio, al refrescar (loadExams) el estado real que vuelva del
+                // servidor pisará esto — eso ya no es un bug de front, hay que
+                // confirmarlo con el backend.
+                estado: normalizeEstado("DESACTIVADO"),
                 fueEditado: false,
                 isEdited: false,
               };
