@@ -14,8 +14,8 @@ import { ExamFormValues } from "@/features/examenes/schemas/exam.schema";
 export default function ExamenesPage() {
   const {
     filteredExams,
-    materias,    // <--- Extraemos materias de useExams
-    ambientes,   // <--- Extraemos ambientes de useExams
+    materias,
+    ambientes,
     filters,
     setFilters,
     createExam,
@@ -25,8 +25,13 @@ export default function ExamenesPage() {
   } = useExams();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Estados independientes para el flujo de edición
   const [examToEdit, setExamToEdit] = useState<Exam | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isConfirmEditOpen, setIsConfirmEditOpen] = useState(false);
   const [pendingEditValues, setPendingEditValues] = useState<ExamFormValues | null>(null);
+
   const [examToCancel, setExamToCancel] = useState<Exam | null>(null);
 
   // Permisos dinámicos
@@ -40,22 +45,52 @@ export default function ExamenesPage() {
   const handleCreateExam = async (values: ExamFormValues) => {
     try {
       await createExam(values);
+      setIsCreateModalOpen(false);
     } catch (err) {
       console.error("Error al crear examen:", err);
     }
   };
 
-  // Cuando presiona "Guardar cambios" en el formulario de edición: abre el modal de confirmación
-  const handleEditFormSubmit = (values: ExamFormValues) => {
-    setPendingEditValues(values);
+  // 1. Al presionar el lápiz: abre el formulario de edición
+  const handleStartEdit = (exam: Exam) => {
+    setExamToEdit(exam);
+    setPendingEditValues(null);
+    setIsConfirmEditOpen(false);
+    setIsEditModalOpen(true);
   };
 
-  // Cuando presiona "Confirmar" en el modal de confirmación de edición
+  // 2. Al enviar el formulario: abrimos la confirmación
+  const handleEditFormSubmit = (values: ExamFormValues) => {
+    setPendingEditValues(values);
+    setIsEditModalOpen(false);
+    setIsConfirmEditOpen(true);
+  };
+
+  // 3. Cerrar el modal de edición
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+  };
+
+  // 4. Cerrar o cancelar la confirmación
+  const handleCloseConfirmModal = () => {
+    setIsConfirmEditOpen(false);
+    setPendingEditValues(null);
+    setExamToEdit(null);
+  };
+
+  // 5. Al presionar "Confirmar" en la ventana de confirmación: guardamos en el Backend
   const handleConfirmEdit = async () => {
-    if (examToEdit && pendingEditValues) {
+    if (!examToEdit || !pendingEditValues) {
+      console.warn("Faltan datos para editar:", { examToEdit, pendingEditValues });
+      return;
+    }
+    try {
       await updateExam(examToEdit.id, pendingEditValues);
+      setIsConfirmEditOpen(false);
       setPendingEditValues(null);
       setExamToEdit(null);
+    } catch (err) {
+      console.error("Error al actualizar examen:", err);
     }
   };
 
@@ -63,6 +98,7 @@ export default function ExamenesPage() {
   const handleConfirmCancel = async (examId: string, hardDelete: boolean) => {
     try {
       await cancelExam(examId, hardDelete);
+      setExamToCancel(null);
     } catch (err) {
       console.error("Error al cancelar/desactivar examen:", err);
     }
@@ -103,7 +139,7 @@ export default function ExamenesPage() {
                 exam={exam}
                 canEdit={canEdit}
                 canCancel={canCancel}
-                onEdit={(e) => setExamToEdit(e)}
+                onEdit={handleStartEdit}
                 onCancel={(e) => setExamToCancel(e)}
               />
             ))}
@@ -132,10 +168,10 @@ export default function ExamenesPage() {
         ambientes={ambientes}
       />
 
-      {/* Modal de Edición (se abre al hacer clic en el lápiz) */}
+      {/* Modal de Edición (Formulario) */}
       <ExamFormModal
-        isOpen={Boolean(examToEdit) && !pendingEditValues}
-        onClose={() => setExamToEdit(null)}
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
         onSubmit={handleEditFormSubmit}
         initialData={examToEdit}
         materias={materias}
@@ -143,7 +179,7 @@ export default function ExamenesPage() {
       />
 
       {/* Modal de Confirmación de Edición */}
-      {pendingEditValues && examToEdit && (
+      {isConfirmEditOpen && examToEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
           <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl transition-all">
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
@@ -153,7 +189,7 @@ export default function ExamenesPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setPendingEditValues(null)}
+                onClick={handleCloseConfirmModal}
                 className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
               >
                 <X className="h-4 w-4" />
@@ -170,7 +206,11 @@ export default function ExamenesPage() {
             <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
               <button
                 type="button"
-                onClick={() => setPendingEditValues(null)}
+                onClick={() => {
+                  // Volver al formulario de edición
+                  setIsConfirmEditOpen(false);
+                  setIsEditModalOpen(true);
+                }}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
               >
                 Volver

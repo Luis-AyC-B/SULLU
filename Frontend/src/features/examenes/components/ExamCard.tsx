@@ -28,7 +28,7 @@ export function ExamCard({
       case "Finalizado":
         return "bg-gray-100 text-gray-600 border-gray-200";
       case "Desactivado":
-        return "bg-gray-100 text-gray-600 border-gray-200";
+        return "bg-red-50 text-red-700 border-red-200";
       default:
         return "bg-gray-50 text-gray-500 border-gray-200";
     }
@@ -40,24 +40,43 @@ export function ExamCard({
   // Si fue creado hace menos de 24 horas => "Cancelar" (eliminación física)
   // Si pasaron 24 horas o más desde su creación => "Desactivar" (baja lógica)
   const isCreatedUnder24Hours = (): boolean => {
-    try {
-      const createdTime = new Date(exam.createdAt).getTime();
-      const now = new Date().getTime();
-      const diffHours = (now - createdTime) / (1000 * 60 * 60);
-      return diffHours < 24;
-    } catch {
-      return true;
-    }
+    // Si no tiene fecha de creación o es recién creado, es nuevo => "Cancelar"
+    if (!exam.createdAt) return true;
+    
+    const createdTime = new Date(exam.createdAt).getTime();
+    // Si la fecha devuelta por la base de datos es inválida => "Cancelar"
+    if (isNaN(createdTime)) return true;
+
+    const now = new Date().getTime();
+    const diffHours = (now - createdTime) / (1000 * 60 * 60);
+
+    // Solo si pasaron 24 horas reales o más será "Desactivar"
+    return diffHours >= 0 && diffHours < 24;
   };
 
   const isUnder24 = isCreatedUnder24Hours();
   const actionLabel = isUnder24 ? "Cancelar" : "Desactivar";
 
-  // Formatear la fecha a dd/mm/aaaa
+  // Formatear cualquier formato de fecha a dd/mm/aaaa
   const formatDateSlash = (dateStr: string) => {
-    if (!dateStr || !dateStr.includes("-")) return dateStr;
-    const [yyyy, mm, dd] = dateStr.split("-");
-    return `${dd}/${mm}/${yyyy}`;
+    if (!dateStr) return "";
+
+    // Si viene en formato YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const [yyyy, mm, dd] = dateStr.substring(0, 10).split("-");
+      return `${dd}/${mm}/${yyyy}`;
+    }
+
+    // Si viene en formato completo (Sun Sep 20 2026...)
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+
+    return dateStr;
   };
 
   return (
@@ -66,7 +85,7 @@ export function ExamCard({
         {/* Encabezado: Estado + Badge Editado + Botón Editar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {/* 1. Badge de Estado (Programado, En curso, Finalizado, etc.) */}
+            {/* 1. Badge de Estado (Programado, En curso, Desactivado, Finalizado) */}
             <span
               className={`inline-flex items-center px-2.5 py-0.5 rounded-[6px] text-xs font-semibold border ${getBadgeStyle(
                 exam.estado
@@ -75,9 +94,9 @@ export function ExamCard({
               {exam.estado}
             </span>
 
-            {/* 2. Badge gris de Editado al lado del estado */}
-            {(exam.fueEditado || exam.isEdited) && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+            {/* 2. Badge gris de Editado: SOLO si el examen está activo (no finalizado ni desactivado) */}
+            {(exam.fueEditado || exam.isEdited) && !isInactive && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-[6px] text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
                 Editado
               </span>
             )}
