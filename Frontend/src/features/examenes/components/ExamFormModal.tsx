@@ -69,10 +69,11 @@ export function ExamFormModal({
   };
 
   const formatAmbienteLabel = (a: AmbienteOption) => {
-    const parts = a.horarioDisponible.split("|").map((p) => p.trim());
-    const horario = parts[1] || parts[0] || "";
-    return `${a.nombre} \u00A0\u00A0 (${horario})`;
-  };
+  const [fecha = "", horario = ""] = a.horarioDisponible.split("|").map((p) => p.trim());
+  const [, mes, dia] = fecha.split("-");
+  const fechaCorta = dia && mes ? `${dia}/${mes}` : fecha;
+  return `${a.nombre} \u00A0 (${fechaCorta} · ${horario})`;
+};
 
   const inputStyle =
     "w-full rounded-lg border px-3 py-2 text-xs font-normal text-[#1A1D23] outline-none transition-colors border-gray-200 focus:border-blue-500 cursor-pointer";

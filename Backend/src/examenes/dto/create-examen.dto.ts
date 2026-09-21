@@ -14,8 +14,16 @@ export class CreateExamenDto {
   @IsNotEmpty({ message: 'El tipo de examen es obligatorio.' })
   tipoExamen!: string;
 
-  @IsInt({ message: 'El ambiente es obligatorio.' })
-  ambienteId!: number;
+  // Preferido: la reserva concreta (de GET /examenes/mis-ambientes).
+  @IsOptional()
+  @IsInt({ message: 'La reserva de ambiente debe ser un número.' })
+  reservaAmbienteId?: number;
+
+  // Respaldo por compatibilidad con el front actual: se resuelve a la reserva
+  // del docente para ese ambiente (si tiene una sola).
+  @IsOptional()
+  @IsInt({ message: 'El ambiente debe ser un número.' })
+  ambienteId?: number;
 
   @IsOptional()
   @IsString()

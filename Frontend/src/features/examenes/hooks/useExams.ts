@@ -49,6 +49,7 @@ interface BackendExamResponse {
   facultadNombre?: string;
   facultad?: { id?: string | number; nombre?: string };
   tipoExamen?: ExamType;
+  reservaAmbienteId?: string | number;
   ambienteId?: string | number;
   ambienteNombre?: string;
   ambiente?: { id?: string | number; nombre?: string };
@@ -87,10 +88,14 @@ interface BackendMateriaResponse {
   facultadNombre?: string;
 }
 
+// Respuesta de GET /examenes/mis-ambientes: una fila por RESERVA del docente
 interface BackendAmbienteResponse {
-  id: string | number;
-  nombre: string;
-  horarioDisponible?: string;
+  reservaAmbienteId: string | number;
+  ambienteId: string | number;
+  ambienteNombre: string;
+  fecha?: string;
+  horaInicio?: string;
+  horaFin?: string;
 }
 
 // Función para normalizar cualquier fecha a "AAAA-MM-DD" sin desfases de zona horaria
@@ -125,6 +130,13 @@ export const normalizeDateString = (val: unknown): string => {
 // URL base de NestJS (puerto 3001)
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+// El select del formulario guarda en "ambienteId" el id de la RESERVA elegida;
+// el backend espera ese valor como "reservaAmbienteId".
+const toPayload = ({ ambienteId, ...rest }: ExamFormValues) => ({
+  ...rest,
+  reservaAmbienteId: Number(ambienteId),
+});
+
 export function useExams() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [materias, setMaterias] = useState<MateriaOption[]>([]);
@@ -144,7 +156,7 @@ export function useExams() {
     try {
       const session = (await getSession()) as CustomSession | null;
       const token =
-        session?.accessToken || session?.token || session?.user?.token;
+        session?.accessToken || session?.token ||  session?.user?.accessToken || session?.user?.token;
       return token ? { Authorization: `Bearer ${token}` } : {};
     } catch {
       return {};
@@ -196,7 +208,8 @@ export function useExams() {
           facultadId: String(e.facultadId || e.facultad?.id || e.materia?.carrera?.facultad?.id || ""),
           facultadNombre: e.facultadNombre || e.facultad?.nombre || e.materia?.carrera?.facultad?.nombre || "",
           tipoExamen: (e.tipoExamen as ExamType) || "Primer parcial",
-          ambienteId: String(e.ambienteId || e.ambiente?.id || ""),
+          // Se prioriza el id de la reserva: es el valor que usa el select del formulario
+          ambienteId: String(e.reservaAmbienteId || e.ambienteId || e.ambiente?.id || ""),
           ambienteNombre: e.ambienteNombre || e.ambiente?.nombre || "Aula asignada",
           fecha: normalizeDateString(e.fecha) || "2026-09-20",
           horaInicio: e.horaInicio || "08:00",
@@ -262,12 +275,12 @@ export function useExams() {
     }
   }, []);
 
-  // 3. Cargar ambientes
+  // 3. Cargar ambientes RESERVADOS por el docente (una opción por reserva)
   const loadAmbientes = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
       const response = await axios.get<BackendAmbienteResponse[] | { data: BackendAmbienteResponse[] }>(
-        `${API_URL}/ambientes`,
+        `${API_URL}/examenes/mis-ambientes`,
         { headers, withCredentials: true }
       );
       const rawData = response.data;
@@ -279,13 +292,13 @@ export function useExams() {
       }
 
       const mapped: AmbienteOption[] = data.map((a) => ({
-        id: String(a.id),
-        nombre: a.nombre,
-        horarioDisponible: a.horarioDisponible || "2026-09-20 | 08:00 - 09:30",
+        id: String(a.reservaAmbienteId),
+        nombre: a.ambienteNombre,
+        horarioDisponible: `${a.fecha ?? ""} | ${a.horaInicio ?? ""} - ${a.horaFin ?? ""}`,
       }));
       setAmbientes(mapped);
     } catch (err) {
-      console.warn("Aviso: no se pudieron cargar ambientes del backend:", err);
+      console.warn("Aviso: no se pudieron cargar los ambientes reservados:", err);
       setAmbientes([]);
     }
   }, []);
@@ -336,12 +349,18 @@ export function useExams() {
   const createExam = async (values: ExamFormValues) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await axios.post<Exam>(`${API_URL}/examenes`, values, {
-        headers,
-        withCredentials: true,
-      });
+      const response = await axios.post<Exam>(
+        `${API_URL}/examenes`,
+        toPayload(values),
+        {
+          headers,
+          withCredentials: true,
+        }
+      );
       const newExam: Exam = {
         ...response.data,
+        // Se conserva el id de la reserva para que coincida con el select del formulario
+        ambienteId: values.ambienteId,
         fecha: normalizeDateString(response.data.fecha) || "2026-09-20",
         createdAt: response.data.createdAt || new Date().toISOString(),
         estado: (response.data.estado as ExamStatus) || "Programado",
@@ -361,7 +380,7 @@ export function useExams() {
       const headers = await getAuthHeaders();
       const response = await axios.patch<Exam>(
         `${API_URL}/examenes/${examId}`,
-        values,
+        toPayload(values),
         { headers, withCredentials: true }
       );
 
@@ -369,6 +388,7 @@ export function useExams() {
       const updatedExam: Exam = {
         ...(existingExam || ({} as Exam)),
         ...response.data,
+        ambienteId: values.ambienteId,
         fecha: normalizeDateString(response.data.fecha || existingExam?.fecha),
         id: String(examId),
         fueEditado: true,
