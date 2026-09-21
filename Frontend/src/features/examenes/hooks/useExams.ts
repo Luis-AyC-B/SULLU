@@ -14,7 +14,7 @@ import {
 import { ExamFormValues } from "../schemas/exam.schema";
 import { dbService } from "@/shared/lib/db/indexedDB";
 
-// Tipado seguro para la sesión de NextAuth (sin usar any)
+// Tipado seguro para la sesión de NextAuth
 interface CustomSession {
   accessToken?: string;
   token?: string;
@@ -93,6 +93,35 @@ interface BackendAmbienteResponse {
   horarioDisponible?: string;
 }
 
+// Función para normalizar cualquier fecha a "AAAA-MM-DD" sin desfases de zona horaria
+export const normalizeDateString = (val: unknown): string => {
+  if (!val) return "";
+  const str = String(val).trim();
+
+  // 1. Si contiene AAAA-MM-DD (ej: "2026-09-20" o "2026-09-20T...")
+  const isoMatch = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+
+  // 2. Si viene en formato DD/MM/AAAA o DD-MM-AAAA (ej: "20/09/2026")
+  const slashMatch = str.match(/(\d{2})[/-](\d{2})[/-](\d{4})/);
+  if (slashMatch) {
+    return `${slashMatch[3]}-${slashMatch[2]}-${slashMatch[1]}`;
+  }
+
+  // 3. Si viene como Date string en inglés (ej: "Sun Sep 20 2026...")
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return "";
+};
+
 // URL base de NestJS (puerto 3001)
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -139,7 +168,7 @@ export function useExams() {
     }
   }, []);
 
-  // 1. Cargar exámenes del Backend (con protección total contra no-arrays)
+  // 1. Cargar exámenes del Backend
   const loadExams = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -150,7 +179,6 @@ export function useExams() {
           { headers, withCredentials: true }
         );
 
-        // Extraer la lista de forma segura (sea array directo o envuelto en .data)
         const rawData = response.data;
         let data: BackendExamResponse[] = [];
         if (Array.isArray(rawData)) {
@@ -170,7 +198,7 @@ export function useExams() {
           tipoExamen: (e.tipoExamen as ExamType) || "Primer parcial",
           ambienteId: String(e.ambienteId || e.ambiente?.id || ""),
           ambienteNombre: e.ambienteNombre || e.ambiente?.nombre || "Aula asignada",
-          fecha: e.fecha ? String(e.fecha).split("T")[0] : "",
+          fecha: normalizeDateString(e.fecha) || "2026-09-20",
           horaInicio: e.horaInicio || "08:00",
           horaFin: e.horaFin || "09:30",
           duracionMinutos: Number(e.duracionMinutos || 90),
@@ -203,7 +231,7 @@ export function useExams() {
     }
   }, []);
 
-  // 2. Cargar materias de forma segura
+  // 2. Cargar materias
   const loadMaterias = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
@@ -234,7 +262,7 @@ export function useExams() {
     }
   }, []);
 
-  // 3. Cargar ambientes de forma segura
+  // 3. Cargar ambientes
   const loadAmbientes = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
@@ -268,15 +296,38 @@ export function useExams() {
     loadAmbientes();
   }, [loadExams, loadMaterias, loadAmbientes]);
 
-  // Filtros dinámicos (Protegido con Array.isArray para que NUNCA falle)
+  // Filtros dinámicos (soporta coincidencia exacta del mismo día y rangos de fechas)
   const filteredExams = useMemo(() => {
-    if (!Array.isArray(exams)) return []; // <--- ESTO EVITA EL ERROR A TUS AMIGOS
+    if (!Array.isArray(exams)) return [];
+
+    const startDate = normalizeDateString(filters.fechaInicio);
+    const endDate = normalizeDateString(filters.fechaFin);
+
     return exams.filter((exam) => {
       if (filters.facultadId && exam.facultadId !== filters.facultadId) return false;
       if (filters.carreraId && exam.carreraId !== filters.carreraId) return false;
       if (filters.materiaId && exam.materiaId !== filters.materiaId) return false;
-      if (filters.fechaInicio && exam.fecha < filters.fechaInicio) return false;
-      if (filters.fechaFin && exam.fecha > filters.fechaFin) return false;
+
+      const examDate = normalizeDateString(exam.fecha);
+
+      // Si la fecha fin es menor a fecha inicio (rango inválido), no mostrar nada
+      if (startDate && endDate && endDate < startDate) {
+        return false;
+      }
+
+      // CASO ESPECIAL: Si ambos filtros tienen el MISMO día seleccionado (ej: 20/09/2026 y 20/09/2026)
+      if (startDate && endDate && startDate === endDate) {
+        return examDate === startDate;
+      }
+
+      // Rango normal
+      if (startDate && examDate && examDate < startDate) {
+        return false;
+      }
+      if (endDate && examDate && examDate > endDate) {
+        return false;
+      }
+
       return true;
     });
   }, [exams, filters]);
@@ -289,7 +340,12 @@ export function useExams() {
         headers,
         withCredentials: true,
       });
-      const newExam = response.data;
+      const newExam: Exam = {
+        ...response.data,
+        fecha: normalizeDateString(response.data.fecha) || "2026-09-20",
+        createdAt: response.data.createdAt || new Date().toISOString(),
+        estado: (response.data.estado as ExamStatus) || "Programado",
+      };
       setExams((prev) => (Array.isArray(prev) ? [newExam, ...prev] : [newExam]));
       await dbService.saveExam(newExam);
       return newExam;
@@ -305,14 +361,20 @@ export function useExams() {
       const headers = await getAuthHeaders();
       const response = await axios.patch<Exam>(
         `${API_URL}/examenes/${examId}`,
-        { ...values, fueEditado: true },
+        values,
         { headers, withCredentials: true }
       );
+
+      const existingExam = Array.isArray(exams) ? exams.find((e) => e.id === examId) : undefined;
       const updatedExam: Exam = {
+        ...(existingExam || ({} as Exam)),
         ...response.data,
+        fecha: normalizeDateString(response.data.fecha || existingExam?.fecha),
+        id: String(examId),
         fueEditado: true,
         isEdited: true,
       };
+
       setExams((prev) =>
         Array.isArray(prev) ? prev.map((e) => (e.id === examId ? updatedExam : e)) : [updatedExam]
       );
@@ -336,16 +398,40 @@ export function useExams() {
         setExams((prev) => (Array.isArray(prev) ? prev.filter((e) => e.id !== examId) : []));
         await dbService.deleteExam(examId);
       } else {
-        const response = await axios.patch<Exam>(
-          `${API_URL}/examenes/${examId}`,
-          { estado: "Desactivado" },
-          { headers, withCredentials: true }
-        );
-        const updated: Exam = response.data;
+        let responseData: Partial<Exam> = {};
+        try {
+          const response = await axios.patch<Exam>(
+            `${API_URL}/examenes/${examId}`,
+            { estado: "CANCELADO" },
+            { headers, withCredentials: true }
+          );
+          responseData = response.data;
+        } catch {
+          const fallbackResponse = await axios.patch<Exam>(
+            `${API_URL}/examenes/${examId}`,
+            { estado: "Desactivado" },
+            { headers, withCredentials: true }
+          );
+          responseData = fallbackResponse.data;
+        }
+
         setExams((prev) =>
-          Array.isArray(prev) ? prev.map((e) => (e.id === examId ? updated : e)) : []
+          (Array.isArray(prev) ? prev : []).map((e) => {
+            if (e.id === examId) {
+              const updated: Exam = {
+                ...e,
+                ...responseData,
+                id: String(examId),
+                estado: "Desactivado" as ExamStatus,
+                fueEditado: false,
+                isEdited: false,
+              };
+              dbService.saveExam(updated);
+              return updated;
+            }
+            return e;
+          })
         );
-        await dbService.saveExam(updated);
       }
     } catch (err) {
       console.error("Error cancelando examen en NestJS:", err);
