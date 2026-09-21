@@ -756,6 +756,13 @@ async function main() {
     await prisma.reservaAmbiente.deleteMany({ where: { id: { in: ids } } });
   }
 
+  // Asegurar que el rol Docente exista
+  const rolDocente = await prisma.rol.upsert({
+    where: { nombre: 'Docente' },
+    update: {},
+    create: { nombre: 'Docente', descripcion: 'Docentes del sistema' },
+  });
+
   for (const d of DOCENTES_DEF) {
     // Upsert del usuario docente
     const docente = await prisma.usuario.upsert({
@@ -767,6 +774,15 @@ async function main() {
         correo: d.correo,
         password: passwordDocente,
       },
+    });
+
+    // Asignarle el rol Docente
+    await prisma.usuario_Rol.upsert({
+      where: {
+        usuarioId_rolId: { usuarioId: docente.id, rolId: rolDocente.id },
+      },
+      update: {},
+      create: { usuarioId: docente.id, rolId: rolDocente.id },
     });
 
     // Alcances (se resetean para que coincidan con la definición)
