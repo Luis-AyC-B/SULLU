@@ -68,6 +68,23 @@ export function ExamFormModal({
     onClose();
   };
 
+
+  // Al editar: la reserva actual ya tiene el examen vinculado, por eso getMisAmbientes
+  // no la devuelve (solo trae reservas libres). La agregamos manualmente para que
+  // el select muestre el ambiente correcto.
+  const ambientesConActual = (): AmbienteOption[] => {
+    if (!initialData?.ambienteId) return ambientes;
+    const yaEsta = ambientes.some((a) => a.id === initialData.ambienteId);
+    if (yaEsta) return ambientes;
+    const actual: AmbienteOption = {
+      id: initialData.ambienteId,
+      nombre: initialData.ambienteNombre,
+      horarioDisponible: `${initialData.fecha} | ${initialData.horaInicio} - ${initialData.horaFin}`,
+    };
+    return [actual, ...ambientes];
+  };
+  const ambienteOptions = ambientesConActual();
+
   const formatAmbienteLabel = (a: AmbienteOption) => {
   const [fecha = "", horario = ""] = a.horarioDisponible.split("|").map((p) => p.trim());
   const [, mes, dia] = fecha.split("-");
@@ -122,7 +139,7 @@ export function ExamFormModal({
           <FormField label="AMBIENTE" error={errors.ambienteId?.message}>
             <select {...register("ambienteId")} className={inputStyle}>
               <option value="" disabled hidden>Seleccionar ambiente reservado</option>
-              {ambientes.map((a: AmbienteOption) => (
+              {ambienteOptions.map((a: AmbienteOption) => (
                 <option key={a.id} value={a.id} className="py-2.5 my-1">
                   {formatAmbienteLabel(a)}
                 </option>
