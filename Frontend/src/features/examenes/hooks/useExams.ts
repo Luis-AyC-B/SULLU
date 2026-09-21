@@ -154,6 +154,18 @@ export const normalizeEstado = (val: unknown): ExamStatus => {
   return normalized;
 };
 
+
+// Normaliza el tipo de examen que viene del backend al valor EXACTO del select del frontend.
+// Mapea distintas variantes (mayúsculas, abreviaturas, valores legacy del seed) al string correcto.
+export const normalizeTipoExamen = (val: unknown): ExamType => {
+  const raw = String(val ?? "").toLowerCase().trim();
+  if (raw.includes("primer") || raw === "parcial") return "Primer parcial";
+  if (raw.includes("segundo") && raw.includes("parcial")) return "Segundo parcial";
+  if (raw.includes("final")) return "Examen final";
+  if (raw.includes("segunda") || raw.includes("segundo turno") || raw.includes("instancia")) return "Segunda instancia";
+  // Fallback: devolver tal cual (probablemente ya es el valor correcto)
+  return (val as ExamType) || "Primer parcial";
+};
 // URL base de NestJS (puerto 3001)
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -234,7 +246,7 @@ export function useExams() {
           carreraNombre: e.carreraNombre || e.carrera?.nombre || e.materia?.carrera?.nombre || "",
           facultadId: String(e.facultadId || e.facultad?.id || e.materia?.carrera?.facultad?.id || ""),
           facultadNombre: e.facultadNombre || e.facultad?.nombre || e.materia?.carrera?.facultad?.nombre || "",
-          tipoExamen: (e.tipoExamen as ExamType) || "Primer parcial",
+          tipoExamen: normalizeTipoExamen(e.tipoExamen),
           // Se prioriza el id de la reserva: es el valor que usa el select del formulario
           ambienteId: String(e.reservaAmbienteId || e.ambienteId || e.ambiente?.id || ""),
           ambienteNombre: e.ambienteNombre || e.ambiente?.nombre || "Aula asignada",
