@@ -156,7 +156,7 @@ export const normalizeEstado = (val: unknown): ExamStatus => {
 
 
 // Normaliza el tipo de examen que viene del backend al valor EXACTO del select del frontend.
-// Mapea distintas variantes (mayúsculas, abreviaturas, valores legacy del seed) al string correcto.
+// Mapea distintas variantes (mayÃºsculas, abreviaturas, valores legacy del seed) al string correcto.
 export const normalizeTipoExamen = (val: unknown): ExamType => {
   const raw = String(val ?? "").toLowerCase().trim();
   if (raw.includes("primer") || raw === "parcial") return "Primer parcial";
