@@ -16,6 +16,7 @@ import { EstudianteCard } from "./EstudianteCard";
 interface EstudiantesTableProps {
   estudiantes: EstudianteExamen[];
   isLoading: boolean;
+  canHabilitar?: boolean;
   onInhabilitarClick: (estudiante: EstudianteExamen) => void;
   onHabilitarClick: (estudiante: EstudianteExamen) => void;
 }
@@ -25,10 +26,12 @@ const SKELETON_ROWS = 6;
 export function EstudiantesTable({
   estudiantes,
   isLoading,
+  canHabilitar: canHabilitarProp,
   onInhabilitarClick,
   onHabilitarClick,
 }: EstudiantesTableProps) {
-  const canHabilitar = useHasPermission("estudiantes.habilitar");
+  const hasPermissionHabilitar = useHasPermission("estudiantes.habilitar");
+  const canHabilitar = canHabilitarProp !== undefined ? canHabilitarProp : hasPermissionHabilitar;
   const columnCount = canHabilitar ? 5 : 4;
 
   return (
@@ -129,6 +132,7 @@ export function EstudiantesTable({
             <EstudianteCard
               key={estudiante.estudiante_id}
               estudiante={estudiante}
+              canHabilitar={canHabilitar}
               onInhabilitarClick={onInhabilitarClick}
               onHabilitarClick={onHabilitarClick}
             />

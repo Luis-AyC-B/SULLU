@@ -3,14 +3,22 @@
 
 import { useSession } from "next-auth/react";
 
+interface SessionWithPermisos {
+  permisos?: string[];
+  user?: {
+    permisos?: string[];
+  };
+}
+
 export function useHasPermission(permiso: string): boolean {
   const { data: session } = useSession();
-  const permisos = session?.permisos as string[] | undefined;
+  const sessionObj = session as unknown as SessionWithPermisos | undefined;
 
-  // Mientras no haya sesión/permisos reales (backend no listo): permitir todo,
-  // igual que useUserPermissions. Cuando el login entregue permisos reales,
-  // este fallback deja de aplicar automáticamente.
-  if (!permisos) return true;
+  const permisos = sessionObj?.permisos || sessionObj?.user?.permisos;
+
+  if (!permisos || !Array.isArray(permisos)) {
+    return false;
+  }
 
   return permisos.includes(permiso);
 }

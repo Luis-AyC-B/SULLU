@@ -6,15 +6,25 @@ import {
 } from "../types/estudiante.types";
 
 export interface BackendExamenDto {
-  examen_id: number;
-  materia: string | null;
-  materia_sigla: string | null;
-  tipo_examen: string;
-  fecha: string | null;
-  hora_inicio: string | null;
-  hora_fin: string | null;
-  ambiente: string | null;
-  estado: string | null;
+  id?: number;
+  examen_id?: number;
+  materia?: string | null;
+  materiaNombre?: string | null;
+  materia_sigla?: string | null;
+  tipo_examen?: string;
+  tipoExamen?: string;
+  fecha?: string | null;
+  hora_inicio?: string | null;
+  horaInicio?: string | null;
+  hora_fin?: string | null;
+  horaFin?: string | null;
+  ambiente?: string | null;
+  ambienteNombre?: string | null;
+  estado?: string | null;
+  reservaAmbiente?: {
+    id?: number;
+    fecha?: string | null;
+  } | null;
 }
 
 export interface GetEstudiantesResponse {
@@ -41,6 +51,43 @@ export interface CargaMasivaBackendResponse {
   }>;
 }
 
+function formatearFecha(
+  fechaStr: string | null | undefined,
+  reservaFechaStr?: string | null | undefined
+): string {
+  // 1. Prioridad: reservaAmbiente.fecha (ISO string limpio serializado por Prisma, e.g. "2026-09-20T00:00:00.000Z")
+  if (reservaFechaStr) {
+    const dReserva = new Date(reservaFechaStr);
+    if (!isNaN(dReserva.getTime())) {
+      return dReserva.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+    }
+  }
+
+  if (!fechaStr) return "Sin fecha";
+
+  // 2. Si fechaStr fue cortado por String(date).split('T')[0] en backend ("... GMT-0400" cortado en "... GM")
+  let limpia = fechaStr.trim();
+  if (limpia.endsWith(" GM")) {
+    limpia = limpia + "T";
+  }
+
+  const d = new Date(limpia);
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  return "Sin fecha";
+}
+
 export const estudianteService = {
   /**
    * Task 14: Obtiene los exámenes disponibles para el selector (GET /examenes).
@@ -53,25 +100,31 @@ export const estudianteService = {
     if (!Array.isArray(data)) return [];
 
     return data.map((item) => {
-      let fechaFormatted = "";
-      if (item.fecha) {
-        try {
-          const dateObj = new Date(item.fecha);
-          fechaFormatted = dateObj.toLocaleDateString("es-ES", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          });
-        } catch {
-          fechaFormatted = String(item.fecha);
-        }
-      }
+      const id = item.examen_id ?? item.id ?? 0;
+      const nombreMateria =
+        item.materiaNombre ||
+        item.materia ||
+        (item.tipoExamen || item.tipo_examen
+          ? `Examen (${item.tipoExamen || item.tipo_examen})`
+          : `Examen #${id}`);
+      const sigla = item.materia_sigla || "";
+      const fecha = formatearFecha(item.fecha, item.reservaAmbiente?.fecha);
+
+      // Regla de negocio: Solo mientras esté CANCELADO o FINALIZADO no puede editar la lista
+      const estadoUpper = (item.estado || "").toUpperCase();
+      const esBloqueado =
+        estadoUpper === "FINALIZADO" || estadoUpper === "CANCELADO";
 
       return {
-        id: item.examen_id,
-        nombreMateria: item.materia || "Examen",
-        sigla: item.materia_sigla || "",
-        fecha: fechaFormatted || "Sin fecha",
+        id,
+        nombreMateria,
+        sigla,
+        fecha,
+        fechaRaw: item.fecha,
+        tipoExamen: item.tipoExamen || item.tipo_examen,
+        estado: item.estado ?? undefined,
+        esBloqueado,
+        esPasado: esBloqueado, // Para compatibilidad hacia atrás
       };
     });
   },

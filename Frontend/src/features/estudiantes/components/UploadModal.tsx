@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
-import { UploadCloud } from "lucide-react";
+import { UploadCloud, Download } from "lucide-react";
+import { descargarPlantillaCsv } from "../utils/csv-template";
 import {
     Dialog,
     DialogContent,
@@ -86,20 +87,30 @@ export function UploadModal({
                                 : "Arrastra el archivo aquí o haz clic"}
                         </h3>
                         <p className="mt-1 text-xs text-slate-500">
-                            Formatos aceptados: CSV, XLSX · máx. 5 000 filas
+                            Formato aceptado: .csv · máx. 2MB / 5 000 filas
                         </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/80 bg-[#F4F6F8] p-4 text-left">
-                        <h4 className="text-xs font-bold text-slate-800 tracking-tight mb-2">
-                            Formato esperado del CSV
-                        </h4>
+                        <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-bold text-slate-800 tracking-tight">
+                                Formato requerido del CSV (1ª fila = encabezados)
+                            </h4>
+                            <button
+                                type="button"
+                                onClick={descargarPlantillaCsv}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#002D62] hover:underline cursor-pointer"
+                            >
+                                <Download className="h-3.5 w-3.5" />
+                                <span>Descargar plantilla CSV</span>
+                            </button>
+                        </div>
                         <div className="font-mono text-xs text-slate-600 bg-white/70 p-2.5 rounded-lg border border-slate-200/50">
-                            <p className="font-semibold text-slate-800">nombre,apellido,codsis</p>
-                            <p>Ana,Torres,2021-10001</p>
-                            <p>Carlos,Pérez,2022-11002</p>
+                            <p className="font-semibold text-slate-800">nombre,apellidos,codigo,ci</p>
+                            <p>Juan,Pérez López,202201234,8912345</p>
+                            <p>María,González Roca,202105678,</p>
                         </div>
                         <p className="mt-2 text-[11px] text-slate-600">
-                            * El sistema registrará a los nuevos estudiantes en el catálogo central y vinculará a los existentes sin duplicar información.
+                            * Los campos <span className="font-semibold text-slate-800">nombre, apellidos y codigo</span> son obligatorios. El campo <span className="font-semibold text-slate-800">ci</span> es opcional. La primera fila debe contener los nombres de las columnas.
                         </p>
                     </div>
                 </div>

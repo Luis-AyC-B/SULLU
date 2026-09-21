@@ -47,11 +47,29 @@ export function ExamenSelector({
               {!hasExamenes ? (
                 <option value="">No hay exámenes registrados en el sistema</option>
               ) : (
-                examenes.map((examen) => (
-                  <option key={examen.id} value={examen.id}>
-                    {examen.nombreMateria} — {examen.sigla} · {examen.fecha}
-                  </option>
-                ))
+                examenes.map((examen) => {
+                  const materiaYSigla = examen.sigla
+                    ? `${examen.nombreMateria} — ${examen.sigla}`
+                    : examen.nombreMateria;
+
+                  const estadoUpper = (examen.estado || "").toUpperCase();
+                  let estadoTag = "";
+                  if (estadoUpper === "FINALIZADO") {
+                    estadoTag = " (Finalizado)";
+                  } else if (estadoUpper === "CANCELADO") {
+                    estadoTag = " (Cancelado)";
+                  } else if (estadoUpper === "EN_CURSO") {
+                    estadoTag = " (En curso)";
+                  }
+
+                  const etiqueta = `${materiaYSigla} · ${examen.fecha}${estadoTag}`;
+
+                  return (
+                    <option key={examen.id} value={examen.id}>
+                      {etiqueta}
+                    </option>
+                  );
+                })
               )}
             </select>
             <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />

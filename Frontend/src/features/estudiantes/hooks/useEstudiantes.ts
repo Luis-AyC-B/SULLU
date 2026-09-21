@@ -184,6 +184,27 @@ export function useEstudiantes(examenId: number | null) {
           throw new Error("Formato de archivo no soportado. Debe ser un archivo .csv");
         }
 
+        // Validación preventiva en el front para evitar errores confusos del parser backend
+        try {
+          const previewText = await file.slice(0, 1024).text();
+          const firstLine = previewText.split(/\r?\n/)[0]?.toLowerCase() || "";
+          const hasNombre = firstLine.includes("nombre");
+          const hasCodigo =
+            firstLine.includes("cod") || firstLine.includes("codigo");
+          if (!hasNombre && !hasCodigo) {
+            throw new Error(
+              "El archivo CSV debe incluir una primera fila de encabezados: nombre,apellidos,codigo (y opcional ci). Descarga la plantilla para usar el formato correcto."
+            );
+          }
+        } catch (readErr) {
+          if (
+            readErr instanceof Error &&
+            readErr.message.includes("encabezados")
+          ) {
+            throw readErr;
+          }
+        }
+
         const respBackend = await estudianteService.cargaMasiva(examenId, file);
 
         if (respBackend?.resumen) {
