@@ -9,12 +9,76 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { MailService } from '../mail/mail.service';
 
+type AlcanceInput = {
+  facultadId: number;
+  carreraId?: number | null;
+  materiaId?: number | null;
+};
+
 @Injectable()
 export class UsuariosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
   ) {}
+
+  /**
+   * Normaliza los alcances recibidos:
+   * - carreraId / materiaId en 0, undefined o null => null
+   *   (sin carrera = toda la facultad; sin materia = toda la carrera)
+   * - una materia requiere carrera
+   * - elimina alcances duplicados
+   */
+  private normalizarAlcances(alcances: AlcanceInput[] = []) {
+    const vistos = new Set<string>();
+    const result: {
+      facultadId: number;
+      carreraId: number | null;
+      materiaId: number | null;
+    }[] = [];
+
+    for (const a of alcances) {
+      const facultadId = Number(a.facultadId);
+      const carreraId = Number(a.carreraId) || null;
+      const materiaId = Number(a.materiaId) || null;
+
+      if (!facultadId) {
+        throw new BadRequestException('Cada alcance requiere una facultad');
+      }
+      if (materiaId && !carreraId) {
+        throw new BadRequestException(
+          'Para asignar una materia debes indicar la carrera',
+        );
+      }
+
+      const key = `${facultadId}-${carreraId}-${materiaId}`;
+      if (vistos.has(key)) continue;
+      vistos.add(key);
+      result.push({ facultadId, carreraId, materiaId });
+    }
+
+    return result;
+  }
+
+  async getCatalogosAcademicos() {
+    const [facultades, carreras, materias] = await Promise.all([
+      this.prisma.facultad.findMany({ orderBy: { nombre: 'asc' } }),
+      this.prisma.carrera.findMany({ orderBy: { nombre: 'asc' } }),
+      this.prisma.materia.findMany({
+        orderBy: { nombre: 'asc' },
+        include: { carreras: { select: { carreraId: true } } },
+      }),
+    ]);
+
+    return {
+      facultades,
+      carreras,
+      materias: materias.map(({ carreras: rel, ...m }) => ({
+        ...m,
+        carreraIds: rel.map((c) => c.carreraId),
+      })),
+    };
+  }
 
   async create(dto: CreateUsuarioDto) {
     const existe = await this.prisma.usuario.findUnique({
@@ -23,6 +87,8 @@ export class UsuariosService {
     if (existe) {
       throw new ConflictException('Ya existe un usuario con este correo');
     }
+
+    const alcances = this.normalizarAlcances(dto.alcances);
 
     const rawPassword = dto.password || Math.random().toString(36).slice(-8);
     const passwordHash = await bcrypt.hash(rawPassword, 10);
@@ -43,6 +109,15 @@ export class UsuariosService {
           data: dto.rolesIds.map((rolId) => ({
             usuarioId: usuario.id,
             rolId: Number(rolId),
+          })),
+        });
+      }
+
+      if (alcances.length > 0) {
+        await tx.usuario_Alcance.createMany({
+          data: alcances.map((a) => ({
+            usuarioId: usuario.id,
+            ...a,
           })),
         });
       }
@@ -79,6 +154,7 @@ export class UsuariosService {
         take: Number(limit),
         include: {
           roles: { include: { rol: true } },
+          alcances: { include: { facultad: true, carrera: true, materia: true } },
         },
       }),
     ]);
@@ -180,29 +256,26 @@ export class UsuariosService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    // Verificar si ya tiene un alcance
-    const alcanceActual = await this.prisma.usuario_Alcance.findFirst({
-      where: { usuarioId: id },
-    });
+    // Se valida antes de la transacción: si falla, no se borran los alcances anteriores
+    const alcances = this.normalizarAlcances(dto.alcances);
 
-    if (alcanceActual) {
-      return this.prisma.usuario_Alcance.update({
-        where: { id: alcanceActual.id },
-        data: {
-          facultadId: dto.facultadId,
-          carreraId: dto.carreraId,
-          materiaId: dto.materiaId,
-        },
+    return this.prisma.$transaction(async (tx) => {
+      // Eliminar los alcances anteriores
+      await tx.usuario_Alcance.deleteMany({
+        where: { usuarioId: id },
       });
-    } else {
-      return this.prisma.usuario_Alcance.create({
-        data: {
-          usuarioId: id,
-          facultadId: dto.facultadId,
-          carreraId: dto.carreraId,
-          materiaId: dto.materiaId,
-        },
-      });
-    }
+
+      // Crear los nuevos
+      if (alcances.length > 0) {
+        await tx.usuario_Alcance.createMany({
+          data: alcances.map((a) => ({
+            usuarioId: id,
+            ...a,
+          })),
+        });
+      }
+
+      return { message: 'Alcances actualizados correctamente' };
+    });
   }
 }

@@ -26,11 +26,12 @@ export function RolePermissionMatrix({
     accionesClaves: string[],
     marcado: boolean
   ) => {
-    const todas = [permisoVer, ...accionesClaves];
     if (marcado) {
-      const nuevos = todas.filter((c) => !seleccionados.includes(c));
-      onChange([...seleccionados, ...nuevos]);
+      if (!seleccionados.includes(permisoVer)) {
+        onChange([...seleccionados, permisoVer]);
+      }
     } else {
+      const todas = [permisoVer, ...accionesClaves];
       onChange(seleccionados.filter((c) => !todas.includes(c)));
     }
   };
@@ -42,13 +43,13 @@ export function RolePermissionMatrix({
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
         {modulosPermisos.map((modulo) => {
           const claveAcciones = modulo.acciones.map((a) => a.clave);
-          const moduloMarcado = seleccionados.includes(modulo.permisoVer.clave);
+          const moduloActivo = seleccionados.includes(modulo.permisoVer.clave);
 
           return (
             <div key={modulo.clave}>
               <label className="flex items-center gap-2">
                 <Checkbox
-                  checked={moduloMarcado}
+                  checked={moduloActivo}
                   onCheckedChange={(checked) =>
                     toggleModulo(modulo.permisoVer.clave, claveAcciones, !!checked)
                   }
@@ -58,9 +59,15 @@ export function RolePermissionMatrix({
 
               <div className="mt-2 flex flex-col gap-2 pl-6">
                 {modulo.acciones.map((accion) => (
-                  <label key={accion.clave} className="flex items-center gap-2">
+                  <label
+                    key={accion.clave}
+                    className={`flex items-center gap-2 ${
+                      !moduloActivo ? "opacity-40" : ""
+                    }`}
+                  >
                     <Checkbox
                       checked={seleccionados.includes(accion.clave)}
+                      disabled={!moduloActivo}
                       onCheckedChange={(checked) =>
                         toggle(accion.clave, !!checked)
                       }

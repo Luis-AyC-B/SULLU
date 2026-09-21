@@ -24,6 +24,7 @@ model Usuario {
   correo    String    @unique @map("email")
   password  String    @map("password_hash")
   telefono  String?
+  sessionId String?   @map("session_id")
   deletedAt DateTime? @map("deleted_at") @db.Timestamp()
 
   roles             Usuario_Rol[]
