@@ -105,6 +105,11 @@ const MATERIAS = [
     carreras: ['Ingeniería de Sistemas'],
   },
   {
+    sigla: 'ISW',
+    nombre: 'Ingeniería de Software',
+    carreras: ['Ingeniería de Sistemas'],
+  },
+  {
     sigla: 'INT',
     nombre: 'Introducción a la Programación',
     carreras: ['Ingeniería de Sistemas', 'Ingeniería Informática'],
@@ -606,6 +611,236 @@ async function main() {
         }));
       await prisma.ingreso.createMany({ data: ingresos });
     }
+  }
+
+  // ==========================================================
+  // SECCIÓN: DOCENTES con alcances, reservas y exámenes propios
+  // ==========================================================
+  const MARCA_DOC = '[MOCK-DOC]';
+  const passwordDocente = await bcrypt.hash(PASSWORD, 10);
+
+  // Definición de docentes a mockear
+  const DOCENTES_DEF = [
+    {
+      correo: 'maria.gomez@docente.umss.edu',
+      nombre: 'María',
+      apellido: 'Gómez',
+      alcancesSiglas: ['BD1', 'ISW'], // materias que puede ver y gestionar
+      reservasFuturas: [
+        {
+          diasDesdeHoy: 6,
+          ambIdx: 0,
+          horaIni: 8,
+          horaFin: 10,
+          motivo: `${MARCA_DOC} Parcial BD1`,
+        },
+        {
+          diasDesdeHoy: 13,
+          ambIdx: 1,
+          horaIni: 14,
+          horaFin: 16,
+          motivo: `${MARCA_DOC} Final ISW`,
+        },
+        {
+          diasDesdeHoy: 22,
+          ambIdx: 0,
+          horaIni: 8,
+          horaFin: 10,
+          motivo: `${MARCA_DOC} Segundo parcial BD1`,
+        },
+        {
+          diasDesdeHoy: 40,
+          ambIdx: 2,
+          horaIni: 16,
+          horaFin: 18,
+          motivo: `${MARCA_DOC} Final BD1`,
+        },
+      ],
+      examenes: [
+        {
+          sigla: 'BD1',
+          tipo: 'Primer Parcial',
+          reservaIdx: 0,
+          estado: EstadoExamen.PROGRAMADO,
+        },
+        {
+          sigla: 'ISW',
+          tipo: 'Primer Parcial',
+          reservaIdx: 1,
+          estado: EstadoExamen.PROGRAMADO,
+        },
+      ],
+    },
+    {
+      correo: 'juan.perez@docente.umss.edu',
+      nombre: 'Juan',
+      apellido: 'Pérez',
+      alcancesSiglas: ['BD1', 'ISW'],
+      reservasFuturas: [
+        {
+          diasDesdeHoy: 8,
+          ambIdx: 1,
+          horaIni: 8,
+          horaFin: 10,
+          motivo: `${MARCA_DOC} Parcial BD1`,
+        },
+        {
+          diasDesdeHoy: 30,
+          ambIdx: 0,
+          horaIni: 10,
+          horaFin: 12,
+          motivo: `${MARCA_DOC} Final ISW`,
+        },
+        {
+          diasDesdeHoy: 50,
+          ambIdx: 3,
+          horaIni: 14,
+          horaFin: 16,
+          motivo: `${MARCA_DOC} Final BD1`,
+        },
+      ],
+      examenes: [
+        {
+          sigla: 'BD1',
+          tipo: 'Segundo Parcial',
+          reservaIdx: 0,
+          estado: EstadoExamen.PROGRAMADO,
+        },
+      ],
+    },
+    {
+      correo: 'carlos.ruiz@docente.umss.edu',
+      nombre: 'Carlos',
+      apellido: 'Ruiz',
+      alcancesSiglas: ['CAL1', 'INT'],
+      reservasFuturas: [
+        {
+          diasDesdeHoy: 9,
+          ambIdx: 4,
+          horaIni: 9,
+          horaFin: 11,
+          motivo: `${MARCA_DOC} Parcial CAL1`,
+        },
+        {
+          diasDesdeHoy: 28,
+          ambIdx: 1,
+          horaIni: 16,
+          horaFin: 18,
+          motivo: `${MARCA_DOC} Final INT`,
+        },
+      ],
+      examenes: [
+        {
+          sigla: 'CAL1',
+          tipo: 'Primer Parcial',
+          reservaIdx: 0,
+          estado: EstadoExamen.PROGRAMADO,
+        },
+      ],
+    },
+  ];
+
+  // Limpiar reservas y exámenes doc anteriores
+  const oldDocReservas = await prisma.reservaAmbiente.findMany({
+    where: { motivo: { startsWith: MARCA_DOC } },
+    select: { id: true },
+  });
+  if (oldDocReservas.length > 0) {
+    const ids = oldDocReservas.map((r) => r.id);
+    await prisma.examen_Carrera_Materia.deleteMany({
+      where: { examen: { reservaAmbienteId: { in: ids } } },
+    });
+    await prisma.examen.deleteMany({
+      where: { reservaAmbienteId: { in: ids } },
+    });
+    await prisma.reservaAmbiente.deleteMany({ where: { id: { in: ids } } });
+  }
+
+  for (const d of DOCENTES_DEF) {
+    // Upsert del usuario docente
+    const docente = await prisma.usuario.upsert({
+      where: { correo: d.correo },
+      update: { password: passwordDocente },
+      create: {
+        nombre: d.nombre,
+        apellido: d.apellido,
+        correo: d.correo,
+        password: passwordDocente,
+      },
+    });
+
+    // Alcances (se resetean para que coincidan con la definición)
+    await prisma.usuario_Alcance.deleteMany({
+      where: { usuarioId: docente.id },
+    });
+    for (const sigla of d.alcancesSiglas) {
+      const info = materiaInfo[sigla];
+      if (!info) continue;
+      // Se crea un alcance por cada relación carrera-materia
+      for (const carreraId of info.carreraIds) {
+        const carrera = await prisma.carrera.findUnique({
+          where: { id: carreraId },
+          select: { facultadId: true },
+        });
+        if (!carrera) continue;
+        await prisma.usuario_Alcance.create({
+          data: {
+            usuarioId: docente.id,
+            materiaId: info.materiaId,
+            carreraId,
+            facultadId: carrera.facultadId,
+          },
+        });
+      }
+    }
+
+    // Reservas futuras
+    const reservasCreadas: number[] = [];
+    for (const r of d.reservasFuturas) {
+      const ambiente = ambienteIds[r.ambIdx] ?? ambienteIds[0];
+      const reserva = await prisma.reservaAmbiente.create({
+        data: {
+          ambienteId: ambiente,
+          usuarioId: docente.id,
+          fecha: fechaRelativa(r.diasDesdeHoy),
+          horaIni: hora(r.horaIni),
+          horaFin: hora(r.horaFin),
+          motivo: r.motivo,
+          estadoAulaId: 1,
+          estadoAula: EstadoAula.RESERVADO,
+        },
+      });
+      reservasCreadas.push(reserva.id);
+    }
+
+    // Exámenes propios del docente (usan sus reservas)
+    for (const ex of d.examenes) {
+      const info = materiaInfo[ex.sigla];
+      if (!info) continue;
+      const reservaId = reservasCreadas[ex.reservaIdx];
+      if (!reservaId) continue;
+
+      await prisma.examen.create({
+        data: {
+          reservaAmbienteId: reservaId,
+          usuarioId: docente.id,
+          tipoExamen: ex.tipo,
+          normasEx: `${MARCA_DOC} Presentar CI vigente y QR del sistema. Celular en modo vuelo.`,
+          estado: ex.estado,
+          estadoExamId: 1,
+          carrerasMaterias: {
+            create: info.carreraIds.map((carreraId) => ({
+              carreraId,
+              materiaId: info.materiaId,
+            })),
+          },
+        },
+      });
+    }
+
+    console.log(
+      `  ✔ ${d.nombre} ${d.apellido} → alcances: ${d.alcancesSiglas.join(', ')}, reservas: ${reservasCreadas.length}, exámenes: ${d.examenes.length}`,
+    );
   }
 
   console.log(

@@ -435,57 +435,16 @@ export function useExams() {
   };
 
   // Cancelar o desactivar examen
-  const cancelExam = async (examId: string, hardDelete: boolean) => {
+  // El backend decide si es borrado físico (<24h) o lógico (>=24h, queda como Desactivado)
+  const cancelExam = async (examId: string, _hardDelete: boolean) => {
     try {
       const headers = await getAuthHeaders();
-      if (hardDelete) {
-        await axios.delete(`${API_URL}/examenes/${examId}`, {
-          headers,
-          withCredentials: true,
-        });
-        setExams((prev) => (Array.isArray(prev) ? prev.filter((e) => e.id !== examId) : []));
-        await dbService.deleteExam(examId);
-      } else {
-        let responseData: Partial<Exam> = {};
-        try {
-          const response = await axios.patch<Exam>(
-            `${API_URL}/examenes/${examId}`,
-            { estado: "CANCELADO" },
-            { headers, withCredentials: true }
-          );
-          responseData = response.data;
-        } catch {
-          const fallbackResponse = await axios.patch<Exam>(
-            `${API_URL}/examenes/${examId}`,
-            { estado: "Desactivado" },
-            { headers, withCredentials: true }
-          );
-          responseData = fallbackResponse.data;
-        }
-
-        setExams((prev) =>
-          (Array.isArray(prev) ? prev : []).map((e) => {
-            if (e.id === examId) {
-              const updated: Exam = {
-                ...e,
-                ...responseData,
-                id: String(examId),
-                // ← FIX: se fuerza "Desactivado" pasado por normalizeEstado para
-                // mantener consistencia de tipo. Si el backend NO persiste este
-                // cambio, al refrescar (loadExams) el estado real que vuelva del
-                // servidor pisará esto — eso ya no es un bug de front, hay que
-                // confirmarlo con el backend.
-                estado: normalizeEstado("DESACTIVADO"),
-                fueEditado: false,
-                isEdited: false,
-              };
-              dbService.saveExam(updated);
-              return updated;
-            }
-            return e;
-          })
-        );
-      }
+      await axios.delete(`${API_URL}/examenes/${examId}`, {
+        headers,
+        withCredentials: true,
+      });
+      // Recarga desde el backend para reflejar el estado real
+      await loadExams();
     } catch (err) {
       console.error("Error cancelando examen en NestJS:", err);
       throw err;

@@ -325,7 +325,6 @@ export class ExamenesService {
         ? Number(query.facultadId)
         : undefined;
       whereClause = {
-        estado: { not: EstadoExamen.CANCELADO },
         carrerasMaterias: {
           some: {
             AND: [
@@ -359,7 +358,6 @@ export class ExamenesService {
         : undefined;
 
       whereClause = {
-        estado: { not: EstadoExamen.CANCELADO },
         carrerasMaterias: {
           some: {
             AND: [
