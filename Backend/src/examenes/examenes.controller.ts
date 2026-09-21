@@ -123,6 +123,6 @@ export class MateriasController {
   @Get()
   async getMaterias(@Req() req: RequestWithUser) {
     const userId = req.user?.id || 2;
-    return this.examenesService.getMateriasDocente(userId);
+    return this.examenesService.getMateriasDocente(userId, esAdmin(req));
   }
 }

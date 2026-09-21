@@ -178,8 +178,15 @@ export class ExamenesService {
   // Ambientes que el docente tiene reservados: es lo único que ve en el form de aula.
   // Se devuelve una fila por reserva (un mismo ambiente puede tener varias reservas).
   async getMisAmbientes(usuarioId: number) {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
     const reservas = await prisma.reservaAmbiente.findMany({
-      where: { usuarioId },
+      where: {
+        usuarioId,
+        fecha: { gte: hoy }, // solo reservas futuras (incluye hoy)
+        examenes: { none: {} }, // sin examen asignado aún
+      },
       include: { ambiente: true },
       orderBy: { fecha: 'asc' },
     });
