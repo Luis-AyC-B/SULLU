@@ -33,10 +33,12 @@ const rolesIdsSchema = z
   .array(z.string())
   .min(1, "Selecciona al menos un rol");
 
+// Alcance: la facultad es obligatoria; carrera y materia son opcionales
+// (0 / null / undefined = sin restricción: toda la facultad / toda la carrera)
 const alcanceSchema = z.object({
   facultadId: z.number().min(1, "Selecciona una facultad"),
-  carreraId: z.number().min(1, "Selecciona una carrera"),
-  materiaId: z.number().min(1, "Selecciona una materia"),
+  carreraId: z.number().nullable().optional(),
+  materiaId: z.number().nullable().optional(),
 });
 
 const alcancesSchema = z.array(alcanceSchema).optional();

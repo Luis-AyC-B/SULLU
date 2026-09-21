@@ -24,6 +24,8 @@ export interface Materia {
   id: number;
   nombre: string;
   sigla: string;
+  /** IDs de las carreras a las que pertenece la materia (Carrera_Materia) */
+  carreraIds: number[];
 }
 
 export interface CatalogoAcademico {
@@ -32,13 +34,25 @@ export interface CatalogoAcademico {
   materias: Materia[];
 }
 
+/**
+ * Alcance de un usuario. carreraId / materiaId son opcionales:
+ * - sin carrera (null/0) = toda la facultad
+ * - sin materia (null/0) = toda la carrera
+ */
 export interface UsuarioAlcance {
   facultadId: number;
-  carreraId: number;
-  materiaId: number;
-  facultad?: Facultad;
-  carrera?: Carrera;
-  materia?: Materia;
+  carreraId?: number | null;
+  materiaId?: number | null;
+  facultad?: Facultad | null;
+  carrera?: Carrera | null;
+  materia?: Materia | null;
+}
+
+/** Alcance tal como se envía al backend */
+export interface AlcanceInput {
+  facultadId: number;
+  carreraId?: number | null;
+  materiaId?: number | null;
 }
 
 /** Usuario tal cual lo devuelve la API */
@@ -83,7 +97,7 @@ export interface CreateUsuarioInput {
   correo: string;
   telefono?: string;
   rolesIds: string[];
-  alcances?: { facultadId: number; carreraId: number; materiaId: number }[];
+  alcances?: AlcanceInput[];
 }
 
 /** Payload para editar un usuario existente */
@@ -93,7 +107,7 @@ export interface UpdateUsuarioInput {
   apellido?: string;
   telefono?: string;
   rolesIds?: string[];
-  alcances?: { facultadId: number; carreraId: number; materiaId: number }[];
+  alcances?: AlcanceInput[];
 }
 
 /**

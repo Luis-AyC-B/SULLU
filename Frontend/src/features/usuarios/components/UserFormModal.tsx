@@ -34,6 +34,18 @@ import { userService } from "../services/user.service";
 
 type UserFormValues = CreateUserFormValues | EditUserFormValues;
 
+/**
+ * El back devuelve los roles del usuario como filas de Usuario_Rol
+ * ({ rolId, rol: { id } }); también se acepta { id }. Siempre string,
+ * igual que los ids de rolesDisponibles.
+ */
+type RolDeUsuario = {
+  id?: string | number;
+  rolId?: string | number;
+  rol?: { id: string | number };
+};
+const getRolId = (r: RolDeUsuario): string => String(r.rolId ?? r.rol?.id ?? r.id);
+
 interface UserFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -79,7 +91,7 @@ export function UserFormModal({
           nombre: usuario?.nombre ?? "",
           apellido: usuario?.apellido ?? "",
           telefono: usuario?.telefono ?? "",
-          rolesIds: usuario?.roles.map((r) => r.id) ?? [],
+          rolesIds: usuario?.roles.map(getRolId) ?? [],
           alcances: usuario?.alcances ?? [],
         }
       : {
@@ -107,7 +119,7 @@ export function UserFormModal({
             nombre: usuario?.nombre ?? "",
             apellido: usuario?.apellido ?? "",
             telefono: usuario?.telefono ?? "",
-            rolesIds: usuario?.roles.map((r) => r.id) ?? [],
+            rolesIds: usuario?.roles.map(getRolId) ?? [],
             alcances: usuario?.alcances ?? [],
           }
         : {
@@ -272,6 +284,11 @@ export function UserFormModal({
                     (c) => c.facultadId === facultadId
                   ) ?? [];
 
+                const materiasDeCarrera =
+                  catalogos?.materias.filter((m) =>
+                    m.carreraIds.includes(carreraId as number)
+                  ) ?? [];
+
                 let resumen = "Elegí al menos una facultad";
                 if (facultadId && !carreraId)
                   resumen = "Alcance: toda la facultad";
@@ -390,9 +407,7 @@ export function UserFormModal({
                                 <SelectItem value="0">
                                   Toda la carrera
                                 </SelectItem>
-                                {/* TODO: idealmente filtrar por carreraId (Carrera_Materia);
-                                    por ahora se listan todas si el catálogo no trae esa relación */}
-                                {catalogos?.materias.map((m) => (
+                                {materiasDeCarrera.map((m) => (
                                   <SelectItem key={m.id} value={String(m.id)}>
                                     {m.nombre}
                                   </SelectItem>

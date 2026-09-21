@@ -36,12 +36,25 @@ export const userService = {
     return data;
   },
 
+  /**
+   * Edita datos básicos y roles (PATCH /usuarios/:id) y, si vienen alcances,
+   * los reemplaza con PUT /usuarios/:id/alcance (el PATCH no los recibe).
+   */
   update: async (payload: UpdateUsuarioInput): Promise<Usuario> => {
-    const { id, ...rest } = payload;
-    const { data } = await apiClient.patch<Usuario>(
-      `${BASE_URL}/${id}`,
-      rest
-    );
+    const { id, alcances, ...rest } = payload;
+
+    const { data } = await apiClient.patch<Usuario>(`${BASE_URL}/${id}`, rest);
+
+    if (alcances) {
+      await apiClient.put(`${BASE_URL}/${id}/alcance`, {
+        alcances: alcances.map((a) => ({
+          facultadId: a.facultadId,
+          carreraId: a.carreraId || null,
+          materiaId: a.materiaId || null,
+        })),
+      });
+    }
+
     return data;
   },
 
@@ -62,7 +75,9 @@ export const userService = {
   },
 
   getCatalogosAcademicos: async (): Promise<CatalogoAcademico> => {
-    const { data } = await apiClient.get<CatalogoAcademico>(`${BASE_URL}/catalogos/academicos`);
+    const { data } = await apiClient.get<CatalogoAcademico>(
+      `${BASE_URL}/catalogos/academicos`
+    );
     return data;
   },
 };

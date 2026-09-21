@@ -29,7 +29,7 @@ export function UserTableToolbar({
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Buscar por nombre..."
-          className="pl-9 text-body"
+          className="bg-card pl-9 text-body"
           aria-label="Buscar usuario por nombre"
         />
       </div>

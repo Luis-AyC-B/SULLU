@@ -21,7 +21,7 @@ export function UserActionsBar({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 className="text-headline">Gestión de usuarios</h1>
+        <h1 className="text-headline text-primary">Gestión de usuarios</h1>
         <p className="text-body text-muted-foreground">
           {totalUsers} {totalUsers === 1 ? "usuario" : "usuarios"} en el
           sistema
