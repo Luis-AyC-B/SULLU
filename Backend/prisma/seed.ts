@@ -158,7 +158,7 @@ const EXAMENES: {
   {
     dias: -150,
     sigla: 'CAL1',
-    tipo: 'Parcial',
+    tipo: 'Primer parcial',
     estado: EstadoExamen.FINALIZADO,
     h: [8, 10],
     amb: 1,
@@ -166,7 +166,7 @@ const EXAMENES: {
   {
     dias: -120,
     sigla: 'INT',
-    tipo: 'Parcial',
+    tipo: 'Primer parcial',
     estado: EstadoExamen.FINALIZADO,
     h: [14, 16],
     amb: 0,
@@ -174,7 +174,7 @@ const EXAMENES: {
   {
     dias: -75,
     sigla: 'CON1',
-    tipo: 'Final',
+    tipo: 'Examen final',
     estado: EstadoExamen.FINALIZADO,
     h: [10, 12],
     amb: 2,
@@ -182,7 +182,7 @@ const EXAMENES: {
   {
     dias: -30,
     sigla: 'BD1',
-    tipo: 'Parcial',
+    tipo: 'Primer parcial',
     estado: EstadoExamen.FINALIZADO,
     h: [16, 18],
     amb: 0,
@@ -190,7 +190,7 @@ const EXAMENES: {
   {
     dias: -7,
     sigla: 'PSG',
-    tipo: 'Parcial',
+    tipo: 'Primer parcial',
     estado: EstadoExamen.FINALIZADO,
     h: [9, 11],
     amb: 3,
@@ -199,7 +199,7 @@ const EXAMENES: {
   {
     dias: 0,
     sigla: 'BD1',
-    tipo: 'Parcial',
+    tipo: 'Primer parcial',
     estado: EstadoExamen.EN_CURSO,
     h: [9, 11],
     amb: 0,
@@ -208,7 +208,7 @@ const EXAMENES: {
   {
     dias: 5,
     sigla: 'CAL1',
-    tipo: 'Final',
+    tipo: 'Examen final',
     estado: EstadoExamen.PROGRAMADO,
     h: [8, 10],
     amb: 4,
@@ -216,7 +216,7 @@ const EXAMENES: {
   {
     dias: 12,
     sigla: 'INT',
-    tipo: 'Final',
+    tipo: 'Examen final',
     estado: EstadoExamen.PROGRAMADO,
     h: [14, 16],
     amb: 0,
@@ -224,7 +224,7 @@ const EXAMENES: {
   {
     dias: 20,
     sigla: 'BD1',
-    tipo: 'Final',
+    tipo: 'Examen final',
     estado: EstadoExamen.PROGRAMADO,
     h: [10, 12],
     amb: 1,
@@ -232,7 +232,7 @@ const EXAMENES: {
   {
     dias: 35,
     sigla: 'CON1',
-    tipo: 'Segundo turno',
+    tipo: 'Segunda instancia',
     estado: EstadoExamen.PROGRAMADO,
     h: [16, 18],
     amb: 2,
@@ -240,7 +240,7 @@ const EXAMENES: {
   {
     dias: 60,
     sigla: 'PSG',
-    tipo: 'Final',
+    tipo: 'Examen final',
     estado: EstadoExamen.PROGRAMADO,
     h: [9, 11],
     amb: 3,
@@ -248,7 +248,7 @@ const EXAMENES: {
   {
     dias: 85,
     sigla: 'CAL1',
-    tipo: 'Segundo turno',
+    tipo: 'Segunda instancia',
     estado: EstadoExamen.PROGRAMADO,
     h: [15, 17],
     amb: 4,
@@ -257,7 +257,7 @@ const EXAMENES: {
   {
     dias: 10,
     sigla: 'CON1',
-    tipo: 'Parcial',
+    tipo: 'Primer parcial',
     estado: EstadoExamen.CANCELADO,
     h: [11, 13],
     amb: 2,
@@ -659,13 +659,13 @@ async function main() {
       examenes: [
         {
           sigla: 'BD1',
-          tipo: 'Primer Parcial',
+          tipo: 'Primer parcial',
           reservaIdx: 0,
           estado: EstadoExamen.PROGRAMADO,
         },
         {
           sigla: 'ISW',
-          tipo: 'Primer Parcial',
+          tipo: 'Primer parcial',
           reservaIdx: 1,
           estado: EstadoExamen.PROGRAMADO,
         },
@@ -702,7 +702,7 @@ async function main() {
       examenes: [
         {
           sigla: 'BD1',
-          tipo: 'Segundo Parcial',
+          tipo: 'Segundo parcial',
           reservaIdx: 0,
           estado: EstadoExamen.PROGRAMADO,
         },
@@ -732,7 +732,7 @@ async function main() {
       examenes: [
         {
           sigla: 'CAL1',
-          tipo: 'Primer Parcial',
+          tipo: 'Primer parcial',
           reservaIdx: 0,
           estado: EstadoExamen.PROGRAMADO,
         },
