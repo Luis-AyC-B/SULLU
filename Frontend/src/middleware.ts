@@ -77,10 +77,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: [
-    /*
-     * Aplica el middleware a todas las rutas excepto archivos estáticos, api auth e imágenes
-     */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.svg|.*\\.png|.*\\.jpg).*)',
-  ],
+  matcher: [], // temporalmente desactivado para diagnóstico
 };
