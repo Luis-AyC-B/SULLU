@@ -31,6 +31,7 @@ async function bootstrap() {
   // Habilitar peticiones cruzadas desde el frontend
   app.enableCors({
     origin: [
+      'https://exa-control.vercel.app',
       'http://localhost:3000',
       'http://localhost:4000',
       'http://localhost:3002',
