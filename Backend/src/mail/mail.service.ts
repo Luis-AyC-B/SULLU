@@ -50,6 +50,7 @@ export class MailService {
       });
       this.logger.log(`Correo de credenciales enviado a: ${correo}`);
     } catch (error) {
+      console.error('[MailService] Detalle del error SMTP:', error);
       this.logger.error(`Error enviando correo a ${correo}`, error);
       // No lanzamos la excepción para no bloquear la creación del usuario en BD
     }
