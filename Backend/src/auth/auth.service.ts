@@ -4,6 +4,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { randomUUID } from 'crypto';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -47,7 +49,7 @@ export class AuthService {
     return usuario;
   }
 
-  login(usuario: any) {
+  async login(usuario: any) {
     const permisosUsuario: string[] = [];
     if (usuario.roles && Array.isArray(usuario.roles)) {
       usuario.roles.forEach((ur: any) => {
@@ -71,11 +73,21 @@ export class AuthService {
       );
     }
 
+    // Generar nuevo sessionId para la sesión única
+    const sessionId = randomUUID();
+    
+    // Actualizar el sessionId en la base de datos
+    await this.prisma.usuario.update({
+      where: { id: usuario.id },
+      data: { sessionId },
+    });
+
     const payload = {
       sub: usuario.id,
       nombre: usuario.nombre,
       email: usuario.correo,
       permisos: permisosUsuario, 
+      sessionId,
     };
 
     return {

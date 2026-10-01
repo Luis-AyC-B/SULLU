@@ -1,22 +1,40 @@
 import { Injectable } from '@nestjs/common';
-import { CreateAmbienteDto } from './dto/create-ambiente.dto';
-import { UpdateAmbienteDto } from './dto/update-ambiente.dto';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+interface AmbienteDb {
+  id: number;
+  nombre: string;
+  capacidad: number | null;
+  horarioDisponible: string | null;
+}
 
 @Injectable()
 export class AmbientesService {
-  create(createAmbienteDto: CreateAmbienteDto) {
-    return 'This action adds a new ambiente';
-  }
-
-  findAll() {
-    return `This action returns all ambientes`;
+  async findAll() {
+    const ambientes =
+      (await prisma.ambiente.findMany()) as unknown as AmbienteDb[];
+    return ambientes
+      .filter((a) => !a.nombre.toLowerCase().includes('lab'))
+      .map((a) => ({
+        id: a.id,
+        nombre: a.nombre,
+        capacidad: a.capacidad ?? 30,
+        horarioDisponible:
+          a.horarioDisponible || 'Lunes a Viernes | 08:00 am - 12:00 pm',
+      }));
   }
 
   findOne(id: number) {
     return `This action returns a #${id} ambiente`;
   }
 
-  update(id: number, updateAmbienteDto: UpdateAmbienteDto) {
+  create(createAmbienteDto: any) {
+    return 'This action adds a new ambiente';
+  }
+
+  update(id: number, updateAmbienteDto: any) {
     return `This action updates a #${id} ambiente`;
   }
 

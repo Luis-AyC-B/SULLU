@@ -30,15 +30,17 @@ export function RoleCard({ rol, onEdit, onDelete }: RoleCardProps) {
           {rol.nombre}
         </span>
 
-        <Can permission="roles.editar">
-          <button
-            onClick={() => onEdit(rol)}
-            aria-label={`Editar ${rol.nombre}`}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        </Can>
+        {!rol.esPlantilla && (
+          <Can permission="roles.editar">
+            <button
+              onClick={() => onEdit(rol)}
+              aria-label={`Editar ${rol.nombre}`}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          </Can>
+        )}
       </div>
 
       <p className="mt-2 text-sm text-muted-foreground">{rol.descripcion}</p>
@@ -70,7 +72,7 @@ export function RoleCard({ rol, onEdit, onDelete }: RoleCardProps) {
         <Can permission="roles.eliminar">
           <button
             onClick={() => onDelete(rol)}
-            className="mt-3 self-end text-sm font-medium text-primary hover:underline"
+            className="mt-4 self-end text-sm font-medium text-primary hover:underline"
           >
             Eliminar
           </button>

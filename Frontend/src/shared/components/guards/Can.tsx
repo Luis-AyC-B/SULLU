@@ -10,11 +10,12 @@ interface CanProps {
 }
 
 export function Can({ permission, fallback = null, children }: CanProps) {
-  const { data: session } = useSession();
-  const permisos = session?.permisos as string[] | undefined;
+  const { data: session, status } = useSession();
 
-  // Mismo fallback que useHasPermission: sin sesión real, permitir todo.
-  const allowed = !permisos ? true : permisos.includes(permission);
+  if (status === "loading") return null;
+
+  const permisos = session?.user?.permisos as string[] | undefined;
+  const allowed = !!permisos?.includes(permission);
 
   return allowed ? <>{children}</> : <>{fallback}</>;
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Plus, Trash2 } from "lucide-react";
 
 import {
   Dialog,
@@ -14,6 +15,13 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 
 import {
   createUserSchema,
@@ -21,9 +29,22 @@ import {
   CreateUserFormValues,
   EditUserFormValues,
 } from "../schemas/user.schema";
-import { RolBasico, Usuario } from "../types/user.types";
+import { RolBasico, Usuario, CatalogoAcademico } from "../types/user.types";
+import { userService } from "../services/user.service";
 
 type UserFormValues = CreateUserFormValues | EditUserFormValues;
+
+/**
+ * El back devuelve los roles del usuario como filas de Usuario_Rol
+ * ({ rolId, rol: { id } }); también se acepta { id }. Siempre string,
+ * igual que los ids de rolesDisponibles.
+ */
+type RolDeUsuario = {
+  id?: string | number;
+  rolId?: string | number;
+  rol?: { id: string | number };
+};
+const getRolId = (r: RolDeUsuario): string => String(r.rolId ?? r.rol?.id ?? r.id);
 
 interface UserFormModalProps {
   open: boolean;
@@ -48,11 +69,19 @@ export function UserFormModal({
 }: UserFormModalProps) {
   const isEdit = mode === "edit";
 
+  const [catalogos, setCatalogos] = useState<CatalogoAcademico | null>(null);
+
+  useEffect(() => {
+    userService.getCatalogosAcademicos().then(setCatalogos).catch(console.error);
+  }, []);
+
   const {
     register,
     control,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<UserFormValues>({
     resolver: zodResolver(isEdit ? editUserSchema : createUserSchema),
@@ -62,7 +91,8 @@ export function UserFormModal({
           nombre: usuario?.nombre ?? "",
           apellido: usuario?.apellido ?? "",
           telefono: usuario?.telefono ?? "",
-          rolesIds: usuario?.roles.map((r) => r.id) ?? [],
+          rolesIds: usuario?.roles.map(getRolId) ?? [],
+          alcances: usuario?.alcances ?? [],
         }
       : {
           nombre: "",
@@ -70,7 +100,13 @@ export function UserFormModal({
           correo: "",
           telefono: "",
           rolesIds: [],
+          alcances: [],
         },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "alcances",
   });
 
   // Resetea el form cada vez que se abre el modal o cambia el usuario a editar
@@ -83,7 +119,8 @@ export function UserFormModal({
             nombre: usuario?.nombre ?? "",
             apellido: usuario?.apellido ?? "",
             telefono: usuario?.telefono ?? "",
-            rolesIds: usuario?.roles.map((r) => r.id) ?? [],
+            rolesIds: usuario?.roles.map(getRolId) ?? [],
+            alcances: usuario?.alcances ?? [],
           }
         : {
             nombre: "",
@@ -91,13 +128,14 @@ export function UserFormModal({
             correo: "",
             telefono: "",
             rolesIds: [],
+            alcances: [],
           }
     );
   }, [open, isEdit, usuario, reset]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-headline text-2xl">
             {isEdit ? "Editar usuario" : "Nuevo usuario"}
@@ -105,8 +143,10 @@ export function UserFormModal({
         </DialogHeader>
 
         <form
+          id="user-form"
           onSubmit={handleSubmit(onSubmit)}
-          className="space-y-4 border-t border-border pt-4"
+          className="custom-scrollbar flex-1 space-y-4 overflow-y-auto border-t border-border pt-4 pr-2"
+          style={{ scrollbarWidth: "thin" }}
         >
           {/* Nombre */}
           <div className="space-y-1.5">
@@ -208,6 +248,202 @@ export function UserFormModal({
             )}
           </div>
 
+          {/* Alcances (Facultad, Carrera opcional, Materia opcional) */}
+          <div className="space-y-4 border-t border-border pt-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <label className="text-label uppercase text-muted-foreground">
+                Alcance (Facultad / Carrera / Materia)
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() =>
+                  append({ facultadId: 0, carreraId: 0, materiaId: 0 })
+                }
+              >
+                <Plus className="mr-2 h-4 w-4" /> Agregar alcance
+              </Button>
+            </div>
+
+            {fields.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No tiene ningún alcance asignado.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {fields.map((field, index) => {
+                const facultadId = watch(`alcances.${index}.facultadId`);
+                const carreraId = watch(`alcances.${index}.carreraId`);
+                const materiaId = watch(`alcances.${index}.materiaId`);
+
+                const carrerasDeFacultad =
+                  catalogos?.carreras.filter(
+                    (c) => c.facultadId === facultadId
+                  ) ?? [];
+
+                const materiasDeCarrera =
+                  catalogos?.materias.filter((m) =>
+                    m.carreraIds.includes(carreraId as number)
+                  ) ?? [];
+
+                let resumen = "Elegí al menos una facultad";
+                if (facultadId && !carreraId)
+                  resumen = "Alcance: toda la facultad";
+                else if (facultadId && carreraId && !materiaId)
+                  resumen = "Alcance: toda la carrera";
+                else if (facultadId && carreraId && materiaId)
+                  resumen = "Alcance: solo esa materia";
+
+                return (
+                  <div
+                    key={field.id}
+                    className="rounded-md border border-border p-3"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      {/* Select Facultad */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          Facultad
+                        </label>
+                        <Controller
+                          control={control}
+                          name={`alcances.${index}.facultadId`}
+                          render={({ field }) => (
+                            <Select
+                              onValueChange={(val) => {
+                                field.onChange(Number(val));
+                                // al cambiar de facultad, la carrera y materia
+                                // elegidas antes ya no tienen sentido
+                                setValue(`alcances.${index}.carreraId`, 0);
+                                setValue(`alcances.${index}.materiaId`, 0);
+                              }}
+                              value={field.value ? String(field.value) : ""}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Facultad..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {catalogos?.facultades.map((f) => (
+                                  <SelectItem key={f.id} value={String(f.id)}>
+                                    {f.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+
+                      {/* Select Carrera: filtrada por la facultad elegida; opcional */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          Carrera
+                        </label>
+                        <Controller
+                          control={control}
+                          name={`alcances.${index}.carreraId`}
+                          render={({ field }) => (
+                            <Select
+                              disabled={!facultadId}
+                              onValueChange={(val) => {
+                                field.onChange(Number(val));
+                                setValue(`alcances.${index}.materiaId`, 0);
+                              }}
+                              value={field.value ? String(field.value) : "0"}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue
+                                  placeholder={
+                                    facultadId
+                                      ? "Toda la facultad"
+                                      : "Elegí primero una facultad"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">
+                                  Toda la facultad
+                                </SelectItem>
+                                {carrerasDeFacultad.map((c) => (
+                                  <SelectItem key={c.id} value={String(c.id)}>
+                                    {c.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+
+                      {/* Select Materia: opcional, requiere carrera elegida */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          Materia
+                        </label>
+                        <Controller
+                          control={control}
+                          name={`alcances.${index}.materiaId`}
+                          render={({ field }) => (
+                            <Select
+                              disabled={!carreraId}
+                              onValueChange={(val) =>
+                                field.onChange(Number(val))
+                              }
+                              value={field.value ? String(field.value) : "0"}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue
+                                  placeholder={
+                                    carreraId
+                                      ? "Toda la carrera"
+                                      : "Elegí primero una carrera"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">
+                                  Toda la carrera
+                                </SelectItem>
+                                {materiasDeCarrera.map((m) => (
+                                  <SelectItem key={m.id} value={String(m.id)}>
+                                    {m.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+
+                      {/* Botón Eliminar */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="self-end text-destructive sm:mb-[2px]"
+                        onClick={() => remove(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <p className="mt-2 text-label text-muted-foreground">
+                      {resumen}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            {errors.alcances && !Array.isArray(errors.alcances) && (
+              <p className="text-label text-destructive">
+                {errors.alcances.message as string}
+              </p>
+            )}
+          </div>
+
           {/* Contraseña temporal: informativa, no editable. La genera el backend */}
           {!isEdit && (
             <div className="space-y-1.5">
@@ -224,21 +460,21 @@ export function UserFormModal({
               </p>
             </div>
           )}
-
-          <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isEdit ? "Guardar cambios" : "Crear usuario"}
-            </Button>
-          </DialogFooter>
         </form>
+
+        <DialogFooter className="mt-2 border-t border-border pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={isSubmitting}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" form="user-form" disabled={isSubmitting}>
+            {isEdit ? "Guardar cambios" : "Crear usuario"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

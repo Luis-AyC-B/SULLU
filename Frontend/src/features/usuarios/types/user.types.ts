@@ -9,6 +9,52 @@ export interface RolBasico {
   nombre: string;
 }
 
+export interface Facultad {
+  id: number;
+  nombre: string;
+}
+
+export interface Carrera {
+  id: number;
+  nombre: string;
+  facultadId: number;
+}
+
+export interface Materia {
+  id: number;
+  nombre: string;
+  sigla: string;
+  /** IDs de las carreras a las que pertenece la materia (Carrera_Materia) */
+  carreraIds: number[];
+}
+
+export interface CatalogoAcademico {
+  facultades: Facultad[];
+  carreras: Carrera[];
+  materias: Materia[];
+}
+
+/**
+ * Alcance de un usuario. carreraId / materiaId son opcionales:
+ * - sin carrera (null/0) = toda la facultad
+ * - sin materia (null/0) = toda la carrera
+ */
+export interface UsuarioAlcance {
+  facultadId: number;
+  carreraId?: number | null;
+  materiaId?: number | null;
+  facultad?: Facultad | null;
+  carrera?: Carrera | null;
+  materia?: Materia | null;
+}
+
+/** Alcance tal como se envía al backend */
+export interface AlcanceInput {
+  facultadId: number;
+  carreraId?: number | null;
+  materiaId?: number | null;
+}
+
 /** Usuario tal cual lo devuelve la API */
 export interface Usuario {
   id: number;
@@ -19,6 +65,7 @@ export interface Usuario {
   /** Soft delete: null/undefined = activo, string = fecha de baja */
   deletedAt?: string | null;
   roles: RolBasico[]; // multi-rol vía Usuario_Rol
+  alcances?: UsuarioAlcance[]; // <-- Lista de alcances
   createdAt?: string;
   updatedAt?: string;
 }
@@ -50,6 +97,7 @@ export interface CreateUsuarioInput {
   correo: string;
   telefono?: string;
   rolesIds: string[];
+  alcances?: AlcanceInput[];
 }
 
 /** Payload para editar un usuario existente */
@@ -59,6 +107,7 @@ export interface UpdateUsuarioInput {
   apellido?: string;
   telefono?: string;
   rolesIds?: string[];
+  alcances?: AlcanceInput[];
 }
 
 /**

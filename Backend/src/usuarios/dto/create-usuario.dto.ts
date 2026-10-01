@@ -22,13 +22,23 @@ export class CreateUsuarioDto {
   @IsOptional()
   telefono?: string;
 
-  @ApiProperty({ example: 'temporal123' })
+  @ApiPropertyOptional({ example: 'temporal123' })
   @IsString()
   @MinLength(6)
-  password!: string;
+  @IsOptional()
+  password?: string;
 
   @ApiProperty({ example: [1, 2], description: 'IDs de los roles iniciales' })
   @IsArray()
   @IsNotEmpty()
   rolesIds!: number[];
+
+  @ApiPropertyOptional({
+    example: [{ facultadId: 1, carreraId: 2, materiaId: 3 }],
+    description:
+      'carreraId y materiaId son opcionales (0 o null): sin carrera = toda la facultad; sin materia = toda la carrera',
+  })
+  @IsArray()
+  @IsOptional()
+  alcances?: { facultadId: number; carreraId?: number | null; materiaId?: number | null }[];
 }

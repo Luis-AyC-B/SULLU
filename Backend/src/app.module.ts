@@ -14,6 +14,7 @@ import { ExamenesModule } from './examenes/examenes.module';
 import { CodigosQrModule } from './codigos-qr/codigos-qr.module';
 import { IngresosModule } from './ingresos/ingresos.module';
 import { HabilitacionesModule } from './habilitaciones/habilitaciones.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { HabilitacionesModule } from './habilitaciones/habilitaciones.module';
     PrismaModule,
     AuthModule,
     HealthModule,
+    MailModule,
     UsuariosModule,
     RolesModule,
     CargasEstudiantesModule,

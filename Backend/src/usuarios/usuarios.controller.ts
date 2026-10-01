@@ -36,7 +36,7 @@ export class UsuariosController {
   }
 
   @Get()
-  @Permissions('usuarios.visualizar')
+  @Permissions('usuarios.ver')
   @ApiOperation({ summary: 'Listar usuarios con paginación y búsqueda' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -51,8 +51,15 @@ export class UsuariosController {
     return this.usuariosService.findAll(page || 1, limit || 10, search, rolId);
   }
 
+  @Get('catalogos/academicos')
+  @Permissions('usuarios.ver')
+  @ApiOperation({ summary: 'Obtener facultades, carreras y materias' })
+  getCatalogosAcademicos() {
+    return this.usuariosService.getCatalogosAcademicos();
+  }
+
   @Get(':id')
-  @Permissions('usuarios.visualizar')
+  @Permissions('usuarios.ver')
   @ApiOperation({ summary: 'Obtener detalle completo de un usuario' })
   findOne(@Param('id') id: string) {
     return this.usuariosService.findOne(+id);
@@ -79,7 +86,7 @@ export class UsuariosController {
   }
 
   @Delete(':id')
-  @Permissions('usuarios.eliminar')
+  @Permissions('usuarios.desactivar')
   @ApiOperation({ summary: 'Inhabilitar usuario con protección de registros' })
   remove(@Param('id') id: string) {
     return this.usuariosService.remove(+id);
