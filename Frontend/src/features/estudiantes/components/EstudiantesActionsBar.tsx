@@ -23,7 +23,7 @@ export function EstudiantesActionsBar({
           Estudiantes
         </h1>
         <p className="mt-0.5 text-xs sm:text-sm text-muted-foreground">
-          Gestiona la lista de asistencia por examen
+          Gestiona la lista de asistencia por examen.
         </p>
       </div>
 
