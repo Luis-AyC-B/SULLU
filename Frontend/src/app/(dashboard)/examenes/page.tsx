@@ -10,6 +10,7 @@ import { ExamFormModal } from "@/features/examenes/components/ExamFormModal";
 import { CancelExamDialog } from "@/features/examenes/components/CancelExamDialog";
 import { Exam } from "@/features/examenes/types/exam.types";
 import { ExamFormValues } from "@/features/examenes/schemas/exam.schema";
+import { useHasPermission } from "@/shared/hooks/useHasPermission";
 
 export default function ExamenesPage() {
   const {
@@ -35,9 +36,9 @@ export default function ExamenesPage() {
   const [examToCancel, setExamToCancel] = useState<Exam | null>(null);
 
   // Permisos dinámicos
-  const canCreate = true;
-  const canEdit = true;
-  const canCancel = true;
+  const canCreate = useHasPermission("examenes.crear");
+  const canEdit = useHasPermission("examenes.editar");
+  const canCancel = useHasPermission("examenes.eliminar");
   const canFilterFacultad = true;
   const canFilterCarrera = true;
 

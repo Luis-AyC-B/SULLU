@@ -29,6 +29,7 @@ export function ExamFormModal({
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ExamFormValues>({
     resolver: zodResolver(examFormSchema),
@@ -152,9 +153,13 @@ export function ExamFormModal({
             <textarea
               {...register("normas")}
               rows={3}
+              maxLength={500}
               placeholder="No se permite calculadora. Presentar carnet universitario."
               className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-xs font-normal text-[#1A1D23] outline-none transition-colors focus:border-blue-500"
             />
+            <p className="mt-1 text-right text-[11px] text-gray-400">
+              {watch("normas")?.length || 0}/500 caracteres
+            </p>
           </FormField>
 
           {/* Acciones */}
