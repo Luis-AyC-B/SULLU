@@ -5,68 +5,56 @@ import { toast } from "sonner";
 
 import { userService } from "../services/user.service";
 import { mapUsuarioToResumen } from "../lib/user-mapper";
-import { Usuario } from "../types/user.types";
 import {
+  Usuario,
   UsuarioResumen,
   CreateUsuarioInput,
   UpdateUsuarioInput,
 } from "../types/user.types";
 
-// TODO: quitar este mock cuando el backend tenga /usuarios funcionando de verdad.
-const USUARIOS_MOCK: Usuario[] = [
-  {
-    id: 1,
-    nombre: "Ana",
-    apellido: "Rondón Arco",
-    correo: "arondon@universidad.edu",
-    telefono: "+591 70000001",
-    deletedAt: null,
-    roles: [{ id: "1", nombre: "Administrador" }],
-  },
-  {
-    id: 2,
-    nombre: "Luis",
-    apellido: "Medina Zanabria",
-    correo: "lmedina@universidad.edu",
-    telefono: "+591 70000002",
-    deletedAt: null,
-    roles: [
-      { id: "2", nombre: "Docente" },
-      { id: "1", nombre: "Administrador" },
-    ],
-  },
-  {
-    id: 3,
-    nombre: "Carlos",
-    apellido: "Jimenez Prado",
-    correo: "cjimenez@universidad.edu",
-    telefono: "+591 70000003",
-    deletedAt: null,
-    roles: [{ id: "3", nombre: "Control de ingreso" }],
-  },
-];
+interface UseUsersOptions {
+  search?: string;
+  page?: number;
+  limit?: number;
+}
 
-export function useUsers() {
+/** El backend (Nest) devuelve el mensaje de error en response.data.message */
+function getErrorMessage(error: unknown, fallback: string): string {
+  const anyError = error as { response?: { data?: { message?: string } } };
+  return anyError?.response?.data?.message ?? fallback;
+}
+
+export function useUsers({
+  search,
+  page = 1,
+  limit = 10,
+}: UseUsersOptions = {}) {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchUsuarios = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await userService.getAll();
-      // El backend todavía puede no devolver un array (404, HTML de error, etc.)
-      if (!Array.isArray(data)) {
-        throw new Error("respuesta_invalida");
-      }
+      const { data, total } = await userService.getAll({
+        page,
+        limit,
+        search: search || undefined,
+        // Trae también a los dados de baja: la tabla los pinta atenuados
+        // (UsuarioResumen.activo = !deletedAt) en vez de ocultarlos del todo.
+        incluirInactivos: true,
+      });
       setUsuarios(data);
-    } catch {
-      // Backend aún no disponible: usar mock para poder probar la UI.
-      setUsuarios(USUARIOS_MOCK);
+      setTotal(total);
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, "No se pudo cargar la lista de usuarios")
+      );
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [page, limit, search]);
 
   useEffect(() => {
     fetchUsuarios();
@@ -84,9 +72,9 @@ export function useUsers() {
         );
         await fetchUsuarios();
         return usuario;
-      } catch {
-        toast.error("No se pudo crear el usuario");
-        throw new Error("create_usuario_failed");
+      } catch (error) {
+        toast.error(getErrorMessage(error, "No se pudo crear el usuario"));
+        throw error;
       } finally {
         setIsSubmitting(false);
       }
@@ -101,9 +89,9 @@ export function useUsers() {
         await userService.update(payload);
         toast.success("Usuario actualizado correctamente");
         await fetchUsuarios();
-      } catch {
-        toast.error("No se pudo actualizar el usuario");
-        throw new Error("update_usuario_failed");
+      } catch (error) {
+        toast.error(getErrorMessage(error, "No se pudo actualizar el usuario"));
+        throw error;
       } finally {
         setIsSubmitting(false);
       }
@@ -118,9 +106,9 @@ export function useUsers() {
         await userService.deactivate(id);
         toast.success("Usuario desactivado");
         await fetchUsuarios();
-      } catch {
-        toast.error("No se pudo desactivar el usuario");
-        throw new Error("disable_usuario_failed");
+      } catch (error) {
+        toast.error(getErrorMessage(error, "No se pudo desactivar el usuario"));
+        throw error;
       } finally {
         setIsSubmitting(false);
       }
@@ -128,18 +116,35 @@ export function useUsers() {
     [fetchUsuarios]
   );
 
-  const usuariosResumen: UsuarioResumen[] = (
-    Array.isArray(usuarios) ? usuarios : []
-  ).map(mapUsuarioToResumen);
+  const enableUsuario = useCallback(
+    async (id: number) => {
+      setIsSubmitting(true);
+      try {
+        await userService.restore(id);
+        toast.success("Usuario reactivado");
+        await fetchUsuarios();
+      } catch (error) {
+        toast.error(getErrorMessage(error, "No se pudo reactivar el usuario"));
+        throw error;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [fetchUsuarios]
+  );
+
+  const usuariosResumen: UsuarioResumen[] = usuarios.map(mapUsuarioToResumen);
 
   return {
     usuarios,
     usuariosResumen,
+    total,
     isLoading,
     isSubmitting,
     createUsuario,
     updateUsuario,
     disableUsuario,
+    enableUsuario,
     refetch: fetchUsuarios,
   };
 }

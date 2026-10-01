@@ -131,36 +131,43 @@ export class UsuariosService {
     return result;
   }
 
-  async findAll(page = 1, limit = 10, search?: string, rolId?: number) {
-    const skip = (page - 1) * limit;
+  async findAll(
+  page = 1,
+  limit = 10,
+  search?: string,
+  rolId?: number,
+  incluirInactivos = false,
+) {
+  const skip = (page - 1) * limit;
 
-    const where: any = { deletedAt: null };
-    if (search) {
-      where.OR = [
-        { nombre: { contains: search, mode: 'insensitive' } },
-        { apellido: { contains: search, mode: 'insensitive' } },
-        { correo: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-    if (rolId) {
-      where.roles = { some: { rolId: Number(rolId) } };
-    }
-
-    const [total, data] = await Promise.all([
-      this.prisma.usuario.count({ where }),
-      this.prisma.usuario.findMany({
-        where,
-        skip,
-        take: Number(limit),
-        include: {
-          roles: { include: { rol: true } },
-          alcances: { include: { facultad: true, carrera: true, materia: true } },
-        },
-      }),
-    ]);
-
-    return { total, page: Number(page), limit: Number(limit), data };
+  const where: any = incluirInactivos ? {} : { deletedAt: null };
+  if (search) {
+    where.OR = [
+      { nombre: { contains: search, mode: 'insensitive' } },
+      { apellido: { contains: search, mode: 'insensitive' } },
+      { correo: { contains: search, mode: 'insensitive' } },
+    ];
   }
+  if (rolId) {
+    where.roles = { some: { rolId: Number(rolId) } };
+  }
+
+  const [total, data] = await Promise.all([
+    this.prisma.usuario.count({ where }),
+    this.prisma.usuario.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      orderBy: { deletedAt: 'asc' }, // activos primero, inactivos al final
+      include: {
+        roles: { include: { rol: true } },
+        alcances: { include: { facultad: true, carrera: true, materia: true } },
+      },
+    }),
+  ]);
+
+  return { total, page: Number(page), limit: Number(limit), data };
+}
 
   async findOne(id: number) {
     const usuario = await this.prisma.usuario.findUnique({
@@ -221,34 +228,36 @@ export class UsuariosService {
   }
 
   async remove(id: number) {
-    const existe = await this.prisma.usuario.findUnique({
-      where: { id },
-      include: {
-        examenes: true,
-        cargasEstudiantes: true,
-        ingresos: true,
-      },
-    });
+  const existe = await this.prisma.usuario.findUnique({
+    where: { id },
+  });
 
-    if (!existe || existe.deletedAt !== null) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
-
-    if (
-      existe.examenes.length > 0 ||
-      existe.cargasEstudiantes.length > 0 ||
-      existe.ingresos.length > 0
-    ) {
-      throw new BadRequestException(
-        'No se puede eliminar el usuario porque compromete la integridad histórica (tiene exámenes, cargas o ingresos).',
-      );
-    }
-
-    return this.prisma.usuario.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+  if (!existe || existe.deletedAt !== null) {
+    throw new NotFoundException('Usuario no encontrado');
   }
+
+  // Soft delete: solo marca la baja, no elimina el registro ni sus relaciones
+  return this.prisma.usuario.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+}
+
+async reactivar(id: number) {
+  const existe = await this.prisma.usuario.findUnique({ where: { id } });
+
+  if (!existe) {
+    throw new NotFoundException('Usuario no encontrado');
+  }
+  if (existe.deletedAt === null) {
+    throw new BadRequestException('El usuario ya está activo');
+  }
+
+  return this.prisma.usuario.update({
+    where: { id },
+    data: { deletedAt: null },
+  });
+}
 
   async updateAlcance(id: number, dto: UpdateAlcanceDto) {
     const existe = await this.prisma.usuario.findUnique({ where: { id } });

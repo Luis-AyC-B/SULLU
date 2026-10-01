@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Ban } from "lucide-react";
+import { Pencil, Ban, UserCheck } from "lucide-react";
 import { Can } from "@/shared/components/guards/Can";
 import { getRolBadgeClasses } from "../lib/rol-badge";
 import { UsuarioResumen } from "../types/user.types";
@@ -9,6 +9,7 @@ interface UserCardProps {
   user: UsuarioResumen;
   onEdit: (user: UsuarioResumen) => void;
   onDisable: (user: UsuarioResumen) => void;
+  onEnable: (user: UsuarioResumen) => void;
 }
 
 function getInitials(nombreCompleto: string): string {
@@ -26,7 +27,7 @@ function getInitials(nombreCompleto: string): string {
  * avatar + nombre y acciones en la misma fila arriba,
  * badges de rol debajo, correo al final.
  */
-export function UserCard({ user, onEdit, onDisable }: UserCardProps) {
+export function UserCard({ user, onEdit, onDisable, onEnable }: UserCardProps) {
   // El administrador no muestra botones de editar ni deshabilitar
   const esAdmin = user.roles.some((r) => r.toLowerCase() === "administrador");
 
@@ -56,7 +57,7 @@ export function UserCard({ user, onEdit, onDisable }: UserCardProps) {
                 <Pencil className="h-4 w-4" />
               </button>
             </Can>
-            {user.activo && (
+            {user.activo ? (
               <Can permission="usuarios.desactivar">
                 <button
                   type="button"
@@ -65,6 +66,17 @@ export function UserCard({ user, onEdit, onDisable }: UserCardProps) {
                   aria-label={`Desactivar a ${user.nombreCompleto}`}
                 >
                   <Ban className="h-4 w-4" />
+                </button>
+              </Can>
+            ) : (
+              <Can permission="usuarios.desactivar">
+                <button
+                  type="button"
+                  onClick={() => onEnable(user)}
+                  className="rounded-full border border-primary p-1.5 text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                  aria-label={`Reactivar a ${user.nombreCompleto}`}
+                >
+                  <UserCheck className="h-4 w-4" />
                 </button>
               </Can>
             )}
