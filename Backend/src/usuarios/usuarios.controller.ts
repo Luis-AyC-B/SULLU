@@ -36,20 +36,28 @@ export class UsuariosController {
   }
 
   @Get()
-  @Permissions('usuarios.ver')
-  @ApiOperation({ summary: 'Listar usuarios con paginación y búsqueda' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'rolId', required: false, type: Number })
-  findAll(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('search') search?: string,
-    @Query('rolId') rolId?: number,
-  ) {
-    return this.usuariosService.findAll(page || 1, limit || 10, search, rolId);
-  }
+@Permissions('usuarios.ver')
+@ApiOperation({ summary: 'Listar usuarios con paginación y búsqueda' })
+@ApiQuery({ name: 'page', required: false, type: Number })
+@ApiQuery({ name: 'limit', required: false, type: Number })
+@ApiQuery({ name: 'search', required: false, type: String })
+@ApiQuery({ name: 'rolId', required: false, type: Number })
+@ApiQuery({ name: 'incluirInactivos', required: false, type: Boolean })
+findAll(
+  @Query('page') page?: number,
+  @Query('limit') limit?: number,
+  @Query('search') search?: string,
+  @Query('rolId') rolId?: number,
+  @Query('incluirInactivos') incluirInactivos?: string,
+) {
+  return this.usuariosService.findAll(
+    page || 1,
+    limit || 10,
+    search,
+    rolId,
+    incluirInactivos === 'true',
+  );
+}
 
   @Get('catalogos/academicos')
   @Permissions('usuarios.ver')
@@ -101,4 +109,10 @@ export class UsuariosController {
   ) {
     return this.usuariosService.updateAlcance(+id, updateAlcanceDto);
   }
+  @Patch(':id/reactivar')
+@Permissions('usuarios.desactivar')
+@ApiOperation({ summary: 'Reactivar un usuario dado de baja' })
+reactivar(@Param('id') id: string) {
+  return this.usuariosService.reactivar(+id);
+}
 }

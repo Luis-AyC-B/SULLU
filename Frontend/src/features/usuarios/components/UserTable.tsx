@@ -17,6 +17,7 @@ interface UserTableProps {
   isLoading: boolean;
   onEdit: (user: UsuarioResumen) => void;
   onDisable: (user: UsuarioResumen) => void;
+  onEnable: (user: UsuarioResumen) => void;
 }
 
 const SKELETON_ROWS = 5;
@@ -26,6 +27,7 @@ export function UserTable({
   isLoading,
   onEdit,
   onDisable,
+  onEnable,
 }: UserTableProps) {
   return (
     <>
@@ -70,6 +72,7 @@ export function UserTable({
                   user={user}
                   onEdit={onEdit}
                   onDisable={onDisable}
+                  onEnable={onEnable}
                 />
               ))}
           </TableBody>
@@ -99,6 +102,7 @@ export function UserTable({
               user={user}
               onEdit={onEdit}
               onDisable={onDisable}
+              onEnable={onEnable}
             />
           ))}
       </div>
