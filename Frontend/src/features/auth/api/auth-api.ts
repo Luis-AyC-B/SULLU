@@ -130,19 +130,27 @@ export async function invalidatePreviousSession(email: string): Promise<boolean>
  * "El sistema no revela si el correo existe o no, y muestra un mensaje neutro indicando que si el correo está registrado, recibirá instrucciones."
  */
 export async function requestPasswordRecovery(email: string): Promise<RecoveryResult> {
+  const normalizedEmail = email.trim().toLowerCase();
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    await fetch(`${API_URL}/auth/recuperar-password`, {
+    const res = await fetch(`${API_URL}/auth/recuperar-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: normalizedEmail }),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-  } catch {
-    console.info(`[RECUPERACIÓN PASSWORD MOCK]: Solicitud procesada para ${email}`);
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error(`[AUTH API] Error del servidor al recuperar password (Status ${res.status}):`, errText);
+    } else {
+      console.info(`[AUTH API] Solicitud de recuperación enviada exitosamente al servidor para: ${normalizedEmail}`);
+    }
+  } catch (err) {
+    console.error(`[AUTH API] Error de conexión al solicitar recuperación de password:`, err);
   }
 
   await logAuditAuthEvent({

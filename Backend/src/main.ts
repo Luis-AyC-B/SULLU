@@ -29,14 +29,23 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, documentFactory);
   // Habilitar peticiones cruzadas desde el frontend
+  const allowedOrigins = [
+    'https://exa-control.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:4000',
+    'http://localhost:3002',
+    'http://localhost:6001',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean) as string[];
+
   app.enableCors({
-    origin: [
-      'https://exa-control.vercel.app',
-      'http://localhost:3000',
-      'http://localhost:4000',
-      'http://localhost:3002',
-      'http://localhost:6001',
-    ],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
   });
   await app.listen(process.env.PORT ?? 4001);

@@ -7,13 +7,28 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
 
   constructor() {
+    const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
+    const port = Number(process.env.SMTP_PORT) || 2525;
+    const secure = process.env.SMTP_SECURE === 'true'; // false para STARTTLS (puerto 2525 o 587)
+
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host,
+      port,
+      secure,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
     });
+  }
+
+  private getFromAddress(): string {
+    const name = process.env.MAIL_FROM_NAME || 'ExaControl';
+    const from =
+      process.env.MAIL_FROM ||
+      process.env.SMTP_USER ||
+      'exacontrolapp@gmail.com';
+    return `"${name}" <${from}>`;
   }
 
   async enviarCredenciales(
@@ -30,7 +45,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"ExaControl UMSS" <${process.env.SMTP_USER}>`,
+        from: this.getFromAddress(),
         to: correo,
         subject: 'Tus credenciales de acceso a ExaControl',
         html: `
@@ -66,7 +81,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"ExaControl UMSS" <${process.env.SMTP_USER}>`,
+        from: this.getFromAddress(),
         to: correo,
         subject: 'Recuperación de contraseña - ExaControl',
         html: `
