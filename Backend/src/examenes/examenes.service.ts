@@ -92,6 +92,86 @@ export class ExamenesService {
     };
   }
 
+  // --- OBTENER EXÁMENES PÚBLICOS PARA EL CALENDARIO Y PÁGINA DE BIENVENIDA ---
+  async getExamenesPublicos() {
+    const examenes = await prisma.examen.findMany({
+      where: {
+        estado: { not: EstadoExamen.CANCELADO },
+      },
+      include: {
+        reservaAmbiente: {
+          include: {
+            ambiente: {
+              include: {
+                facultad: true,
+              },
+            },
+          },
+        },
+        responsable: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            correo: true,
+          },
+        },
+        carrerasMaterias: {
+          include: {
+            carrera_materia: {
+              include: {
+                materia: true,
+                carrera: {
+                  include: {
+                    facultad: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [
+        { reservaAmbiente: { fecha: 'asc' } },
+        { reservaAmbiente: { horaIni: 'asc' } },
+      ],
+    });
+
+    return examenes.map((e) => {
+      const cm = e.carrerasMaterias?.[0]?.carrera_materia;
+      const cmDirect = e.carrerasMaterias?.[0];
+      const docenteNombre = e.responsable
+        ? `${e.responsable.nombre} ${e.responsable.apellido ?? ''}`.trim()
+        : 'Docente asignado';
+
+      return {
+        id: e.id,
+        tipoExamen: e.tipoExamen || 'Examen programado',
+        normas: e.normasEx ?? '',
+        materiaId: cm?.materia?.id ?? cmDirect?.materiaId ?? 0,
+        materiaNombre: cm?.materia?.nombre ?? 'Materia general',
+        carreraId: cm?.carrera?.id ?? cmDirect?.carreraId ?? 0,
+        carreraNombre: cm?.carrera?.nombre ?? 'Carrera no especificada',
+        facultadId:
+          cm?.carrera?.facultad?.id ??
+          e.reservaAmbiente?.ambiente?.facultad?.id ??
+          0,
+        facultadNombre:
+          cm?.carrera?.facultad?.nombre ??
+          e.reservaAmbiente?.ambiente?.facultad?.nombre ??
+          'Facultad de Ciencias y Tecnología (FCyT)',
+        docente: docenteNombre,
+        reservaAmbienteId: e.reservaAmbienteId,
+        ambienteId: e.reservaAmbiente?.ambiente?.id ?? 0,
+        ambienteNombre: e.reservaAmbiente?.ambiente?.nombre ?? 'Aula asignada',
+        fecha: fechaISO(e.reservaAmbiente?.fecha),
+        horaInicio: horaISO(e.reservaAmbiente?.horaIni, '08:00'),
+        horaFin: horaISO(e.reservaAmbiente?.horaFin, '09:30'),
+        estado: e.estado,
+      };
+    });
+  }
+
   // Materias del docente deduplicadas por ID para evitar conflictos de keys en el frontend
   async getMateriasDocente(
     usuarioId: unknown,
