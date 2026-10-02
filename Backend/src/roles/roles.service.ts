@@ -9,6 +9,8 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateRolDto } from './dto/update-role.dto';
+import { ForbiddenException } from '@nestjs/common';
+import { ROL_ADMINISTRADOR_ID } from '../usuarios/usuarios.constants';
 @Injectable()
 export class RolesService {
   constructor(private prisma: PrismaService) {}
@@ -104,77 +106,86 @@ export class RolesService {
       throw error;
     }
   }
-
+private asegurarNoEsRolAdminCentral(id: number) {
+  if (id === ROL_ADMINISTRADOR_ID) {
+    throw new ForbiddenException(
+      'El rol del administrador central del sistema no se puede modificar ni eliminar',
+    );
+  }
+}
   async findAll() {
-    // Excluir los roles que tengan fecha de eliminación lógica (Soft Delete)
-    const roles = await this.prisma.rol.findMany({
-      where: { deletedAt: null },
-      include: {
-        usuarios: true,
-        permisos: { include: { permiso: true } },
-      },
-    });
+  // Excluir roles con eliminación lógica y el rol del administrador central
+  const roles = await this.prisma.rol.findMany({
+    where: { deletedAt: null, id: { not: ROL_ADMINISTRADOR_ID } },
+    include: {
+      usuarios: true,
+      permisos: { include: { permiso: true } },
+    },
+  });
 
-    return roles.map((rol: any) => this.mapToFrontendRol(rol));
-  }
+  return roles.map((rol: any) => this.mapToFrontendRol(rol));
+}
   async update(id: number, updateRolDto: UpdateRolDto) {
-    const rol = await this.prisma.rol.findUnique({ where: { id } });
-    if (!rol) throw new NotFoundException('Rol no encontrado');
-    if (rol.esPlantilla) {
-      throw new BadRequestException('Los roles base del sistema no se pueden modificar.');
-    }
+  this.asegurarNoEsRolAdminCentral(id);
 
-    if (updateRolDto.nombre && updateRolDto.nombre.toLowerCase() !== rol.nombre.toLowerCase()) {
-      const duplicado = await this.prisma.rol.findFirst({
-        where: { nombre: { equals: updateRolDto.nombre, mode: 'insensitive' } },
-      });
-      if (duplicado) throw new BadRequestException('Ya existe un rol con este nombre');
-    }
-
-    const rolActualizado = await this.prisma.$transaction(async (tx: any) => {
-      if (updateRolDto.permisos) {
-        await tx.rol_Permiso.deleteMany({ where: { rolId: id } });
-      }
-
-      return tx.rol.update({
-        where: { id },
-        data: {
-          nombre: updateRolDto.nombre,
-          descripcion: updateRolDto.descripcion,
-          ...(updateRolDto.permisos && {
-            permisos: {
-              create: updateRolDto.permisos.map((clave: string) => ({ permiso: { connect: { clave } } })),
-            },
-          }),
-        },
-        include: { usuarios: true, permisos: { include: { permiso: true } } },
-      });
-    });
-
-    return this.mapToFrontendRol(rolActualizado);
+  const rol = await this.prisma.rol.findUnique({ where: { id } });
+  if (!rol) throw new NotFoundException('Rol no encontrado');
+  if (rol.esPlantilla) {
+    throw new BadRequestException('Los roles base del sistema no se pueden modificar.');
   }
+
+  if (updateRolDto.nombre && updateRolDto.nombre.toLowerCase() !== rol.nombre.toLowerCase()) {
+    const duplicado = await this.prisma.rol.findFirst({
+      where: { nombre: { equals: updateRolDto.nombre, mode: 'insensitive' } },
+    });
+    if (duplicado) throw new BadRequestException('Ya existe un rol con este nombre');
+  }
+
+  const rolActualizado = await this.prisma.$transaction(async (tx: any) => {
+    if (updateRolDto.permisos) {
+      await tx.rol_Permiso.deleteMany({ where: { rolId: id } });
+    }
+
+    return tx.rol.update({
+      where: { id },
+      data: {
+        nombre: updateRolDto.nombre,
+        descripcion: updateRolDto.descripcion,
+        ...(updateRolDto.permisos && {
+          permisos: {
+            create: updateRolDto.permisos.map((clave: string) => ({ permiso: { connect: { clave } } })),
+          },
+        }),
+      },
+      include: { usuarios: true, permisos: { include: { permiso: true } } },
+    });
+  });
+
+  return this.mapToFrontendRol(rolActualizado);
+}
 
   async remove(id: number) {
-    const rol = await this.prisma.rol.findUnique({ 
-      where: { id },
-      include: { _count: { select: { usuarios: true } } }
-    });
+  this.asegurarNoEsRolAdminCentral(id);
 
-    if (!rol || rol.deletedAt) throw new NotFoundException('Rol no encontrado');
-    if (rol.esPlantilla) throw new BadRequestException('No se pueden eliminar roles base del sistema');
-    if (rol._count.usuarios > 0) {
-      throw new BadRequestException('Debe reasignar a los usuarios antes de eliminar el rol');
-    }
+  const rol = await this.prisma.rol.findUnique({
+    where: { id },
+    include: { _count: { select: { usuarios: true } } },
+  });
 
-    // Aplicar Soft Delete marcando la fecha actual en lugar de borrar físicamente el registro
-    await this.prisma.rol.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-
-    return { success: true };
+  if (!rol || rol.deletedAt) throw new NotFoundException('Rol no encontrado');
+  if (rol.esPlantilla) throw new BadRequestException('No se pueden eliminar roles base del sistema');
+  if (rol._count.usuarios > 0) {
+    throw new BadRequestException('Debe reasignar a los usuarios antes de eliminar el rol');
   }
 
+  // Aplicar Soft Delete marcando la fecha actual en lugar de borrar físicamente el registro
+  await this.prisma.rol.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+
+  return { success: true };
+}
   async getModulosConPermisos() {
     // Consulta dinámica directamente de las tablas Modulo y Permiso en la BD
     const modulosDb = await this.prisma.modulo.findMany({

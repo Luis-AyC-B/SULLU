@@ -4,6 +4,7 @@ import { Pencil, Ban, UserCheck } from "lucide-react";
 import { Can } from "@/shared/components/guards/Can";
 import { getRolBadgeClasses } from "../lib/rol-badge";
 import { UsuarioResumen } from "../types/user.types";
+import { ADMIN_CENTRAL_ID } from "../lib/admin-central";
 
 interface UserCardProps {
   user: UsuarioResumen;
@@ -28,8 +29,8 @@ function getInitials(nombreCompleto: string): string {
  * badges de rol debajo, correo al final.
  */
 export function UserCard({ user, onEdit, onDisable, onEnable }: UserCardProps) {
-  // El administrador no muestra botones de editar ni deshabilitar
-  const esAdmin = user.roles.some((r) => r.toLowerCase() === "administrador");
+// Solo el administrador central del sistema (usuario id 1) no tiene acciones
+const esAdmin = Number(user.id) === ADMIN_CENTRAL_ID;
 
   return (
     <div

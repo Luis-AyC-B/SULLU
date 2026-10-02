@@ -63,8 +63,8 @@ function getRolDisplayName(session: SessionUserWithRoles | null | undefined): st
  * Header de la aplicación (cuando el usuario ya inició sesión)
  * Basado en los mockups oficiales (media_1789864393611.png y media_1789917596801.png).
  * Extremo izquierdo: LogoUMSSDarkMode.png + LogoExaControlSinNombre.png + ExaControl en rojo.
- * Extremo derecho: Sección de usuario con rol, nombre, avatar e icono desplegable
- * que abre el modal/menú flotante para "Perfil" y "Cerrar sesión" funcional.
+ * Extremo derecho: Sección de usuario con rol, nombre y avatar que abre el
+ * menú flotante para "Perfil" y "Cerrar sesión" funcional.
  */
 export function Header() {
   const { data: session } = useSession();
@@ -122,31 +122,31 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-16 w-full items-center justify-between bg-[#002D62] px-4 md:px-6 shadow-sm border-b border-[#001f45] select-none text-white z-30">
-      {/* Extremo Superior Izquierdo: Logos Institucionales */}
-      <div className="flex items-center gap-3 sm:gap-4">
+    <header className="flex h-16 w-full items-center justify-between bg-[#002D62] px-3 md:px-6 shadow-sm border-b border-[#001f45] select-none text-white z-30">
+      {/* Extremo Superior Izquierdo: Logos Institucionales (más chicos en mobile) */}
+      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
         {/* 1. Logo UMSS Dark Mode */}
         <img
           src="/LogoUMSSDarkMode.png"
           alt="Universidad Mayor de San Simón"
-          className="h-8 sm:h-9 w-auto object-contain shrink-0"
+          className="h-6 sm:h-9 w-auto object-contain shrink-0"
         />
 
         {/* 2. Logo ExaControl Sin Nombre + Nombre ExaControl en rojo pareciendo parte del logo */}
-        <div className="flex items-center gap-1.5 ml-1 sm:ml-2">
+        <div className="flex items-center gap-1 sm:gap-1.5 sm:ml-2">
           <img
             src="/LogoExaControlSinNombre.png"
             alt="ExaControl"
-            className="h-5 sm:h-6 w-auto object-contain shrink-0"
+            className="h-4 sm:h-6 w-auto object-contain shrink-0"
           />
-          <span className="text-base sm:text-lg font-black tracking-tight text-[#E30613]">
+          <span className="text-sm sm:text-lg font-black tracking-tight text-[#E30613]">
             ExaControl
           </span>
         </div>
       </div>
 
-      {/* Extremo Superior Derecho: Sección de usuario interactiva con modal/menú flotante */}
-      <div className="relative" ref={menuRef}>
+      {/* Extremo Superior Derecho: Sección de usuario interactiva con menú flotante */}
+      <div className="relative shrink-0" ref={menuRef}>
         <button
           type="button"
           onClick={() => setIsMenuOpen((prev) => !prev)}
@@ -154,8 +154,8 @@ export function Header() {
           aria-expanded={isMenuOpen}
           aria-haspopup="menu"
         >
-          {/* Píldora del Rol asignado */}
-          <span className="inline-flex items-center rounded-full bg-[#0c3b6f] px-3 py-1 text-[11px] font-semibold tracking-wider text-slate-100 border border-white/10 uppercase shadow-2xs">
+          {/* Píldora del Rol asignado: se oculta en mobile */}
+          <span className="hidden sm:inline-flex items-center rounded-full bg-[#0c3b6f] px-3 py-1 text-[11px] font-semibold tracking-wider text-slate-100 border border-white/10 uppercase shadow-2xs">
             {rol}
           </span>
 
@@ -164,16 +164,13 @@ export function Header() {
             {nombre}
           </span>
 
-          {/* Avatar Circular Rojo con Iniciales (exacto al mockup de media_1789917596801.png) */}
+          {/* Avatar Circular Rojo con Iniciales */}
           <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full bg-[#D3101E] text-xs font-bold text-white shadow-xs ring-2 ring-[#003875]">
             {iniciales}
           </div>
-
-          {/* Icono de flecha/salida según mockup */}
-          <LogOut className="h-4 w-4 text-white/80 transition-transform group-hover:translate-x-0.5" />
         </button>
 
-        {/* Modal / Menú Flotante desplegable de Usuario */}
+        {/* Menú flotante desplegable de Usuario */}
         {isMenuOpen && (
           <div
             role="menu"

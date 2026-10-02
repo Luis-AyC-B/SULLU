@@ -63,7 +63,7 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const pathname = req.nextUrl.pathname;
         // La pantalla de login y unauthorized son públicas
-        if (pathname.startsWith('/login') || pathname.startsWith('/unauthorized')) {
+        if (pathname.startsWith('/login') || pathname.startsWith('/unauthorized') || pathname.startsWith('/recuperar-password')) {
           return true;
         }
         // El resto de rutas protegidas del dashboard requieren sesión activa
