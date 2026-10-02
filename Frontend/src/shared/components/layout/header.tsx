@@ -20,7 +20,7 @@ interface SessionUserWithRoles {
 }
 
 function getRolDisplayName(session: SessionUserWithRoles | null | undefined): string {
-  // Si viene explícito en la sesión
+  // Si viene el nombre del rol desde el backend, usarlo directamente
   if (session?.user?.rol) {
     return String(session.user.rol).toUpperCase();
   }
@@ -28,35 +28,13 @@ function getRolDisplayName(session: SessionUserWithRoles | null | undefined): st
     return String(session.user.role).toUpperCase();
   }
 
-  // Si se dispone de la lista de permisos del usuario
-  const permisos: string[] = session?.user?.permisos || [];
-  if (
-    permisos.includes("usuarios.crear") ||
-    permisos.includes("roles.crear") ||
-    permisos.includes("usuarios.ver")
-  ) {
-    return "ADMINISTRADOR";
-  }
-  if (
-    permisos.includes("examenes.crear") ||
-    permisos.some((p) => p.startsWith("examenes"))
-  ) {
-    return "DOCENTE";
-  }
-  if (
-    permisos.includes("estudiantes.habilitar") ||
-    permisos.some((p) => p.startsWith("estudiantes"))
-  ) {
-    return "CONTROL DE INGRESO";
-  }
-
-  // Si el correo o nombre sugieren el rol
+  // Fallback: inferir del correo (solo si el backend no envió el rol)
   const email = session?.user?.email?.toLowerCase() || "";
   if (email.includes("admin")) return "ADMINISTRADOR";
-  if (email.includes("docente")) return "DOCENTE";
   if (email.includes("control")) return "CONTROL DE INGRESO";
+  if (email.includes("docente")) return "DOCENTE";
 
-  return "DOCENTE";
+  return "USUARIO";
 }
 
 /**
