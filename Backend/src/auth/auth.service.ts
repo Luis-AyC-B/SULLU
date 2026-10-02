@@ -1,5 +1,10 @@
 /* eslint-disable */
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,6 +14,8 @@ import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -109,41 +116,59 @@ export class AuthService {
   }
 
   async solicitarRecuperacion(email: string) {
+    const cleanEmail = email?.trim().toLowerCase();
+    this.logger.log(`[solicitarRecuperacion] Solicitud para: "${email}" (normalizado: "${cleanEmail}")`);
+
     const usuario = await this.prisma.usuario.findFirst({
-      where: { correo: email, deletedAt: null },
+      where: {
+        correo: { equals: cleanEmail, mode: 'insensitive' },
+        deletedAt: null,
+      },
     });
 
     // Respuesta neutra para no revelar si el correo existe
     if (!usuario) {
+      this.logger.warn(`[solicitarRecuperacion] No existe usuario con correo: "${cleanEmail}"`);
       return {
         message:
           'Si el correo está registrado en el sistema, recibirás un mensaje con las instrucciones para restablecer tu contraseña.',
       };
     }
 
-    // Invalidar tokens anteriores no usados del mismo usuario
-    await this.prisma.tokenRecuperacion.updateMany({
-      where: { usuarioId: usuario.id, usado: false },
-      data: { usado: true },
-    });
+    this.logger.log(`[solicitarRecuperacion] Usuario encontrado: id=${usuario.id}. Creando token...`);
 
-    const token = randomUUID();
-    const expiraEn = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+    try {
+      // Invalidar tokens anteriores no usados del mismo usuario
+      await this.prisma.tokenRecuperacion.updateMany({
+        where: { usuarioId: usuario.id, usado: false },
+        data: { usado: true },
+      });
 
-    await this.prisma.tokenRecuperacion.create({
-      data: {
-        token,
-        usuarioId: usuario.id,
-        expiraEn,
-      },
-    });
+      const token = randomUUID();
+      const expiraEn = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const link = `${frontendUrl}/recuperar-password?token=${token}`;
+      await this.prisma.tokenRecuperacion.create({
+        data: {
+          token,
+          usuarioId: usuario.id,
+          expiraEn,
+        },
+      });
 
-    this.mailService
-      .enviarRecuperacion(usuario.correo, usuario.nombre ?? '', link)
-      .catch(() => {});
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const link = `${frontendUrl}/recuperar-password?token=${token}`;
+
+      this.logger.log(`[solicitarRecuperacion] Enviando correo de recuperación a ${usuario.correo}...`);
+      await this.mailService.enviarRecuperacion(
+        usuario.correo,
+        usuario.nombre ?? '',
+        link,
+      );
+      this.logger.log(`[solicitarRecuperacion] Correo enviado exitosamente a ${usuario.correo}`);
+    } catch (error) {
+      this.logger.error(`[solicitarRecuperacion] ERROR al procesar token o envío de correo:`, error);
+      throw error;
+    }
 
     return {
       message:

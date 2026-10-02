@@ -9,6 +9,10 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { UsuarioResponseDto } from './dto/usuario-response.dto';
+import {
+  RecuperarPasswordDto,
+  ResetearPasswordDto,
+} from './dto/recuperar-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { AuthenticatedUser } from './strategies/jwt.strategy';
@@ -28,7 +32,6 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos' })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
   async login(@Body() loginDto: LoginDto): Promise<LoginResponseDto> {
-    console.log('.');
     const usuario = await this.authService.validateUser(
       loginDto.email,
       loginDto.password,
@@ -39,16 +42,16 @@ export class AuthController {
   @Post('recuperar-password')
   @ApiOperation({ summary: 'Solicitar recuperación de contraseña por correo' })
   @ApiResponse({ status: 200, description: 'Respuesta neutra de seguridad' })
-  solicitarRecuperacion(@Body() body: { email: string }) {
-    return this.authService.solicitarRecuperacion(body.email);
+  solicitarRecuperacion(@Body() dto: RecuperarPasswordDto) {
+    return this.authService.solicitarRecuperacion(dto.email);
   }
 
   @Post('resetear-password')
   @ApiOperation({ summary: 'Restablecer contraseña con token de recuperación' })
   @ApiResponse({ status: 200, description: 'Contraseña actualizada' })
   @ApiResponse({ status: 400, description: 'Token inválido o expirado' })
-  resetearPassword(@Body() body: { token: string; password: string }) {
-    return this.authService.resetearPassword(body.token, body.password);
+  resetearPassword(@Body() dto: ResetearPasswordDto) {
+    return this.authService.resetearPassword(dto.token, dto.password);
   }
 
   @UseGuards(JwtAuthGuard)
