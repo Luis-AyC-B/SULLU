@@ -8,6 +8,7 @@ import {
 import { Can } from "@/shared/components/guards/Can";
 import { getRolBadgeClasses } from "../lib/rol-badge";
 import { UsuarioResumen } from "../types/user.types";
+import { ADMIN_CENTRAL_ID } from "../lib/admin-central";
 
 interface UserTableRowProps {
   user: UsuarioResumen;
@@ -32,9 +33,8 @@ export function UserTableRow({
   onDisable,
   onEnable,
 }: UserTableRowProps) {
-  // El administrador no muestra botones de editar ni deshabilitar
-  const esAdmin = user.roles.some((r) => r.toLowerCase() === "administrador");
-
+  // Solo el administrador central del sistema (usuario id 1) no tiene acciones
+      const esAdmin = Number(user.id) === ADMIN_CENTRAL_ID;
   return (
     <TableRow
       className={`hover:bg-muted/50 ${!user.activo ? "opacity-60" : ""}`}
