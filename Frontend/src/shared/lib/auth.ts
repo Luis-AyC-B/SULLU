@@ -49,6 +49,7 @@ export const authOptions: NextAuthOptions = {
             name: data.usuario.nombre,
             email: data.usuario.email,
             permisos: data.usuario.permisos,
+            rol: data.usuario.rol,
             accessToken: data.access_token, 
           } as any;
         } catch (error: any) {
@@ -122,6 +123,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.accessToken = (user as any).accessToken;
         token.permisos = (user as any).permisos;
+        token.rol = (user as any).rol;
       }
       return token;
     },
@@ -129,6 +131,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).accessToken = token.accessToken;
         (session.user as any).permisos = token.permisos;
+        (session.user as any).rol = token.rol;
       }
       return session;
     },

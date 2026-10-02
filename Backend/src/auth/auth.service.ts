@@ -84,11 +84,15 @@ export class AuthService {
       data: { sessionId },
     });
 
+    // Extraer el nombre del primer rol asignado
+    const rolNombre = usuario.roles?.[0]?.rol?.nombre || '';
+
     const payload = {
       sub: usuario.id,
       nombre: usuario.nombre,
       email: usuario.correo,
-      permisos: permisosUsuario, 
+      permisos: permisosUsuario,
+      rol: rolNombre,
       sessionId,
     };
 
@@ -99,6 +103,7 @@ export class AuthService {
         nombre: usuario.nombre,
         email: usuario.correo,
         permisos: permisosUsuario,
+        rol: rolNombre,
       },
     };
   }
