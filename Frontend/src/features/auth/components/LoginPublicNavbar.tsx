@@ -56,6 +56,12 @@ export function LoginPublicNavbar({ onOpenLogin }: LoginPublicNavbarProps) {
               Noticias
             </Link>
             <Link
+              href="#calendario"
+              className="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            >
+              Exámenes
+            </Link>
+            <Link
               href="#ayuda"
               className="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
             >
