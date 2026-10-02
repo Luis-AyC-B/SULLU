@@ -170,3 +170,24 @@ export async function preValidateAccountStatus(email: string): Promise<AuthError
   }
   return null;
 }
+
+
+export async function resetPassword(token: string, password: string): Promise<{ success: boolean; message: string }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  const res = await fetch(API_URL + '/auth/resetear-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password }),
+    signal: controller.signal,
+  });
+  clearTimeout(timeoutId);
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Error al restablecer la contraseña.');
+  }
+
+  return { success: true, message: data.message || 'Contraseña actualizada exitosamente.' };
+}
