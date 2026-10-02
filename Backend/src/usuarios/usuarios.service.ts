@@ -1,11 +1,18 @@
 /* eslint-disable */
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateAlcanceDto } from './dto/update-alcance.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ADMIN_CENTRAL_ID, ROL_ADMINISTRADOR_ID } from './usuarios.constants';
 
 import { MailService } from '../mail/mail.service';
 
@@ -81,86 +88,95 @@ export class UsuariosService {
   }
 
   async create(dto: CreateUsuarioDto) {
-    const existe = await this.prisma.usuario.findUnique({
-      where: { correo: dto.correo },
+  this.asegurarSinRolAdministrador(dto.rolesIds);
+
+  const existe = await this.prisma.usuario.findUnique({
+    where: { correo: dto.correo },
+  });
+  if (existe) {
+    throw new ConflictException('Ya existe un usuario con este correo');
+  }
+
+  const alcances = this.normalizarAlcances(dto.alcances);
+
+  const rawPassword = dto.password || Math.random().toString(36).slice(-8);
+  const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+  const result = await this.prisma.$transaction(async (tx) => {
+    const usuario = await tx.usuario.create({
+      data: {
+        nombre: dto.nombre,
+        apellido: dto.apellido,
+        correo: dto.correo,
+        telefono: dto.telefono,
+        password: passwordHash,
+      },
     });
-    if (existe) {
-      throw new ConflictException('Ya existe un usuario con este correo');
-    }
 
-    const alcances = this.normalizarAlcances(dto.alcances);
-
-    const rawPassword = dto.password || Math.random().toString(36).slice(-8);
-    const passwordHash = await bcrypt.hash(rawPassword, 10);
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const usuario = await tx.usuario.create({
-        data: {
-          nombre: dto.nombre,
-          apellido: dto.apellido,
-          correo: dto.correo,
-          telefono: dto.telefono,
-          password: passwordHash,
-        },
+    if (dto.rolesIds && dto.rolesIds.length > 0) {
+      await tx.usuario_Rol.createMany({
+        data: dto.rolesIds.map((rolId) => ({
+          usuarioId: usuario.id,
+          rolId: Number(rolId),
+        })),
       });
-
-      if (dto.rolesIds && dto.rolesIds.length > 0) {
-        await tx.usuario_Rol.createMany({
-          data: dto.rolesIds.map((rolId) => ({
-            usuarioId: usuario.id,
-            rolId: Number(rolId),
-          })),
-        });
-      }
-
-      if (alcances.length > 0) {
-        await tx.usuario_Alcance.createMany({
-          data: alcances.map((a) => ({
-            usuarioId: usuario.id,
-            ...a,
-          })),
-        });
-      }
-
-      return { usuario, reactivado: false };
-    });
-
-    // Enviar correo sin bloquear la respuesta si falla
-    this.mailService.enviarCredenciales(dto.correo, rawPassword, dto.nombre).catch(() => {});
-
-    return result;
-  }
-
-  async findAll(page = 1, limit = 10, search?: string, rolId?: number) {
-    const skip = (page - 1) * limit;
-
-    const where: any = { deletedAt: null };
-    if (search) {
-      where.OR = [
-        { nombre: { contains: search, mode: 'insensitive' } },
-        { apellido: { contains: search, mode: 'insensitive' } },
-        { correo: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-    if (rolId) {
-      where.roles = { some: { rolId: Number(rolId) } };
     }
 
-    const [total, data] = await Promise.all([
-      this.prisma.usuario.count({ where }),
-      this.prisma.usuario.findMany({
-        where,
-        skip,
-        take: Number(limit),
-        include: {
-          roles: { include: { rol: true } },
-          alcances: { include: { facultad: true, carrera: true, materia: true } },
-        },
-      }),
-    ]);
+    if (alcances.length > 0) {
+      await tx.usuario_Alcance.createMany({
+        data: alcances.map((a) => ({
+          usuarioId: usuario.id,
+          ...a,
+        })),
+      });
+    }
 
-    return { total, page: Number(page), limit: Number(limit), data };
+    return { usuario, reactivado: false };
+  });
+
+  // Enviar correo sin bloquear la respuesta si falla
+  this.mailService.enviarCredenciales(dto.correo, rawPassword, dto.nombre).catch(() => {});
+
+  return result;
+}
+
+  async findAll(
+  page = 1,
+  limit = 10,
+  search?: string,
+  rolId?: number,
+  incluirInactivos = false,
+) {
+  const skip = (page - 1) * limit;
+
+  const where: any = incluirInactivos ? {} : { deletedAt: null };
+  if (search) {
+    where.OR = [
+      { nombre: { contains: search, mode: 'insensitive' } },
+      { apellido: { contains: search, mode: 'insensitive' } },
+      { correo: { contains: search, mode: 'insensitive' } },
+    ];
   }
+  if (rolId) {
+    where.roles = { some: { rolId: Number(rolId) } };
+  }
+
+  const [total, data] = await Promise.all([
+    this.prisma.usuario.count({ where }),
+    this.prisma.usuario.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      orderBy: { deletedAt: 'asc' }, // activos primero, inactivos al final
+      include: {
+        roles: { include: { rol: true } },
+        alcances: { include: { facultad: true, carrera: true, materia: true } },
+      },
+    }),
+  ]);
+
+  return { total, page: Number(page), limit: Number(limit), data };
+}
 
   async findOne(id: number) {
     const usuario = await this.prisma.usuario.findUnique({
@@ -178,34 +194,38 @@ export class UsuariosService {
   }
 
   async update(id: number, dto: UpdateUsuarioDto) {
-    const existe = await this.prisma.usuario.findUnique({ where: { id } });
-    if (!existe || existe.deletedAt !== null) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+  this.asegurarNoEsAdminCentral(id);
+  this.asegurarSinRolAdministrador(dto.rolesIds);
 
-    const { rolesIds, ...dataToUpdate } = dto;
-
-    return this.prisma.$transaction(async (tx) => {
-      if (rolesIds) {
-        await tx.usuario_Rol.deleteMany({ where: { usuarioId: id } });
-        if (rolesIds.length > 0) {
-          await tx.usuario_Rol.createMany({
-            data: rolesIds.map((rolId) => ({
-              usuarioId: id,
-              rolId: Number(rolId),
-            })),
-          });
-        }
-      }
-
-      return tx.usuario.update({
-        where: { id },
-        data: dataToUpdate,
-      });
-    });
+  const existe = await this.prisma.usuario.findUnique({ where: { id } });
+  if (!existe || existe.deletedAt !== null) {
+    throw new NotFoundException('Usuario no encontrado');
   }
 
+  const { rolesIds, ...dataToUpdate } = dto;
+
+  return this.prisma.$transaction(async (tx) => {
+    if (rolesIds) {
+      await tx.usuario_Rol.deleteMany({ where: { usuarioId: id } });
+      if (rolesIds.length > 0) {
+        await tx.usuario_Rol.createMany({
+          data: rolesIds.map((rolId) => ({
+            usuarioId: id,
+            rolId: Number(rolId),
+          })),
+        });
+      }
+    }
+
+    return tx.usuario.update({
+      where: { id },
+      data: dataToUpdate,
+    });
+  });
+}
+
   async updatePassword(id: number, dto: UpdatePasswordDto) {
+    this.asegurarNoEsAdminCentral(id);
     const existe = await this.prisma.usuario.findUnique({ where: { id } });
     if (!existe || existe.deletedAt !== null) {
       throw new NotFoundException('Usuario no encontrado');
@@ -219,38 +239,58 @@ export class UsuariosService {
 
     return { message: 'Contraseña actualizada exitosamente' };
   }
+private asegurarNoEsAdminCentral(id: number) {
+  if (id === ADMIN_CENTRAL_ID) {
+    throw new ForbiddenException(
+      'El administrador central del sistema no se puede modificar ni deshabilitar',
+    );
+  }
+}
+
+private asegurarSinRolAdministrador(rolesIds?: (number | string)[]) {
+  if (rolesIds?.some((rolId) => Number(rolId) === ROL_ADMINISTRADOR_ID)) {
+    throw new BadRequestException(
+      'El rol Administrador está reservado al administrador central del sistema',
+    );
+  }
+}
 
   async remove(id: number) {
-    const existe = await this.prisma.usuario.findUnique({
-      where: { id },
-      include: {
-        examenes: true,
-        cargasEstudiantes: true,
-        ingresos: true,
-      },
-    });
+  this.asegurarNoEsAdminCentral(id);
 
-    if (!existe || existe.deletedAt !== null) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+  const existe = await this.prisma.usuario.findUnique({
+    where: { id },
+  });
 
-    if (
-      existe.examenes.length > 0 ||
-      existe.cargasEstudiantes.length > 0 ||
-      existe.ingresos.length > 0
-    ) {
-      throw new BadRequestException(
-        'No se puede eliminar el usuario porque compromete la integridad histórica (tiene exámenes, cargas o ingresos).',
-      );
-    }
-
-    return this.prisma.usuario.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+  if (!existe || existe.deletedAt !== null) {
+    throw new NotFoundException('Usuario no encontrado');
   }
 
+  // Soft delete: solo marca la baja, no elimina el registro ni sus relaciones
+  return this.prisma.usuario.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+}
+
+async reactivar(id: number) {
+  const existe = await this.prisma.usuario.findUnique({ where: { id } });
+
+  if (!existe) {
+    throw new NotFoundException('Usuario no encontrado');
+  }
+  if (existe.deletedAt === null) {
+    throw new BadRequestException('El usuario ya está activo');
+  }
+
+  return this.prisma.usuario.update({
+    where: { id },
+    data: { deletedAt: null },
+  });
+}
+
   async updateAlcance(id: number, dto: UpdateAlcanceDto) {
+     this.asegurarNoEsAdminCentral(id);
     const existe = await this.prisma.usuario.findUnique({ where: { id } });
     if (!existe || existe.deletedAt !== null) {
       throw new NotFoundException('Usuario no encontrado');

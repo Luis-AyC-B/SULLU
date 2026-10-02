@@ -10,11 +10,30 @@ import {
 
 const BASE_URL = "/usuarios";
 
+export interface GetUsuariosParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  rolId?: string;
+  /** Trae también a los dados de baja (deletedAt != null), para mostrarlos atenuados en la tabla */
+  incluirInactivos?: boolean;
+}
+
+/** Respuesta real de GET /usuarios: { total, page, limit, data } */
+export interface UsuariosPaginados {
+  total: number;
+  page: number;
+  limit: number;
+  data: Usuario[];
+}
+
 export const userService = {
-  /** Lista todos los usuarios (el backend excluye o marca los deletedAt según filtro) */
-  getAll: async (): Promise<Usuario[]> => {
-    const { data } = await apiClient.get<{ data?: Usuario[] }>(BASE_URL);
-    return data.data || (data as unknown as Usuario[]) || [];
+  /** Lista paginada de usuarios */
+  getAll: async (params?: GetUsuariosParams): Promise<UsuariosPaginados> => {
+    const { data } = await apiClient.get<UsuariosPaginados>(BASE_URL, {
+      params,
+    });
+    return data;
   },
 
   getById: async (id: number): Promise<Usuario> => {
@@ -61,6 +80,11 @@ export const userService = {
   /** Soft delete: el backend setea deletedAt, no borra el registro físicamente */
   deactivate: async (id: number): Promise<void> => {
     await apiClient.delete(`${BASE_URL}/${id}`);
+  },
+
+    /** Reactiva un usuario dado de baja (deletedAt = null) por su id */
+  restore: async (id: number): Promise<void> => {
+    await apiClient.patch(`${BASE_URL}/${id}/reactivar`);
   },
 
   /** Reingreso explícito de una cuenta inhabilitada, reusando el correo existente */

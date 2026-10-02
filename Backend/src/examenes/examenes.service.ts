@@ -368,6 +368,7 @@ export class ExamenesService {
         : undefined;
 
       whereClause = {
+        usuarioId,
         carrerasMaterias: {
           some: {
             AND: [
