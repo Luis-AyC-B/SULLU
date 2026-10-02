@@ -23,6 +23,7 @@ import {
   CreateUsuarioInput,
   UpdateUsuarioInput,
 } from "../types/user.types";
+import { ROL_ADMINISTRADOR_ID } from "../lib/admin-central";
 
 const PAGE_SIZE = 10;
 
@@ -56,7 +57,12 @@ export function UsersPageContainer() {
 
   // useRoles() devuelve { roles: RolResumen[], loading, error, ... }, con
   // id: string — compatible tal cual con RolBasico
-  const { roles: rolesDisponibles = [] } = useRoles();
+  const { roles = [] } = useRoles();
+
+// El rol Administrador es exclusivo del admin central: no se ofrece al asignar roles
+const rolesDisponibles = roles.filter(
+  (r) => String(r.id) !== String(ROL_ADMINISTRADOR_ID)
+);
 
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");

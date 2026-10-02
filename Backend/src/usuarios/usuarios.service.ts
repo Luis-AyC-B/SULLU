@@ -1,11 +1,18 @@
 /* eslint-disable */
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateAlcanceDto } from './dto/update-alcance.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ADMIN_CENTRAL_ID, ROL_ADMINISTRADOR_ID } from './usuarios.constants';
 
 import { MailService } from '../mail/mail.service';
 
@@ -81,55 +88,57 @@ export class UsuariosService {
   }
 
   async create(dto: CreateUsuarioDto) {
-    const existe = await this.prisma.usuario.findUnique({
-      where: { correo: dto.correo },
+  this.asegurarSinRolAdministrador(dto.rolesIds);
+
+  const existe = await this.prisma.usuario.findUnique({
+    where: { correo: dto.correo },
+  });
+  if (existe) {
+    throw new ConflictException('Ya existe un usuario con este correo');
+  }
+
+  const alcances = this.normalizarAlcances(dto.alcances);
+
+  const rawPassword = dto.password || Math.random().toString(36).slice(-8);
+  const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+  const result = await this.prisma.$transaction(async (tx) => {
+    const usuario = await tx.usuario.create({
+      data: {
+        nombre: dto.nombre,
+        apellido: dto.apellido,
+        correo: dto.correo,
+        telefono: dto.telefono,
+        password: passwordHash,
+      },
     });
-    if (existe) {
-      throw new ConflictException('Ya existe un usuario con este correo');
+
+    if (dto.rolesIds && dto.rolesIds.length > 0) {
+      await tx.usuario_Rol.createMany({
+        data: dto.rolesIds.map((rolId) => ({
+          usuarioId: usuario.id,
+          rolId: Number(rolId),
+        })),
+      });
     }
 
-    const alcances = this.normalizarAlcances(dto.alcances);
-
-    const rawPassword = dto.password || Math.random().toString(36).slice(-8);
-    const passwordHash = await bcrypt.hash(rawPassword, 10);
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const usuario = await tx.usuario.create({
-        data: {
-          nombre: dto.nombre,
-          apellido: dto.apellido,
-          correo: dto.correo,
-          telefono: dto.telefono,
-          password: passwordHash,
-        },
+    if (alcances.length > 0) {
+      await tx.usuario_Alcance.createMany({
+        data: alcances.map((a) => ({
+          usuarioId: usuario.id,
+          ...a,
+        })),
       });
+    }
 
-      if (dto.rolesIds && dto.rolesIds.length > 0) {
-        await tx.usuario_Rol.createMany({
-          data: dto.rolesIds.map((rolId) => ({
-            usuarioId: usuario.id,
-            rolId: Number(rolId),
-          })),
-        });
-      }
+    return { usuario, reactivado: false };
+  });
 
-      if (alcances.length > 0) {
-        await tx.usuario_Alcance.createMany({
-          data: alcances.map((a) => ({
-            usuarioId: usuario.id,
-            ...a,
-          })),
-        });
-      }
+  // Enviar correo sin bloquear la respuesta si falla
+  this.mailService.enviarCredenciales(dto.correo, rawPassword, dto.nombre).catch(() => {});
 
-      return { usuario, reactivado: false };
-    });
-
-    // Enviar correo sin bloquear la respuesta si falla
-    this.mailService.enviarCredenciales(dto.correo, rawPassword, dto.nombre).catch(() => {});
-
-    return result;
-  }
+  return result;
+}
 
   async findAll(
   page = 1,
@@ -185,34 +194,38 @@ export class UsuariosService {
   }
 
   async update(id: number, dto: UpdateUsuarioDto) {
-    const existe = await this.prisma.usuario.findUnique({ where: { id } });
-    if (!existe || existe.deletedAt !== null) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+  this.asegurarNoEsAdminCentral(id);
+  this.asegurarSinRolAdministrador(dto.rolesIds);
 
-    const { rolesIds, ...dataToUpdate } = dto;
-
-    return this.prisma.$transaction(async (tx) => {
-      if (rolesIds) {
-        await tx.usuario_Rol.deleteMany({ where: { usuarioId: id } });
-        if (rolesIds.length > 0) {
-          await tx.usuario_Rol.createMany({
-            data: rolesIds.map((rolId) => ({
-              usuarioId: id,
-              rolId: Number(rolId),
-            })),
-          });
-        }
-      }
-
-      return tx.usuario.update({
-        where: { id },
-        data: dataToUpdate,
-      });
-    });
+  const existe = await this.prisma.usuario.findUnique({ where: { id } });
+  if (!existe || existe.deletedAt !== null) {
+    throw new NotFoundException('Usuario no encontrado');
   }
 
+  const { rolesIds, ...dataToUpdate } = dto;
+
+  return this.prisma.$transaction(async (tx) => {
+    if (rolesIds) {
+      await tx.usuario_Rol.deleteMany({ where: { usuarioId: id } });
+      if (rolesIds.length > 0) {
+        await tx.usuario_Rol.createMany({
+          data: rolesIds.map((rolId) => ({
+            usuarioId: id,
+            rolId: Number(rolId),
+          })),
+        });
+      }
+    }
+
+    return tx.usuario.update({
+      where: { id },
+      data: dataToUpdate,
+    });
+  });
+}
+
   async updatePassword(id: number, dto: UpdatePasswordDto) {
+    this.asegurarNoEsAdminCentral(id);
     const existe = await this.prisma.usuario.findUnique({ where: { id } });
     if (!existe || existe.deletedAt !== null) {
       throw new NotFoundException('Usuario no encontrado');
@@ -226,8 +239,25 @@ export class UsuariosService {
 
     return { message: 'Contraseña actualizada exitosamente' };
   }
+private asegurarNoEsAdminCentral(id: number) {
+  if (id === ADMIN_CENTRAL_ID) {
+    throw new ForbiddenException(
+      'El administrador central del sistema no se puede modificar ni deshabilitar',
+    );
+  }
+}
+
+private asegurarSinRolAdministrador(rolesIds?: (number | string)[]) {
+  if (rolesIds?.some((rolId) => Number(rolId) === ROL_ADMINISTRADOR_ID)) {
+    throw new BadRequestException(
+      'El rol Administrador está reservado al administrador central del sistema',
+    );
+  }
+}
 
   async remove(id: number) {
+  this.asegurarNoEsAdminCentral(id);
+
   const existe = await this.prisma.usuario.findUnique({
     where: { id },
   });
@@ -260,6 +290,7 @@ async reactivar(id: number) {
 }
 
   async updateAlcance(id: number, dto: UpdateAlcanceDto) {
+     this.asegurarNoEsAdminCentral(id);
     const existe = await this.prisma.usuario.findUnique({ where: { id } });
     if (!existe || existe.deletedAt !== null) {
       throw new NotFoundException('Usuario no encontrado');
