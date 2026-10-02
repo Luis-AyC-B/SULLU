@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Ban } from "lucide-react";
+import { Pencil, Ban, UserCheck } from "lucide-react";
 import {
   TableRow,
   TableCell,
@@ -13,6 +13,7 @@ interface UserTableRowProps {
   user: UsuarioResumen;
   onEdit: (user: UsuarioResumen) => void;
   onDisable: (user: UsuarioResumen) => void;
+  onEnable: (user: UsuarioResumen) => void;
 }
 
 /** Genera iniciales a partir del nombre completo (ej: "Ana Rondón" -> "AR") */
@@ -25,7 +26,12 @@ function getInitials(nombreCompleto: string): string {
     .join("");
 }
 
-export function UserTableRow({ user, onEdit, onDisable }: UserTableRowProps) {
+export function UserTableRow({
+  user,
+  onEdit,
+  onDisable,
+  onEnable,
+}: UserTableRowProps) {
   // El administrador no muestra botones de editar ni deshabilitar
   const esAdmin = user.roles.some((r) => r.toLowerCase() === "administrador");
 
@@ -79,8 +85,8 @@ export function UserTableRow({ user, onEdit, onDisable }: UserTableRowProps) {
               </button>
             </Can>
 
-            {/* Solo se puede desactivar un usuario que sigue activo */}
-            {user.activo && (
+            {/* Activo: se puede desactivar. Inactivo: se puede reactivar */}
+            {user.activo ? (
               <Can permission="usuarios.desactivar">
                 <button
                   type="button"
@@ -89,6 +95,17 @@ export function UserTableRow({ user, onEdit, onDisable }: UserTableRowProps) {
                   aria-label={`Desactivar a ${user.nombreCompleto}`}
                 >
                   <Ban className="h-4 w-4" />
+                </button>
+              </Can>
+            ) : (
+              <Can permission="usuarios.desactivar">
+                <button
+                  type="button"
+                  onClick={() => onEnable(user)}
+                  className="rounded-full border border-primary p-1.5 text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                  aria-label={`Reactivar a ${user.nombreCompleto}`}
+                >
+                  <UserCheck className="h-4 w-4" />
                 </button>
               </Can>
             )}

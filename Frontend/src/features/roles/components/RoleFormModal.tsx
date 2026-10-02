@@ -87,14 +87,14 @@ export function RoleFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-headline text-primary">
             {rolEditar ? "Editar rol" : "Nuevo rol"}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-5">
           <div>
             <label className="text-label mb-1.5 block text-foreground">
               NOMBRE DEL ROL
@@ -164,7 +164,7 @@ export function RoleFormModal({
             </div>
           )}
 
-          <fieldset disabled={esEdicionDeBase}>
+          <fieldset disabled={esEdicionDeBase} className="min-w-0">
             <RolePermissionMatrix
               seleccionados={permisos}
               onChange={(nuevos) => form.setValue("permisos", nuevos)}
@@ -182,21 +182,21 @@ export function RoleFormModal({
             </p>
           )}
 
-          <DialogFooter className="flex items-center justify-between border-t border-border pt-4 sm:justify-between">
+          <DialogFooter className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-sm text-muted-foreground">
               {permisos.length} permisos seleccionados
             </span>
-            <div className="flex gap-2">
+            <div className="flex w-full gap-2 sm:w-auto">
               <button
                 type="button"
                 onClick={() => onOpenChange(false)}
-                className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+                className="flex-1 rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted sm:flex-none"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 sm:flex-none"
               >
                 {rolEditar ? "Guardar cambios" : "Crear rol"}
               </button>
