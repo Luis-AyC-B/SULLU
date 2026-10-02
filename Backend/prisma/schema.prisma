@@ -27,13 +27,14 @@ model Usuario {
   sessionId String?   @map("session_id")
   deletedAt DateTime? @map("deleted_at") @db.Timestamp()
 
-  roles             Usuario_Rol[]
-  alcances          Usuario_Alcance[]
-  examenes          Examen[]             @relation("ResponsableExamen")
-  reservas          ReservaAmbiente[]    @relation("UsuarioReserva")
-  cargasEstudiantes CargaEstudiantes[]   @relation("UsuarioCarga")
-  ingresos          Ingreso[]            @relation("UsuarioRegistra")
-  auditorias        Bitacora_Auditoria[]
+  roles              Usuario_Rol[]
+  alcances           Usuario_Alcance[]
+  examenes           Examen[]              @relation("ResponsableExamen")
+  reservas           ReservaAmbiente[]     @relation("UsuarioReserva")
+  cargasEstudiantes  CargaEstudiantes[]    @relation("UsuarioCarga")
+  ingresos           Ingreso[]             @relation("UsuarioRegistra")
+  auditorias         Bitacora_Auditoria[]
+  tokensRecuperacion TokenRecuperacion[]
 
   @@map("usuarios")
 }
@@ -343,6 +344,23 @@ model Ingreso {
   usuario    Usuario    @relation("UsuarioRegistra", fields: [registradoPor], references: [id])
 
   @@map("ingresos")
+}
+
+// ==========================================
+// MÓDULO DE RECUPERACIÓN DE CONTRASEÑA
+// ==========================================
+
+model TokenRecuperacion {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  usuarioId Int      @map("id_usuario")
+  usado     Boolean  @default(false)
+  expiraEn  DateTime @map("expira_en") @db.Timestamp()
+  creadoEn  DateTime @default(now()) @map("creado_en") @db.Timestamp()
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("token_recuperacion")
 }
 
 // ==========================================
