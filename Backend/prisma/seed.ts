@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+/* eslint-disable */
 
 /**
  * Seed principal con datos reales de la UMSS (Universidad Mayor de San Simón).
