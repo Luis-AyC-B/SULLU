@@ -21,7 +21,7 @@ model Usuario {
   id        Int       @id @default(autoincrement())
   nombre    String
   apellido  String?
-  correo    String    @unique @map("email")
+  correo    String?   @unique @map("email") // Nullable desde Sprint 2: estudiantes pueden no tener correo institucional
   password  String    @map("password_hash")
   telefono  String?
   sessionId String?   @map("session_id")
@@ -29,12 +29,20 @@ model Usuario {
 
   roles              Usuario_Rol[]
   alcances           Usuario_Alcance[]
-  examenes           Examen[]              @relation("ResponsableExamen")
-  reservas           ReservaAmbiente[]     @relation("UsuarioReserva")
-  cargasEstudiantes  CargaEstudiantes[]    @relation("UsuarioCarga")
-  ingresos           Ingreso[]             @relation("UsuarioRegistra")
+  examenes           Examen[]                @relation("ResponsableExamen")
+  reservas           ReservaAmbiente[]       @relation("DocenteReserva")
+  cargasEstudiantes  CargaEstudiantes[]      @relation("UsuarioCarga")
+  ingresos           Ingreso[]               @relation("UsuarioRegistra")
   auditorias         Bitacora_Auditoria[]
   tokensRecuperacion TokenRecuperacion[]
+  estudiante         Estudiante?             @relation("UsuarioEstudiante")
+  // HU13: colaboraciones como docente y como colaborador
+  colaboradoresComoDocente   DocenteColaborador[] @relation("DocenteSolicita")
+  colaboradoresComoAuxiliar  DocenteColaborador[] @relation("ColaboradorAuxiliar")
+  colaboradoresAprobados     DocenteColaborador[] @relation("AdminAprueba")
+  examenesControlados        ExamenControlador[]  @relation("ColaboradorControla")
+  examenesAsignados          ExamenControlador[]  @relation("DocenteAsigna")
+  incidenciasRegistradas     IncidenciaIngreso[]  @relation("ControlRegistraIncidencia")
 
   @@map("usuarios")
 }
@@ -67,7 +75,7 @@ model Rol {
   nombre      String    @unique
   descripcion String?
   esPlantilla Boolean   @default(false) @map("es_plantilla")
-  deletedAt   DateTime? @map("deleted_at") // <-- Requerido para el Soft Delete de la HU3
+  deletedAt   DateTime? @map("deleted_at")
 
   permisos Rol_Permiso[]
   usuarios Usuario_Rol[]
@@ -110,7 +118,7 @@ model Rol_Modulo {
 }
 
 // ==========================================
-// MÓDULO ACADÉMICO Y ALCANCE 
+// MÓDULO ACADÉMICO Y ALCANCE
 // ==========================================
 
 model Facultad {
@@ -192,38 +200,56 @@ enum EstadoAula {
   RESERVADO
   MANTENIMIENTO
   INHABILITADO
+  EN_REMODELACION // Sprint 2: nuevo estado
+}
+
+enum EstadoReserva {
+  RESERVADO
+  CANCELADO
+  FINALIZADO
 }
 
 model Ambiente {
-  id           Int    @id @default(autoincrement())
-  nombre       String
-  capacidad    Int
-  facultadId   Int?   @map("id_facultad")
-  tipoAulaId   Int?   @map("id_tipoAula")
-  estadoAulaId Int?   @map("id_estadoAula")
+  id         Int        @id @default(autoincrement())
+  nombre     String
+  capacidad  Int
+  facultadId Int?       @map("id_facultad")
+  tipoAulaId Int?       @map("id_tipoAula")
+  estadoAula EstadoAula @default(DISPONIBLE) // Sprint 2: campo directo, sin id_estadoAula redundante
 
-  facultad   Facultad?   @relation(fields: [facultadId], references: [id])
-  tipoAula   TipoAula?   @relation(fields: [tipoAulaId], references: [id])
-  estadoAula         EstadoAula?
+  facultad Facultad?  @relation(fields: [facultadId], references: [id])
+  tipoAula TipoAula?  @relation(fields: [tipoAulaId], references: [id])
 
   reservas ReservaAmbiente[]
 
   @@map("ambientes")
 }
 
-model ReservaAmbiente {
-  id           Int      @id @default(autoincrement())
-  ambienteId   Int      @map("id_ambiente")
-  usuarioId    Int      @map("id_usuario")
-  fecha        DateTime @db.Date
+// Sprint 2: Malla horaria institucional predefinida
+model HorarioFijo {
+  id           Int    @id @default(autoincrement())
+  periodoNombre String @map("periodo_nombre")
+  diaSemana    String? @map("dia_semana") // null = aplica cualquier día
   horaIni      DateTime @map("hora_ini") @db.Time
   horaFin      DateTime @map("hora_fin") @db.Time
-  motivo       String?
-  estadoAulaId Int?     @map("id_estadoAula")
 
-  ambiente   Ambiente    @relation(fields: [ambienteId], references: [id], onDelete: Cascade)
-  usuario    Usuario     @relation("UsuarioReserva", fields: [usuarioId], references: [id], onDelete: Cascade)
-  estadoAula         EstadoAula?
+  reservas ReservaAmbiente[]
+
+  @@map("horario_fijo")
+}
+
+// Sprint 2: ReservaAmbiente adaptado a periodos institucionales predefinidos
+model ReservaAmbiente {
+  id            Int           @id @default(autoincrement())
+  ambienteId    Int           @map("ambiente_id")
+  docenteId     Int           @map("docente_id") // renombrado de usuarioId para claridad
+  horarioFijoId Int           @map("horario_fijo_id") // reemplaza hora_ini / hora_fin libres
+  fecha         DateTime      @db.Date
+  estado        EstadoReserva @default(RESERVADO)
+
+  ambiente     Ambiente    @relation(fields: [ambienteId], references: [id], onDelete: Cascade)
+  docente      Usuario     @relation("DocenteReserva", fields: [docenteId], references: [id], onDelete: Cascade)
+  horarioFijo  HorarioFijo @relation(fields: [horarioFijoId], references: [id])
 
   examenes Examen[]
 
@@ -240,23 +266,26 @@ enum EstadoExamen {
   FINALIZADO
   CANCELADO
 }
+
 model Examen {
-  id                Int      @id @default(autoincrement())
-  reservaAmbienteId Int      @map("id_reservaAmbiente")
-  usuarioId         Int      @map("id_usuario")
-  tipoExamen        String   @map("tipo_examen")
-  normasEx          String?  @map("normas_ex") @db.Text
-  estadoExamId      Int      @map("id_EstadoExam")
-  creadoEn          DateTime @default(now()) @map("creado_en")
-  fueEditado        Boolean  @default(false) @map("fue_editado")
+  id                Int          @id @default(autoincrement())
+  reservaAmbienteId Int          @unique @map("id_reservaAmbiente") // Sprint 2: @unique — 1 examen por reserva
+  usuarioId         Int          @map("id_usuario")
+  tipoExamen        String       @map("tipo_examen")
+  normasEx          String?      @map("normas_ex") @db.Text
+  estadoExamId      Int          @map("id_EstadoExam")
+  creadoEn          DateTime     @default(now()) @map("creado_en")
+  fueEditado        Boolean      @default(false) @map("fue_editado")
+  estado            EstadoExamen @default(PROGRAMADO)
 
   reservaAmbiente ReservaAmbiente @relation(fields: [reservaAmbienteId], references: [id])
   responsable     Usuario         @relation("ResponsableExamen", fields: [usuarioId], references: [id])
-  estado             EstadoExamen   @default(PROGRAMADO)
 
-  carrerasMaterias Examen_Carrera_Materia[]
-  estudiantes      Examen_Estudiante[]
-  ingresos         Ingreso[]
+  carrerasMaterias  Examen_Carrera_Materia[]
+  estudiantes       Examen_Estudiante[]
+  ingresos          Ingreso[]
+  controladores     ExamenControlador[]     // HU7/HU13
+  incidencias       IncidenciaIngreso[]     // HU12
 
   @@map("examenes")
 }
@@ -292,16 +321,19 @@ model CargaEstudiantes {
 
 model Estudiante {
   id       Int     @id @default(autoincrement())
-  cod_sis  String  @unique
+  cod_sis  String  @unique // Sprint 2: garantizado único — evita duplicados en cargas masivas
   nombre   String
   apellido String?
   ci       String?
   cargaId  Int?    @map("carga_id")
+  usuarioId Int?   @unique @map("usuario_id") // Sprint 2: FK 1:1 con Usuario — permite login por SIS+CI
 
   carga     CargaEstudiantes?   @relation(fields: [cargaId], references: [id])
+  usuario   Usuario?            @relation("UsuarioEstudiante", fields: [usuarioId], references: [id])
   examenes  Examen_Estudiante[]
   codigosQr CodigoQr[]
   ingresos  Ingreso[]
+  incidencias IncidenciaIngreso[] // HU12: incidencias asociadas al estudiante
 
   @@map("estudiantes")
 }
@@ -331,19 +363,97 @@ model CodigoQr {
   @@map("codigos_qr")
 }
 
+// Sprint 2: campos offline para sincronización (HU14)
 model Ingreso {
-  id            Int      @id @default(autoincrement())
-  estudianteId  Int      @map("estudiante_id")
-  examenId      Int      @map("examen_id")
-  fechaHora     DateTime @map("fecha_hora") @db.Timestamp()
-  metodo        String
-  registradoPor Int      @map("registrado_por")
+  id             Int      @id @default(autoincrement())
+  estudianteId   Int      @map("estudiante_id")
+  examenId       Int      @map("examen_id")
+  fechaHora      DateTime @map("fecha_hora") @db.Timestamp()
+  metodo         String
+  registradoPor  Int      @map("registrado_por")
+  clienteSyncId  String?  @unique @map("cliente_sync_id") // UUID generado offline para idempotencia
+  esOffline      Boolean  @default(false) @map("es_offline")
 
   estudiante Estudiante @relation(fields: [estudianteId], references: [id])
   examen     Examen     @relation(fields: [examenId], references: [id])
   usuario    Usuario    @relation("UsuarioRegistra", fields: [registradoPor], references: [id])
 
   @@map("ingresos")
+}
+
+// ==========================================
+// MÓDULO DE PERSONAL DE CONTROL (Sprint 2)
+// ==========================================
+
+enum EstadoSolicitud {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+  INACTIVO
+}
+
+// HU13: Plantilla fija de colaboradores del docente
+model DocenteColaborador {
+  id              Int              @id @default(autoincrement())
+  docenteId       Int              @map("id_docente")
+  colaboradorId   Int              @map("id_colaborador")
+  estadoSolicitud EstadoSolicitud  @default(PENDIENTE) @map("estado_solicitud")
+  aprobadoPor     Int?             @map("aprobado_por")
+  fechaSolicitud  DateTime         @default(now()) @map("fecha_solicitud") @db.Timestamp()
+  fechaRespuesta  DateTime?        @map("fecha_respuesta") @db.Timestamp()
+  // Correo guardado para el caso de que aún no exista Usuario al momento de solicitar
+  correoSolicitado String?         @map("correo_solicitado")
+
+  docente      Usuario  @relation("DocenteSolicita", fields: [docenteId], references: [id])
+  colaborador  Usuario  @relation("ColaboradorAuxiliar", fields: [colaboradorId], references: [id])
+  aprobador    Usuario? @relation("AdminAprueba", fields: [aprobadoPor], references: [id])
+
+  @@map("docente_colaborador")
+}
+
+// HU7/HU13: Asignación operativa puntual de colaborador a examen
+model ExamenControlador {
+  id              Int      @id @default(autoincrement())
+  examenId        Int      @map("id_examen")
+  colaboradorId   Int      @map("id_colaborador")
+  asignadoPor     Int      @map("asignado_por")
+  fechaAsignacion DateTime @default(now()) @map("fecha_asignacion") @db.Timestamp()
+  rolAsignacion   String   @default("Control principal") @map("rol_asignacion") // "Control principal" | "Apoyo de ingreso"
+
+  examen      Examen  @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  colaborador Usuario @relation("ColaboradorControla", fields: [colaboradorId], references: [id])
+  docente     Usuario @relation("DocenteAsigna", fields: [asignadoPor], references: [id])
+
+  @@unique([examenId, colaboradorId]) // un colaborador no puede estar asignado dos veces al mismo examen
+  @@map("examen_controlador")
+}
+
+enum TipoIncidencia {
+  NO_HABILITADO       // El estudiante está registrado pero no figura en la lista del examen
+  NO_ENCONTRADO       // El estudiante no existe en la base de datos
+  QR_CADUCADO         // Intentó ingresar con un QR cuya validez ya expiró
+  DOBLE_MARCACION     // Su QR ya fue escaneado anteriormente en otra puerta
+  IDENTIDAD_NO_COINCIDE // Presentó un documento o código SIS que no corresponde a la persona
+}
+
+// HU12: Registro de intentos de acceso no autorizados
+model IncidenciaIngreso {
+  id                 Int            @id @default(autoincrement())
+  examenId           Int            @map("id_examen")
+  registradoPor      Int            @map("registrado_por")
+  estudianteId       Int?           @map("id_estudiante")    // null si no figura en el sistema
+  codSisIngresado    String?        @map("cod_sis_ingresado") // dato manual si no existe en BD
+  ciIngresado        String?        @map("ci_ingresado")      // dato manual si no existe en BD
+  nombreReferencial  String?        @map("nombre_referencial") // nombre que escribió el control (solo si no está en BD)
+  tipoIncidencia     TipoIncidencia @map("tipo_incidencia")
+  descripcion        String?        @db.Text
+  fechaHora          DateTime       @default(now()) @map("fecha_hora") @db.Timestamp()
+
+  examen      Examen      @relation(fields: [examenId], references: [id])
+  controlador Usuario     @relation("ControlRegistraIncidencia", fields: [registradoPor], references: [id])
+  estudiante  Estudiante? @relation(fields: [estudianteId], references: [id])
+
+  @@map("incidencia_ingreso")
 }
 
 // ==========================================
