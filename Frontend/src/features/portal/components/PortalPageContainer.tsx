@@ -1,5 +1,10 @@
+import { StudentAuthGuard } from './StudentAuthGuard';
 import { StudentExamsView } from './StudentExamsView';
 
 export function PortalPageContainer() {
-  return <StudentExamsView />;
+  return (
+    <StudentAuthGuard>
+      <StudentExamsView />
+    </StudentAuthGuard>
+  );
 }
