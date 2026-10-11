@@ -1,5 +1,19 @@
-import { ModuloEnConstruccion } from "@/shared/components/ModuloEnConstruccion";
+"use client";
+
+import { useActiveExam } from "../store/useActiveExamStore";
+import { SeleccionExamenView } from "./seleccion/SeleccionExamenView";
 
 export function ControlIngresoPageContainer() {
-  return <ModuloEnConstruccion titulo="Control de ingreso" hus="HU7, HU8 y HU9" />;
+  const { examenActivo } = useActiveExam();
+
+  if (!examenActivo) {
+    return <SeleccionExamenView />;
+  }
+
+  // Si hay examen activo, en el commit 3 renderizaremos ExamenActivoView
+  return (
+    <div>
+      <p>Examen activo: {examenActivo.asignatura}</p>
+    </div>
+  );
 }
