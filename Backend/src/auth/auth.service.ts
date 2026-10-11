@@ -137,6 +137,14 @@ export class AuthService {
 
     this.logger.log(`[solicitarRecuperacion] Usuario encontrado: id=${usuario.id}. Creando token...`);
 
+    if (!usuario.correo) {
+      this.logger.warn(`[solicitarRecuperacion] El usuario id=${usuario.id} es estudiante sin correo real`);
+      return {
+        message:
+          'Si el correo está registrado en el sistema, recibirás un mensaje con las instrucciones para restablecer tu contraseña.',
+      };
+    }
+
     try {
       // Invalidar tokens anteriores no usados del mismo usuario
       await this.prisma.tokenRecuperacion.updateMany({
