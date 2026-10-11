@@ -31,6 +31,8 @@ export const studentCredentialsProvider = CredentialsProvider({
         body: JSON.stringify({ sis, ci }),
       });
 
+      // El endpoint aún no existe en el backend: cae al fallback de mocks
+      if (res.status === 404) throw new Error('ENDPOINT_NOT_AVAILABLE');
       if (res.status === 429 || res.status === 423) throw new Error('ACCOUNT_LOCKED');
       if (!res.ok) throw new Error('INVALID_CREDENTIALS');
 
