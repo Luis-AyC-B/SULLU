@@ -544,6 +544,7 @@ async function main() {
   await prisma.rol_Permiso.deleteMany();
   await prisma.rol_Modulo.deleteMany();
   await prisma.rol.deleteMany();
+  await prisma.$executeRawUnsafe(`ALTER SEQUENCE roles_id_seq RESTART WITH 1;`);
   await prisma.ambiente.deleteMany();
   await prisma.tipoAula.deleteMany();
   await prisma.carrera_Materia.deleteMany();
@@ -806,11 +807,12 @@ async function main() {
     'portal_estudiante.generar_qr',
   ];
 
-  const rolAdmin = await prisma.rol.create({
+  // 1. Administrador Total (id 1, es_plantilla = false) - rol especial no editable / oculto en roles
+  const rolAdminTotal = await prisma.rol.create({
     data: {
-      nombre: 'Administrador',
-      descripcion: 'Acceso total al sistema',
-      esPlantilla: true,
+      nombre: 'Administrador Total',
+      descripcion: 'Control total del sistema ExaControl UMSS',
+      esPlantilla: false,
       permisos: {
         create: permisosAdmin.map((c) => ({ permisoId: permisoMap[c] })),
       },
@@ -819,10 +821,12 @@ async function main() {
       },
     },
   });
+
+  // 2. Docente (es_plantilla = true)
   const rolDocente = await prisma.rol.create({
     data: {
       nombre: 'Docente',
-      descripcion: 'Gestion de examenes y estudiantes',
+      descripcion: 'Docente universitario con acceso a sus propios exámenes',
       esPlantilla: true,
       permisos: {
         create: permisosDocente.map((c) => ({ permisoId: permisoMap[c] })),
@@ -839,10 +843,12 @@ async function main() {
       },
     },
   });
+
+  // 3. Personal de control (es_plantilla = true)
   const rolControl = await prisma.rol.create({
     data: {
       nombre: 'Personal de control',
-      descripcion: 'Control de ingreso a examenes',
+      descripcion: 'Personal de control de ingreso en exámenes',
       esPlantilla: true,
       permisos: {
         create: permisosControl.map((c) => ({ permisoId: permisoMap[c] })),
@@ -859,6 +865,23 @@ async function main() {
       },
     },
   });
+
+  // 4. Administrador (es_plantilla = true) - plantilla oficial visible
+  const rolAdmin = await prisma.rol.create({
+    data: {
+      nombre: 'Administrador',
+      descripcion: 'Gestión operativa del sistema ExaControl',
+      esPlantilla: true,
+      permisos: {
+        create: permisosAdmin.map((c) => ({ permisoId: permisoMap[c] })),
+      },
+      modulos: {
+        create: Object.values(moduloMap).map((id) => ({ moduloId: id })),
+      },
+    },
+  });
+
+  // 5. Estudiante (es_plantilla = true)
   const rolEstudiante = await prisma.rol.create({
     data: {
       nombre: 'Estudiante',
@@ -879,8 +902,7 @@ async function main() {
       },
     },
   });
-  console.log(`OK: Roles base creados (Admin, Docente, Control, Estudiante).`);
-  void rolAdmin;
+  console.log(`OK: Roles base creados (Admin Total, Docente, Control, Administrador, Estudiante).`);
 
   // 2.5 Usuarios del sistema
   console.log('Creando usuarios del sistema...');
@@ -890,7 +912,9 @@ async function main() {
       apellido: 'ExaControl',
       correo: 'admin@exacontrol.com',
       password: passwordHash,
-      roles: { create: [{ rolId: rolAdmin.id }] },
+      roles: {
+        create: [{ rolId: rolAdminTotal.id }],
+      },
     },
   });
   const controlUser1 = await prisma.usuario.create({
