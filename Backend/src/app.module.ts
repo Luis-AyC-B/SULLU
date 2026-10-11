@@ -8,6 +8,7 @@ import { HealthModule } from './health/health.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { RolesModule } from './roles/roles.module';
 import { CargasEstudiantesModule } from './cargas-estudiantes/cargas-estudiantes.module';
+import { PortalEstudianteModule } from './portal-estudiante/portal-estudiante.module';
 import { EstudiantesModule } from './estudiantes/estudiantes.module';
 import { AmbientesModule } from './ambientes/ambientes.module';
 import { ExamenesModule } from './examenes/examenes.module';
