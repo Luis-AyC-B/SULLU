@@ -39,6 +39,7 @@ import { MailModule } from './mail/mail.module';
     AmbientesModule,
     ExamenesModule,
     CodigosQrModule,
+    PortalEstudianteModule,
     IngresosModule,
     HabilitacionesModule,
   ],
