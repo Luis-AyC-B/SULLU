@@ -124,14 +124,14 @@ export class ExamenesController {
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.examenesService.remove(+id);
+  remove(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.examenesService.remove(+id, req.user!.id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id/desactivar')
-  desactivar(@Param('id') id: string) {
-    return this.examenesService.remove(+id);
+  desactivar(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.examenesService.remove(+id, req.user!.id);
   }
 }
 

@@ -5,5 +5,6 @@ import { AmbientesController } from './ambientes.controller';
 @Module({
   controllers: [AmbientesController],
   providers: [AmbientesService],
+  exports: [AmbientesService],
 })
 export class AmbientesModule {}
