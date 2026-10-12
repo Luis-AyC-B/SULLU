@@ -13,6 +13,7 @@ import {
 } from "../types/exam.types";
 import { ExamFormValues } from "../schemas/exam.schema";
 import { dbService } from "@/shared/lib/db/indexedDB";
+import { reservasApi } from "@/features/ambientes/api/reservas.api";
 
 // Tipado seguro para la sesión de NextAuth
 interface CustomSession {
@@ -337,8 +338,21 @@ export function useExams() {
       }));
       setAmbientes(mapped);
     } catch (err) {
-      console.warn("Aviso: no se pudieron cargar los ambientes reservados:", err);
-      setAmbientes([]);
+      console.warn("Aviso: cargando reservas de ambientes disponibles localmente:", err);
+      try {
+        const reservasLocales = await reservasApi.getMisReservas();
+        // Solo las reservas que NO tienen examen asignado
+        const libres = reservasLocales
+          .filter((r) => !r.tieneExamenAsignado && !r.examenAsociado)
+          .map((r) => ({
+            id: String(r.id),
+            nombre: r.ambienteNombre,
+            horarioDisponible: `${r.fecha} | ${r.periodoNombre} (${r.horaIni} - ${r.horaFin})`,
+          }));
+        setAmbientes(libres);
+      } catch {
+        setAmbientes([]);
+      }
     }
   }, []);
 
