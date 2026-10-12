@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ChevronLeft, ShieldCheck, MapPin, Building2, UserCheck } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ShieldCheck, Building2, UserCheck } from "lucide-react";
 import type {
   EstudianteBusquedaItem,
   ExamenAsignado,
@@ -28,12 +28,6 @@ export function ConfirmarIngresoStep({
   const nombreCompleto = `${estudiante.nombre} ${
     estudiante.apellido ?? ""
   }`.trim();
-  const ambientesCoinciden =
-    !estudiante.ambienteAsignado ||
-    !examen.ambiente ||
-    estudiante.ambienteAsignado.trim().toLowerCase() ===
-      examen.ambiente.trim().toLowerCase();
-
   return (
     <div className="flex flex-col gap-4 animate-in fade-in duration-200">
       {/* Botón Volver a resultados */}
@@ -53,11 +47,8 @@ export function ConfirmarIngresoStep({
             {nombreCompleto}
           </h4>
           <p className="text-xs md:text-sm text-slate-500 font-mono mt-1">
-            {estudiante.codSis}
+            {estudiante.codSis.replace(/-/g, "")}
             {estudiante.ci && ` · ${estudiante.ci}`}
-          </p>
-          <p className="text-xs md:text-sm text-slate-600 font-medium mt-0.5">
-            {estudiante.carrera}
           </p>
         </div>
 
@@ -77,33 +68,17 @@ export function ConfirmarIngresoStep({
         </div>
       </div>
 
-      {/* Comparativa de Ambientes (2 Columnas / Cards) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
-        {/* Ambiente Asignado */}
-        <div className="p-3.5 md:p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-slate-500 mb-1">
-            <MapPin className="h-3.5 w-3.5 text-slate-400" />
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider">
-              AMBIENTE ASIGNADO
-            </p>
-          </div>
-          <p className="text-sm md:text-base font-bold text-slate-900">
-            {estudiante.ambienteAsignado || examen.ambiente}
+      {/* Ambiente del Examen */}
+      <div className="p-3.5 md:p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 shadow-2xs mt-1">
+        <div className="flex items-center gap-1.5 text-slate-500 mb-1">
+          <Building2 className="h-3.5 w-3.5 text-slate-400" />
+          <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider">
+            AMBIENTE DEL EXAMEN
           </p>
         </div>
-
-        {/* Ambiente del Examen */}
-        <div className="p-3.5 md:p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-slate-500 mb-1">
-            <Building2 className="h-3.5 w-3.5 text-slate-400" />
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider">
-              AMBIENTE DEL EXAMEN
-            </p>
-          </div>
-          <p className="text-sm md:text-base font-bold text-slate-900">
-            {examen.ambiente}
-          </p>
-        </div>
+        <p className="text-sm md:text-base font-bold text-slate-900">
+          {examen.ambiente}
+        </p>
       </div>
 
       {/* Panel de Validación de Identidad y Elegibilidad de Ingreso */}
@@ -134,12 +109,6 @@ export function ConfirmarIngresoStep({
             </div>
           </div>
         </div>
-
-        {!ambientesCoinciden && (
-          <p className="text-xs font-medium text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-            Atención: El estudiante tiene asignado un ambiente diferente ({estudiante.ambienteAsignado}) al aula activa.
-          </p>
-        )}
       </div>
 
       {/* Error de Red o Envío */}
