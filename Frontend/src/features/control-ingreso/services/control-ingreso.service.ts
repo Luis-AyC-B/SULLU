@@ -1,4 +1,4 @@
-import { apiClient } from "@/shared/lib/api-client";
+import { apiClient } from "../../../shared/lib/api-client";
 import type {
   ExamenAsignado,
   ResumenEnVivoData,
@@ -284,6 +284,23 @@ export const controlIngresoService = {
     });
     estudiante.horaIngresoPrevio = hora;
     estudiante.metodoIngresoPrevio = "MANUAL";
+
+    // Actualizar también el resumen de respaldo en vivo
+    SEED_RESUMEN_DEFAULT.ingresados += 1;
+    SEED_RESUMEN_DEFAULT.pendientes = Math.max(
+      0,
+      SEED_RESUMEN_DEFAULT.pendientes - 1
+    );
+    SEED_RESUMEN_DEFAULT.ultimosIngresos = [
+      {
+        id: Date.now(),
+        nombre: `${estudiante.nombre} ${estudiante.apellido ?? ""}`.trim(),
+        codSis: estudiante.codSis,
+        hora,
+        metodo: "MANUAL",
+      },
+      ...SEED_RESUMEN_DEFAULT.ultimosIngresos,
+    ];
 
     return {
       success: true,

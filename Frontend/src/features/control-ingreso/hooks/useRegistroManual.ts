@@ -6,6 +6,7 @@ import type {
   EstudianteBusquedaItem,
   TipoExcepcionIngreso,
 } from "../types/control-ingreso.types";
+import { toast } from "sonner";
 import { controlIngresoService } from "../services/control-ingreso.service";
 
 export type PasoRegistroManual =
@@ -170,6 +171,11 @@ export function useRegistroManual(examen: ExamenAsignado, onIngresoExitoso?: () 
       );
 
       setPaso("EXITO");
+      toast.success(
+        `Ingreso registrado: ${estudianteSeleccionado.nombre} ${
+          estudianteSeleccionado.apellido ?? ""
+        }`.trim()
+      );
       if (onIngresoExitoso) {
         onIngresoExitoso();
       }
