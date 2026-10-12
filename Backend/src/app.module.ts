@@ -11,6 +11,7 @@ import { CargasEstudiantesModule } from './cargas-estudiantes/cargas-estudiantes
 import { PortalEstudianteModule } from './portal-estudiante/portal-estudiante.module';
 import { EstudiantesModule } from './estudiantes/estudiantes.module';
 import { AmbientesModule } from './ambientes/ambientes.module';
+import { IncidenciasModule } from './incidencias/incidencias.module';
 import { ExamenesModule } from './examenes/examenes.module';
 import { CodigosQrModule } from './codigos-qr/codigos-qr.module';
 import { IngresosModule } from './ingresos/ingresos.module';
@@ -41,7 +42,11 @@ import { ColaboradoresModule } from './colaboradores/colaboradores.module';
     RegistroIngresosModule,
     EstudiantesModule,
     AmbientesModule,
+<<<<<<< HEAD
     ReservasModule,
+=======
+    IncidenciasModule,
+>>>>>>> e54a043 (feat(hu12): backend incidencias de ingreso (listar y registrar) y seed)
     ExamenesModule,
     CodigosQrModule,
     PortalEstudianteModule,
