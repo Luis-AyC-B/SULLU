@@ -1,10 +1,11 @@
 "use client";
-
+import { useState } from "react";
 import { ConnectionStatusBadge } from "../shared/ConnectionStatusBadge";
 import { ExamenActivoHeaderCard } from "./ExamenActivoHeaderCard";
 import { AccionesOperativasGrid } from "./AccionesOperativasGrid";
 import { ResumenEnVivoCard } from "./ResumenEnVivoCard";
 import { UltimosIngresosCard } from "./UltimosIngresosCard";
+import { RegistroManualModal } from "../manual/RegistroManualModal";
 import { useResumenEnVivo } from "../../hooks/useResumenEnVivo";
 import { useActiveExam } from "../../store/useActiveExamStore";
 import type { ExamenAsignado } from "../../types/control-ingreso.types";
@@ -15,7 +16,8 @@ interface ExamenActivoViewProps {
 
 export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
   const { clearExamenActivo } = useActiveExam();
-  const { resumen, isLoading } = useResumenEnVivo(examen.id);
+  const { resumen, isLoading, refetch } = useResumenEnVivo(examen.id);
+  const [isModalManualOpen, setIsModalManualOpen] = useState(false);
 
   return (
     <div className="w-full pb-20 md:pb-8 animate-in fade-in duration-300">
@@ -41,14 +43,18 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
       {/* VERSIÓN MOBILE: Resumen en vivo debajo de la tarjeta, luego acciones operativas */}
       <div className="block md:hidden space-y-4">
         <ResumenEnVivoCard resumen={resumen} isLoading={isLoading} />
-        <AccionesOperativasGrid />
+        <AccionesOperativasGrid
+          onAbrirRegistroManual={() => setIsModalManualOpen(true)}
+        />
       </div>
 
       {/* VERSIÓN DESKTOP: Layout a 2 Columnas */}
       <div className="hidden md:flex flex-row items-start gap-8">
         {/* Columna Izquierda: Acciones Operativas (QR, Manual, Incidencias) */}
         <div className="flex-1 w-full space-y-5">
-          <AccionesOperativasGrid />
+          <AccionesOperativasGrid
+            onAbrirRegistroManual={() => setIsModalManualOpen(true)}
+          />
         </div>
 
         {/* Columna Derecha: Resumen en vivo y Últimos ingresos */}
@@ -60,6 +66,14 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
           />
         </div>
       </div>
+
+      {/* Modal Adaptativo (Desktop Modal / Mobile Hoja Inferior) HU8 */}
+      <RegistroManualModal
+        examen={examen}
+        isOpen={isModalManualOpen}
+        onClose={() => setIsModalManualOpen(false)}
+        onIngresoExitoso={refetch}
+      />
     </div>
   );
 }

@@ -42,3 +42,36 @@ export interface DeviceCapabilities {
   hasCamera: boolean;
   helperText?: string;
 }
+
+export type TipoExcepcionIngreso =
+  | "YA_REGISTRADO"
+  | "NO_HABILITADO"
+  | "AMBIENTE_INCORRECTO";
+
+export interface EstudianteBusquedaItem {
+  id: number;
+  codSis: string;
+  ci: string;
+  nombre: string;
+  apellido?: string;
+  carrera: string;
+  estadoHabilitado: boolean;
+  motivoInhabilitacion?: string | null;
+  ambienteAsignado: string;
+  yaIngreso: boolean;
+  horaIngresoPrevio?: string;
+  metodoIngresoPrevio?: "QR" | "MANUAL";
+}
+
+export interface RegistroManualPayload {
+  estudianteId: number;
+  clienteSyncId?: string;
+}
+
+export interface RegistroManualResponse {
+  success: boolean;
+  ingresoId: number;
+  fechaHora: string;
+  estudiante: EstudianteBusquedaItem;
+  mensaje?: string;
+}

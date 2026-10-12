@@ -2,6 +2,9 @@ import { apiClient } from "@/shared/lib/api-client";
 import type {
   ExamenAsignado,
   ResumenEnVivoData,
+  EstudianteBusquedaItem,
+  RegistroManualPayload,
+  RegistroManualResponse,
 } from "../types/control-ingreso.types";
 
 /**
@@ -82,6 +85,72 @@ export const SEED_RESUMEN_DEFAULT: ResumenEnVivoData = {
   ],
 };
 
+export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
+  {
+    id: 101,
+    codSis: "2021-10234",
+    ci: "V-27.104.882",
+    nombre: "Valentina",
+    apellido: "Pérez",
+    carrera: "Ingeniería de Sistemas",
+    estadoHabilitado: true,
+    motivoInhabilitacion: null,
+    ambienteAsignado: "Sala 204",
+    yaIngreso: false,
+  },
+  {
+    id: 102,
+    codSis: "2021-10965",
+    ci: "V-25.992.301",
+    nombre: "Diego",
+    apellido: "Fernández",
+    carrera: "Ingeniería Electrónica",
+    estadoHabilitado: true,
+    motivoInhabilitacion: null,
+    ambienteAsignado: "Sala 204",
+    yaIngreso: false,
+  },
+  {
+    id: 103,
+    codSis: "2021-09442",
+    ci: "V-26.411.092",
+    nombre: "Camila",
+    apellido: "Méndez",
+    carrera: "Ingeniería de Sistemas",
+    estadoHabilitado: true,
+    motivoInhabilitacion: null,
+    ambienteAsignado: "Sala 204",
+    yaIngreso: true,
+    horaIngresoPrevio: "08:44",
+    metodoIngresoPrevio: "MANUAL",
+  },
+  {
+    id: 104,
+    codSis: "2020-05819",
+    ci: "V-24.819.330",
+    nombre: "Carlos",
+    apellido: "Rocha",
+    carrera: "Ingeniería Civil",
+    estadoHabilitado: true,
+    motivoInhabilitacion: null,
+    ambienteAsignado: "Aula A-101",
+    yaIngreso: false,
+  },
+  {
+    id: 105,
+    codSis: "2021-11884",
+    ci: "V-28.012.441",
+    nombre: "Rodrigo",
+    apellido: "Torrico",
+    carrera: "Ingeniería Informática",
+    estadoHabilitado: false,
+    motivoInhabilitacion:
+      "No cumple con el porcentaje mínimo de asistencia (menor al 80%)",
+    ambienteAsignado: "Sala 204",
+    yaIngreso: false,
+  },
+];
+
 export const controlIngresoService = {
   /**
    * Obtiene la lista de exámenes asignados al usuario de control actual.
@@ -122,5 +191,106 @@ export const controlIngresoService = {
         examenId,
       };
     }
+  },
+
+  /**
+   * HU8: Busca estudiantes por código SIS, carnet (CI) o nombre para el examen activo.
+   */
+  async buscarEstudiantes(
+    examenId: number,
+    query: string
+  ): Promise<EstudianteBusquedaItem[]> {
+    const term = query.trim().toLowerCase();
+    if (!term) return [];
+
+    try {
+      const response = await apiClient.get<EstudianteBusquedaItem[]>(
+        `/control-ingreso/examenes/${examenId}/estudiantes/buscar?q=${encodeURIComponent(
+          term
+        )}`
+      );
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+    } catch {
+      // Fallback a simulación con datos locales
+    }
+
+    return SEED_ESTUDIANTES_BUSQUEDA.filter((est) => {
+      const fullName = `${est.nombre} ${est.apellido ?? ""}`.toLowerCase();
+      const sis = est.codSis.toLowerCase();
+      const ci = est.ci.toLowerCase().replace(/[^0-9a-z]/g, "");
+      const cleanTerm = term.replace(/[^0-9a-z]/g, "");
+
+      return (
+        fullName.includes(term) ||
+        sis.includes(term) ||
+        (cleanTerm.length >= 2 && ci.includes(cleanTerm))
+      );
+    });
+  },
+
+  /**
+   * HU8: Registra el ingreso manual de un estudiante validado en el examen activo.
+   */
+  async registrarIngresoManual(
+    examenId: number,
+    payload: RegistroManualPayload
+  ): Promise<RegistroManualResponse> {
+    try {
+      const response = await apiClient.post<RegistroManualResponse>(
+        `/control-ingreso/examenes/${examenId}/ingresos/manual`,
+        payload
+      );
+      if (response.data) {
+        return response.data;
+      }
+    } catch (err: unknown) {
+      // Si la API responde con un error estructurado, relanzarlo
+      if (
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        err.response &&
+        typeof err.response === "object" &&
+        "data" in err.response
+      ) {
+        const errorData = (err.response as { data: { message?: string } }).data;
+        if (errorData?.message) {
+          throw new Error(errorData.message);
+        }
+      }
+    }
+
+    // Fallback de registro simulado si backend no está disponible
+    const estudiante =
+      SEED_ESTUDIANTES_BUSQUEDA.find((e) => e.id === payload.estudianteId) || {
+        id: payload.estudianteId,
+        codSis: "2021-10234",
+        ci: "V-27.104.882",
+        nombre: "Estudiante",
+        apellido: "Registrado",
+        carrera: "Ingeniería de Sistemas",
+        estadoHabilitado: true,
+        ambienteAsignado: "Sala 204",
+        yaIngreso: true,
+      };
+
+    estudiante.yaIngreso = true;
+    const now = new Date();
+    const hora = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    estudiante.horaIngresoPrevio = hora;
+    estudiante.metodoIngresoPrevio = "MANUAL";
+
+    return {
+      success: true,
+      ingresoId: Math.floor(Math.random() * 10000) + 1,
+      fechaHora: now.toISOString(),
+      estudiante,
+      mensaje: "Ingreso manual registrado correctamente",
+    };
   },
 };

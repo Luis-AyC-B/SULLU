@@ -5,7 +5,13 @@ import { Camera, Lock, Search, AlertTriangle, ArrowRight } from "lucide-react";
 import { useDeviceCapabilities } from "../../hooks/useDeviceCapabilities";
 import { toast } from "sonner";
 
-export function AccionesOperativasGrid() {
+interface AccionesOperativasGridProps {
+  onAbrirRegistroManual?: () => void;
+}
+
+export function AccionesOperativasGrid({
+  onAbrirRegistroManual,
+}: AccionesOperativasGridProps = {}) {
   const router = useRouter();
   const { canScanQr, helperText } = useDeviceCapabilities();
 
@@ -19,7 +25,11 @@ export function AccionesOperativasGrid() {
   };
 
   const handleRegistroManual = () => {
-    // HU8: Búsqueda y registro manual de estudiante
+    if (onAbrirRegistroManual) {
+      onAbrirRegistroManual();
+      return;
+    }
+    // Fallback a ruta
     router.push("/control-ingreso/manual");
   };
 
