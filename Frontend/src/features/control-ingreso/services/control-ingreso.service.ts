@@ -64,21 +64,21 @@ export const SEED_RESUMEN_DEFAULT: ResumenEnVivoData = {
     {
       id: 1,
       nombre: "Andrés González",
-      codSis: "2020-08711",
+      codSis: "202008711",
       hora: "08:47",
       metodo: "QR",
     },
     {
       id: 2,
       nombre: "Camila Méndez",
-      codSis: "2021-09442",
+      codSis: "202109442",
       hora: "08:44",
       metodo: "MANUAL",
     },
     {
       id: 3,
       nombre: "José Ramírez",
-      codSis: "2022-11703",
+      codSis: "202211703",
       hora: "08:41",
       metodo: "QR",
     },
@@ -88,11 +88,10 @@ export const SEED_RESUMEN_DEFAULT: ResumenEnVivoData = {
 export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
   {
     id: 101,
-    codSis: "2021-10234",
+    codSis: "202110234",
     ci: "V-27.104.882",
     nombre: "Valentina",
     apellido: "Pérez",
-    carrera: "Ingeniería de Sistemas",
     estadoHabilitado: true,
     motivoInhabilitacion: null,
     ambienteAsignado: "Sala 204",
@@ -100,11 +99,10 @@ export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
   },
   {
     id: 102,
-    codSis: "2021-10965",
+    codSis: "202110965",
     ci: "V-25.992.301",
     nombre: "Diego",
     apellido: "Fernández",
-    carrera: "Ingeniería Electrónica",
     estadoHabilitado: true,
     motivoInhabilitacion: null,
     ambienteAsignado: "Sala 204",
@@ -112,11 +110,10 @@ export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
   },
   {
     id: 103,
-    codSis: "2021-09442",
+    codSis: "202109442",
     ci: "V-26.411.092",
     nombre: "Camila",
     apellido: "Méndez",
-    carrera: "Ingeniería de Sistemas",
     estadoHabilitado: true,
     motivoInhabilitacion: null,
     ambienteAsignado: "Sala 204",
@@ -126,11 +123,10 @@ export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
   },
   {
     id: 104,
-    codSis: "2020-05819",
+    codSis: "202005819",
     ci: "V-24.819.330",
     nombre: "Carlos",
     apellido: "Rocha",
-    carrera: "Ingeniería Civil",
     estadoHabilitado: true,
     motivoInhabilitacion: null,
     ambienteAsignado: "Aula A-101",
@@ -138,11 +134,10 @@ export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
   },
   {
     id: 105,
-    codSis: "2021-11884",
+    codSis: "202111884",
     ci: "V-28.012.441",
     nombre: "Rodrigo",
     apellido: "Torrico",
-    carrera: "Ingeniería Informática",
     estadoHabilitado: false,
     motivoInhabilitacion:
       "No cumple con el porcentaje mínimo de asistencia (menor al 80%)",
@@ -218,13 +213,15 @@ export const controlIngresoService = {
 
     return SEED_ESTUDIANTES_BUSQUEDA.filter((est) => {
       const fullName = `${est.nombre} ${est.apellido ?? ""}`.toLowerCase();
-      const sis = est.codSis.toLowerCase();
+      // Normalizar SIS: quitar guiones para búsqueda (los SIS son solo dígitos)
+      const sis = est.codSis.replace(/-/g, "").toLowerCase();
+      const termSis = term.replace(/-/g, "").replace(/\s/g, "");
       const ci = est.ci.toLowerCase().replace(/[^0-9a-z]/g, "");
       const cleanTerm = term.replace(/[^0-9a-z]/g, "");
 
       return (
         fullName.includes(term) ||
-        sis.includes(term) ||
+        (termSis.length >= 2 && sis.includes(termSis)) ||
         (cleanTerm.length >= 2 && ci.includes(cleanTerm))
       );
     });
@@ -266,11 +263,10 @@ export const controlIngresoService = {
     const estudiante =
       SEED_ESTUDIANTES_BUSQUEDA.find((e) => e.id === payload.estudianteId) || {
         id: payload.estudianteId,
-        codSis: "2021-10234",
+        codSis: "202110234",
         ci: "V-27.104.882",
         nombre: "Estudiante",
         apellido: "Registrado",
-        carrera: "Ingeniería de Sistemas",
         estadoHabilitado: true,
         ambienteAsignado: "Sala 204",
         yaIngreso: true,

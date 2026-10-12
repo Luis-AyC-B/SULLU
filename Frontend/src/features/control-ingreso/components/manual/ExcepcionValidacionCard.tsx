@@ -138,19 +138,9 @@ export function ExcepcionValidacionCard({
           <div className="flex justify-between font-mono">
             <span className="text-slate-500">SIS / CI:</span>
             <span className="font-semibold text-slate-800">
-              {estudiante.codSis} {estudiante.ci && `· ${estudiante.ci}`}
+              {estudiante.codSis.replace(/-/g, "")} {estudiante.ci && `· ${estudiante.ci}`}
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Carrera:</span>
-            <span className="text-slate-700 truncate max-w-[200px]">{estudiante.carrera}</span>
-          </div>
-          {estudiante.ambienteAsignado && (
-            <div className="flex justify-between">
-              <span className="text-slate-500">Ambiente asignado:</span>
-              <span className="font-semibold text-slate-900">{estudiante.ambienteAsignado}</span>
-            </div>
-          )}
         </div>
 
         {/* Sugerencia operativa */}

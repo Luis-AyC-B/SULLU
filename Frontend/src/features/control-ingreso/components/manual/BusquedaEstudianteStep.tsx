@@ -62,7 +62,7 @@ export function BusquedaEstudianteStep({
                 setTermino(e.target.value);
                 if (errorValidacion) setErrorValidacion(null);
               }}
-              placeholder="Ej. 2021-10234 o Valentina"
+              placeholder="Ej. 202110234 o Valentina"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#002D62] focus:ring-2 focus:ring-[#002D62]/10 outline-none text-sm text-slate-800 placeholder:text-slate-400 transition-colors"
               autoComplete="off"
             />

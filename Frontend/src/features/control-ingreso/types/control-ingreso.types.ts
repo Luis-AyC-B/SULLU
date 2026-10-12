@@ -54,7 +54,6 @@ export interface EstudianteBusquedaItem {
   ci: string;
   nombre: string;
   apellido?: string;
-  carrera: string;
   estadoHabilitado: boolean;
   motivoInhabilitacion?: string | null;
   ambienteAsignado: string;

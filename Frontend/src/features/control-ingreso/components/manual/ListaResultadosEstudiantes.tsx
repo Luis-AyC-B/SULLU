@@ -67,10 +67,7 @@ export function ListaResultadosEstudiantes({
                     {nombreCompleto}
                   </h4>
                   <p className="text-xs text-slate-500 font-mono mt-0.5">
-                    {estudiante.codSis}
-                  </p>
-                  <p className="text-xs text-slate-500 truncate mt-0.5">
-                    {estudiante.carrera}
+                    {estudiante.codSis.replace(/-/g, "")}
                   </p>
                 </div>
               </div>
