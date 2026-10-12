@@ -1,4 +1,3 @@
-// src/shared/hooks/useUserPermissions.ts
 "use client";
 
 import { useSession } from "next-auth/react";
@@ -11,5 +10,8 @@ export function useUserPermissions(): Modulo[] {
 
   if (!permisos) return [];
 
-  return modules.filter((m) => permisos.includes(`${m.clave}.ver`));
+  // Un módulo se muestra si el usuario tiene cualquier permiso de ese módulo
+  return modules.filter((m) =>
+    permisos.some((p) => p === m.clave || p.startsWith(`${m.clave}.`))
+  );
 }

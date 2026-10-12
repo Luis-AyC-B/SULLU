@@ -27,7 +27,7 @@ export const modulosPermisos: ModuloPermisos[] = [
     label: "ESTUDIANTES",
     permisoVer: { clave: "estudiantes.ver", label: "Ver estudiantes" },
     acciones: [
-      { clave: "estudiantes.registrar", label: "Registrar estudiantes" },
+      { clave: "estudiantes.cargar", label: "Cargar estudiantes" },
       { clave: "estudiantes.habilitar", label: "Habilitar/inhabilitar" },
     ],
   },
@@ -39,6 +39,55 @@ export const modulosPermisos: ModuloPermisos[] = [
       { clave: "examenes.crear", label: "Crear exámenes" },
       { clave: "examenes.editar", label: "Editar exámenes" },
       { clave: "examenes.eliminar", label: "Eliminar exámenes" },
+    ],
+  },
+  {
+    clave: "ambientes",
+    label: "AMBIENTES",
+    permisoVer: { clave: "ambientes.ver", label: "Ver ambientes" },
+    acciones: [
+      { clave: "ambientes.editar", label: "Editar ambiente" },
+      { clave: "ambientes.registrar_reserva", label: "Registrar reservas" },
+      { clave: "ambientes.cancelar_reserva", label: "Cancelar reservas" },
+    ],
+  },
+  {
+    clave: "control_ingreso",
+    label: "CONTROL DE INGRESO",
+    permisoVer: {
+      clave: "control_ingreso.ver_examenes_asignados",
+      label: "Ver exámenes asignados",
+    },
+    acciones: [
+      { clave: "control_ingreso.registro_manual", label: "Registrar ingreso manual" },
+      { clave: "control_ingreso.escanear_qr", label: "Escanear QR" },
+    ],
+  },
+  {
+    clave: "registro_ingresos",
+    label: "REGISTRO DE INGRESOS",
+    permisoVer: { clave: "registro_ingresos.ver", label: "Ver ingresos" },
+    acciones: [],
+  },
+  {
+    clave: "incidencias",
+    label: "INCIDENCIAS",
+    permisoVer: { clave: "incidencias.ver", label: "Ver incidencias" },
+    acciones: [
+      { clave: "incidencias.registrar", label: "Registrar incidencias" },
+    ],
+  },
+  {
+    clave: "colaboradores",
+    label: "COLABORADORES",
+    permisoVer: { clave: "colaboradores.ver", label: "Ver nómina" },
+    acciones: [
+      { clave: "colaboradores.solicitar", label: "Solicitar colaborador" },
+      { clave: "colaboradores.asignar_examen", label: "Asignar a examen" },
+      { clave: "colaboradores.desasignar_examen", label: "Desasignar de examen" },
+      { clave: "colaboradores.dar_de_baja", label: "Dar de baja" },
+      { clave: "colaboradores.ver_solicitudes", label: "Ver solicitudes" },
+      { clave: "colaboradores.aprobar", label: "Aprobar/rechazar solicitudes" },
     ],
   },
 ];

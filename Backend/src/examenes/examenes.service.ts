@@ -12,7 +12,7 @@ import { QueryExamenDto } from './dto/query-examen.dto';
 const prisma = new PrismaClient();
 
 const EXAMEN_INCLUDE = {
-  reservaAmbiente: { include: { ambiente: true } },
+  reservaAmbiente: { include: { horarioFijo: true, ambiente: true } },
   carrerasMaterias: {
     include: {
       carrera_materia: {
@@ -82,8 +82,8 @@ export class ExamenesService {
         e.reservaAmbiente?.ambiente?.id ?? e.reservaAmbiente?.ambienteId ?? 0,
       ambienteNombre: e.reservaAmbiente?.ambiente?.nombre ?? 'Aula asignada',
       fecha: fechaISO(e.reservaAmbiente?.fecha),
-      horaInicio: horaISO(e.reservaAmbiente?.horaIni, '08:00'),
-      horaFin: horaISO(e.reservaAmbiente?.horaFin, '09:30'),
+      horaInicio: horaISO(e.reservaAmbiente?.horarioFijo?.horaIni, '08:00'),
+      horaFin: horaISO(e.reservaAmbiente?.horarioFijo?.horaFin, '09:30'),
       fueEditado: Boolean(e.fueEditado),
       // Alias para que el frontend use siempre "createdAt"
       createdAt: e.creadoEn?.toISOString() ?? new Date().toISOString(),
@@ -101,6 +101,7 @@ export class ExamenesService {
       include: {
         reservaAmbiente: {
           include: {
+            horarioFijo: true,
             ambiente: {
               include: {
                 facultad: true,
@@ -133,7 +134,7 @@ export class ExamenesService {
       },
       orderBy: [
         { reservaAmbiente: { fecha: 'asc' } },
-        { reservaAmbiente: { horaIni: 'asc' } },
+        { reservaAmbiente: { horarioFijo: { horaIni: 'asc' } } },
       ],
     });
 
@@ -165,8 +166,8 @@ export class ExamenesService {
         ambienteId: e.reservaAmbiente?.ambiente?.id ?? 0,
         ambienteNombre: e.reservaAmbiente?.ambiente?.nombre ?? 'Aula asignada',
         fecha: fechaISO(e.reservaAmbiente?.fecha),
-        horaInicio: horaISO(e.reservaAmbiente?.horaIni, '08:00'),
-        horaFin: horaISO(e.reservaAmbiente?.horaFin, '09:30'),
+        horaInicio: horaISO(e.reservaAmbiente?.horarioFijo?.horaIni, '08:00'),
+        horaFin: horaISO(e.reservaAmbiente?.horarioFijo?.horaFin, '09:30'),
         estado: e.estado,
       };
     });
@@ -279,7 +280,7 @@ export class ExamenesService {
         fecha: { gte: hoy },
         examenes: { none: {} },
       },
-      include: { ambiente: true },
+      include: { horarioFijo: true, ambiente: true },
       orderBy: { fecha: 'asc' },
     });
 
@@ -288,8 +289,8 @@ export class ExamenesService {
       ambienteId: r.ambienteId,
       ambienteNombre: r.ambiente?.nombre ?? '',
       fecha: fechaISO(r.fecha),
-      horaInicio: horaISO(r.horaIni),
-      horaFin: horaISO(r.horaFin),
+      horaInicio: horaISO(r.horarioFijo?.horaIni),
+      horaFin: horaISO(r.horarioFijo?.horaFin),
     }));
   }
 
@@ -613,7 +614,7 @@ export class ExamenesService {
         );
       }
       // Admin puede usar cualquier reserva; docente solo las propias
-      if (!isAdmin && reserva.usuarioId !== usuarioId) {
+      if (!isAdmin && reserva.docenteId !== usuarioId) {
         throw new ForbiddenException(
           'El ambiente seleccionado no está entre tus reservas.',
         );

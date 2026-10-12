@@ -1,6 +1,20 @@
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
 
+// Orden de prioridad para redirigir tras el login: [prefijo de permiso, ruta]
+const redirectsPorModulo: [string, string][] = [
+  ['portal_estudiante', '/portal'],
+  ['usuarios', '/usuarios'],
+  ['roles', '/roles'],
+  ['examenes', '/examenes'],
+  ['estudiantes', '/estudiantes'],
+  ['ambientes', '/ambientes'],
+  ['control_ingreso', '/control-ingreso'],
+  ['registro_ingresos', '/ingresos'],
+  ['incidencias', '/incidencias'],
+  ['colaboradores', '/colaboradores'],
+];
+
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
@@ -9,17 +23,11 @@ export default withAuth(
     // 1. Si el usuario ya está autenticado e intenta entrar a /login, redirigirlo a su primer módulo disponible
     if (pathname.startsWith('/login') && token) {
       const permisos = (token.permisos as string[]) || [];
-      if (permisos.some((p) => p.startsWith('usuarios'))) {
-        return NextResponse.redirect(new URL('/usuarios', req.url));
-      }
-      if (permisos.some((p) => p.startsWith('roles'))) {
-        return NextResponse.redirect(new URL('/roles', req.url));
-      }
-      if (permisos.some((p) => p.startsWith('examenes'))) {
-        return NextResponse.redirect(new URL('/examenes', req.url));
-      }
-      if (permisos.some((p) => p.startsWith('estudiantes'))) {
-        return NextResponse.redirect(new URL('/estudiantes', req.url));
+
+      for (const [prefijo, ruta] of redirectsPorModulo) {
+        if (permisos.some((p) => p === prefijo || p.startsWith(`${prefijo}.`))) {
+          return NextResponse.redirect(new URL(ruta, req.url));
+        }
       }
       return NextResponse.redirect(new URL('/usuarios', req.url));
     }
@@ -37,6 +45,12 @@ export default withAuth(
         '/examenes': 'examenes',
         '/estudiantes': 'estudiantes',
         '/reportes': 'reportes',
+        '/ambientes': 'ambientes',
+        '/control-ingreso': 'control_ingreso',
+        '/ingresos': 'registro_ingresos',
+        '/incidencias': 'incidencias',
+        '/colaboradores': 'colaboradores',
+        '/portal': 'portal_estudiante',
       };
 
       for (const [routePrefix, requiredPrefix] of Object.entries(routePermissions)) {
