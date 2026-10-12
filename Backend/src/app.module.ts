@@ -13,6 +13,7 @@ import { AmbientesModule } from './ambientes/ambientes.module';
 import { ExamenesModule } from './examenes/examenes.module';
 import { CodigosQrModule } from './codigos-qr/codigos-qr.module';
 import { IngresosModule } from './ingresos/ingresos.module';
+import { RegistroIngresosModule } from './registro-ingresos/registro-ingresos.module';
 import { HabilitacionesModule } from './habilitaciones/habilitaciones.module';
 import { MailModule } from './mail/mail.module';
 
@@ -34,6 +35,7 @@ import { MailModule } from './mail/mail.module';
     UsuariosModule,
     RolesModule,
     CargasEstudiantesModule,
+    RegistroIngresosModule,
     EstudiantesModule,
     AmbientesModule,
     ExamenesModule,
