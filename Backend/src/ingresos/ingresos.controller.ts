@@ -19,6 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { RegistrarIngresoManualDto } from './dto/registrar-ingreso-manual.dto';
+import { VerificarIngresoQrDto } from './dto/verificar-ingreso-qr.dto';
 import { IngresosService } from './ingresos.service';
 
 @ApiTags('ingresos')
@@ -48,6 +49,32 @@ export class IngresosController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ingresosService.registrarIngresoManual(dto, user.id);
+  }
+
+  @Post('qr')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Registrar ingreso mediante código QR (HU9)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Ingreso por QR registrado exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Código QR expirado, estudiante inhabilitado o no pertenece al examen',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Código QR o examen no encontrado',
+  })
+  @ApiResponse({ status: 409, description: 'Doble marcación detectada' })
+  registrarQr(
+    @Body() dto: VerificarIngresoQrDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ingresosService.registrarIngresoQr(dto, user.id);
   }
 
   @Post()
