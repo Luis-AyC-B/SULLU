@@ -74,3 +74,50 @@ export interface RegistroManualResponse {
   estudiante: EstudianteBusquedaItem;
   mensaje?: string;
 }
+
+// ==========================================
+// HU8: TIPOS PARA ESCÁNER QR Y EXCEPCIONES
+// ==========================================
+
+export type TipoExcepcionQr =
+  | "YA_REGISTRADO"
+  | "NO_HABILITADO"
+  | "AMBIENTE_INCORRECTO"
+  | "QR_INVALIDO"
+  | "SIN_CONEXION"
+  | "CAMARA_DENEGADA";
+
+export interface EstudianteQrResultado {
+  id?: number;
+  nombre: string;
+  apellido?: string;
+  codSis: string;
+  carrera?: string;
+  horaIngreso?: string;
+  horaIngresoPrevio?: string;
+  motivoInhabilitacion?: string;
+  ambienteAsignado?: string;
+}
+
+export interface ValidacionQrResponse {
+  success: boolean;
+  ingresoId?: number;
+  fechaHora?: string;
+  estudiante?: EstudianteQrResultado;
+  excepcion?: TipoExcepcionQr;
+  mensaje?: string;
+  horaIngresoPrevio?: string;
+  motivoInhabilitacion?: string;
+  ambienteAsignado?: string;
+  pendientesOffline?: number;
+}
+
+export interface IngresoOfflineItem {
+  id: string; // UUID o ID único
+  examenId: number;
+  tokenQr: string;
+  codSis?: string;
+  nombreReferencial?: string;
+  fechaHoraCaptura: string;
+  sincronizado: boolean;
+}

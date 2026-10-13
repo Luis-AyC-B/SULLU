@@ -5,7 +5,9 @@ import type {
   EstudianteBusquedaItem,
   RegistroManualPayload,
   RegistroManualResponse,
+  ValidacionQrResponse,
 } from "../types/control-ingreso.types";
+import { offlineIngresosService } from "./offline-ingresos.service";
 
 /**
  * Datos semilla de respaldo basados en Prisma seed.ts y los mockups oficiales.
@@ -304,6 +306,238 @@ export const controlIngresoService = {
       fechaHora: now.toISOString(),
       estudiante,
       mensaje: "Ingreso manual registrado correctamente",
+    };
+  },
+
+  /**
+   * HU8: Validación inmediata de QR y registro automático de ingreso.
+   * Valida estudiante existente, habilitado, ambiente correcto y no registrado previamente.
+   */
+  async validarYRegistrarQr(
+    examenId: number,
+    tokenQr: string,
+    ambienteActual?: string
+  ): Promise<ValidacionQrResponse> {
+    const rawToken = tokenQr.trim();
+    if (!rawToken) {
+      return {
+        success: false,
+        excepcion: "QR_INVALIDO",
+        mensaje: "El código QR leído está vacío o no es legible.",
+      };
+    }
+
+    // 1. Manejo offline (Task-9.5)
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const totalPendientes = await offlineIngresosService.guardarIngresoOffline(
+        examenId,
+        rawToken
+      );
+      return {
+        success: false,
+        excepcion: "SIN_CONEXION",
+        mensaje: "Ingreso guardado sin conexión",
+        pendientesOffline: totalPendientes,
+      };
+    }
+
+    // 2. Intento de llamada al backend
+    try {
+      const response = await apiClient.post<ValidacionQrResponse>(
+        `/control-ingreso/examenes/${examenId}/ingresos/qr`,
+        {
+          tokenQr: rawToken,
+          clienteSyncId:
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : undefined,
+        }
+      );
+      if (response.data) {
+        return response.data;
+      }
+    } catch (err: unknown) {
+      if (
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        err.response &&
+        typeof err.response === "object" &&
+        "data" in err.response
+      ) {
+        const errorData = (
+          err.response as {
+            data: {
+              excepcion?: string;
+              error?: string;
+              message?: string;
+              estudiante?: any;
+              horaIngresoPrevio?: string;
+              motivoInhabilitacion?: string;
+              ambienteAsignado?: string;
+            };
+          }
+        ).data;
+
+        const excepcion =
+          (errorData.excepcion as any) || (errorData.error as any);
+        if (excepcion) {
+          return {
+            success: false,
+            excepcion,
+            mensaje: errorData.message,
+            estudiante: errorData.estudiante,
+            horaIngresoPrevio: errorData.horaIngresoPrevio,
+            motivoInhabilitacion: errorData.motivoInhabilitacion,
+            ambienteAsignado: errorData.ambienteAsignado,
+          };
+        }
+      }
+    }
+
+    // 3. Fallback simulado robusto alineado a los mockups y criterios de aceptación
+    let matchedSis = rawToken;
+    try {
+      const parsed = JSON.parse(rawToken);
+      if (parsed && typeof parsed === "object") {
+        matchedSis = parsed.codSis || parsed.sis || parsed.token || rawToken;
+      }
+    } catch {
+      // Es una cadena simple
+    }
+
+    // Normalizar para comparación
+    const cleanSis = matchedSis.replace(/[^0-9]/g, "");
+
+    // Simular QR inválido si no tiene números o parece una URL externa ajena
+    if (
+      !cleanSis ||
+      cleanSis.length < 5 ||
+      rawToken.startsWith("http://") ||
+      rawToken.startsWith("https://")
+    ) {
+      return {
+        success: false,
+        excepcion: "QR_INVALIDO",
+        mensaje:
+          "No se pudo reconocer el código. Comprueba que pertenezca a un estudiante o utiliza el registro manual.",
+      };
+    }
+
+    const estudiante = SEED_ESTUDIANTES_BUSQUEDA.find((e) => {
+      const eSis = e.codSis.replace(/[^0-9]/g, "");
+      return eSis === cleanSis || cleanSis.includes(eSis) || eSis.includes(cleanSis);
+    });
+
+    if (!estudiante) {
+      // No existe en la lista del sistema / examen
+      return {
+        success: false,
+        excepcion: "QR_INVALIDO",
+        mensaje:
+          "No se pudo reconocer el código. Comprueba que pertenezca a un estudiante o utiliza el registro manual.",
+      };
+    }
+
+    // Excepción: Ya registrado (Mockup 4)
+    if (estudiante.yaIngreso) {
+      return {
+        success: false,
+        excepcion: "YA_REGISTRADO",
+        mensaje: "Estudiante ya registrado",
+        estudiante: {
+          id: estudiante.id,
+          nombre: estudiante.nombre,
+          apellido: estudiante.apellido,
+          codSis: estudiante.codSis,
+          carrera: "Ingeniería de Sistemas",
+        },
+        horaIngresoPrevio: estudiante.horaIngresoPrevio || "08:47:32",
+      };
+    }
+
+    // Excepción: No habilitado (Mockup 5)
+    if (!estudiante.estadoHabilitado) {
+      return {
+        success: false,
+        excepcion: "NO_HABILITADO",
+        mensaje: "Estudiante no habilitado",
+        estudiante: {
+          id: estudiante.id,
+          nombre: estudiante.nombre,
+          apellido: estudiante.apellido,
+          codSis: estudiante.codSis,
+          carrera: "Ingeniería de Sistemas",
+        },
+        motivoInhabilitacion:
+          estudiante.motivoInhabilitacion ||
+          "Inscripción de la asignatura no confirmada",
+      };
+    }
+
+    // Excepción: Ambiente incorrecto (Criterio de aceptación)
+    if (
+      ambienteActual &&
+      estudiante.ambienteAsignado &&
+      estudiante.ambienteAsignado.toLowerCase().trim() !==
+        ambienteActual.toLowerCase().trim()
+    ) {
+      return {
+        success: false,
+        excepcion: "AMBIENTE_INCORRECTO",
+        mensaje: "Ambiente incorrecto",
+        estudiante: {
+          id: estudiante.id,
+          nombre: estudiante.nombre,
+          apellido: estudiante.apellido,
+          codSis: estudiante.codSis,
+          carrera: "Ingeniería de Sistemas",
+        },
+        ambienteAsignado: estudiante.ambienteAsignado,
+      };
+    }
+
+    // CASO EXITOSO (Mockup 2)
+    estudiante.yaIngreso = true;
+    const now = new Date();
+    const horaExacta = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    estudiante.horaIngresoPrevio = horaExacta;
+    estudiante.metodoIngresoPrevio = "QR";
+
+    // Actualizar resumen en vivo
+    SEED_RESUMEN_DEFAULT.ingresados += 1;
+    SEED_RESUMEN_DEFAULT.pendientes = Math.max(
+      0,
+      SEED_RESUMEN_DEFAULT.pendientes - 1
+    );
+    SEED_RESUMEN_DEFAULT.ultimosIngresos = [
+      {
+        id: Date.now(),
+        nombre: `${estudiante.nombre} ${estudiante.apellido ?? ""}`.trim(),
+        codSis: estudiante.codSis,
+        hora: horaExacta.substring(0, 5),
+        metodo: "QR",
+      },
+      ...SEED_RESUMEN_DEFAULT.ultimosIngresos,
+    ];
+
+    return {
+      success: true,
+      ingresoId: Math.floor(Math.random() * 100000) + 1,
+      fechaHora: now.toISOString(),
+      estudiante: {
+        id: estudiante.id,
+        nombre: `${estudiante.nombre} ${estudiante.apellido ?? ""}`.trim(),
+        codSis: estudiante.codSis,
+        carrera: "Ingeniería de Sistemas",
+        horaIngreso: horaExacta,
+      },
+      mensaje: "Ingreso registrado",
     };
   },
 };
