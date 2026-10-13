@@ -7,6 +7,7 @@ import {
 import { EstadoExamen, TipoIncidencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegistrarIngresoManualDto } from './dto/registrar-ingreso-manual.dto';
+import { VerificarIngresoQrDto } from './dto/verificar-ingreso-qr.dto';
 
 @Injectable()
 export class IngresosService {
@@ -158,6 +159,170 @@ export class IngresosService {
 
     return {
       mensaje: 'Ingreso registrado exitosamente',
+      ingreso: nuevoIngreso,
+    };
+  }
+
+  async registrarIngresoQr(
+    dto: VerificarIngresoQrDto,
+    registradoPorId: number,
+  ) {
+    const examen = await this.prisma.examen.findUnique({
+      where: { id: dto.examenId },
+    });
+
+    if (!examen) {
+      throw new NotFoundException('Examen no encontrado');
+    }
+
+    if (examen.estado === EstadoExamen.CANCELADO) {
+      throw new BadRequestException('El examen se encuentra cancelado');
+    }
+
+    if (examen.estado === EstadoExamen.FINALIZADO) {
+      throw new BadRequestException('El examen ya ha finalizado');
+    }
+
+    const tokenLimpio = dto.token.trim();
+
+    const qrRegistro = await this.prisma.codigoQr.findUnique({
+      where: { token: tokenLimpio },
+      include: {
+        estudiante: true,
+      },
+    });
+
+    if (!qrRegistro) {
+      await this.prisma.incidenciaIngreso.create({
+        data: {
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          tipoIncidencia: TipoIncidencia.NO_ENCONTRADO,
+          descripcion: 'Código QR no reconocido o inexistente',
+        },
+      });
+      throw new NotFoundException('Código QR no válido o inexistente');
+    }
+
+    if (new Date() > qrRegistro.expiraEn) {
+      await this.prisma.incidenciaIngreso.create({
+        data: {
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          estudianteId: qrRegistro.estudianteId,
+          tipoIncidencia: TipoIncidencia.QR_CADUCADO,
+          descripcion: 'El código QR ha expirado',
+        },
+      });
+      throw new BadRequestException('El código QR presentado ha expirado');
+    }
+
+    const estudiante = qrRegistro.estudiante;
+
+    const inscripcion = await this.prisma.examen_Estudiante.findUnique({
+      where: {
+        estudianteId_examenId: {
+          estudianteId: estudiante.id,
+          examenId: dto.examenId,
+        },
+      },
+    });
+
+    if (!inscripcion) {
+      await this.prisma.incidenciaIngreso.create({
+        data: {
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          estudianteId: estudiante.id,
+          tipoIncidencia: TipoIncidencia.NO_HABILITADO,
+          descripcion: 'El estudiante no figura en la nómina de este examen',
+        },
+      });
+      throw new BadRequestException(
+        'El estudiante no figura en la nómina de este examen',
+      );
+    }
+
+    if (!inscripcion.estado_habilitado) {
+      await this.prisma.incidenciaIngreso.create({
+        data: {
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          estudianteId: estudiante.id,
+          tipoIncidencia: TipoIncidencia.NO_HABILITADO,
+          descripcion:
+            inscripcion.motivo_inhabilitacion || 'Estudiante inhabilitado',
+        },
+      });
+      throw new BadRequestException(
+        `Estudiante no habilitado: ${inscripcion.motivo_inhabilitacion || 'Sin motivo especificado'}`,
+      );
+    }
+
+    const ingresoExistente = await this.prisma.ingreso.findFirst({
+      where: {
+        estudianteId: estudiante.id,
+        examenId: dto.examenId,
+      },
+    });
+
+    if (ingresoExistente) {
+      await this.prisma.incidenciaIngreso.create({
+        data: {
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          estudianteId: estudiante.id,
+          tipoIncidencia: TipoIncidencia.DOBLE_MARCACION,
+          descripcion: 'Intento de reingreso con código QR',
+        },
+      });
+      throw new ConflictException(
+        'El estudiante ya registró su ingreso a este examen',
+      );
+    }
+
+    if (dto.clienteSyncId) {
+      const syncExistente = await this.prisma.ingreso.findUnique({
+        where: { clienteSyncId: dto.clienteSyncId },
+      });
+      if (syncExistente) {
+        throw new ConflictException(
+          'Este registro de sincronización ya fue procesado',
+        );
+      }
+    }
+
+    const nuevoIngreso = await this.prisma.ingreso.create({
+      data: {
+        estudianteId: estudiante.id,
+        examenId: dto.examenId,
+        registradoPor: registradoPorId,
+        fechaHora: new Date(),
+        metodo: 'QR',
+        esOffline: false,
+        clienteSyncId: dto.clienteSyncId,
+      },
+      include: {
+        estudiante: {
+          select: {
+            id: true,
+            cod_sis: true,
+            nombre: true,
+            apellido: true,
+            ci: true,
+          },
+        },
+        examen: {
+          select: {
+            id: true,
+            tipoExamen: true,
+          },
+        },
+      },
+    });
+
+    return {
+      mensaje: 'Ingreso por QR registrado exitosamente',
       ingreso: nuevoIngreso,
     };
   }
