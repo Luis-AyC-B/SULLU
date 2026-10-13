@@ -73,7 +73,7 @@ export class IngresosService {
       return 'EN_CURSO';
     }
 
-    const ahoraMinutos = ahora.getHours() * 60 + ahora.getMinutes();
+    const ahoraMinutos = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
     const iniMinutos = horaIni.getUTCHours() * 60 + horaIni.getUTCMinutes();
     const finMinutos = horaFin.getUTCHours() * 60 + horaFin.getUTCMinutes();
 
@@ -85,8 +85,19 @@ export class IngresosService {
       return 'EN_CURSO';
     }
 
-    // Si ya pasó la hora pero sigue en el mismo día sin haber sido cerrado manualmente
-    return 'EN_CURSO';
+    return 'FINALIZADO';
+  }
+
+  /**
+   * Método público para el cálculo dinámico del estado del examen según horario y fecha.
+   */
+  calcularEstadoExamen(
+    fecha: Date,
+    horaIni?: Date | null,
+    horaFin?: Date | null,
+    estadoExamen: EstadoExamen = EstadoExamen.PROGRAMADO,
+  ): 'EN_CURSO' | 'PROXIMO' | 'FINALIZADO' {
+    return this.calcularEstado(estadoExamen, fecha, horaIni, horaFin);
   }
 
   /**

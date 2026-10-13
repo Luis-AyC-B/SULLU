@@ -9,6 +9,8 @@ export function useDeviceCapabilities(): DeviceCapabilities {
     isMobile: false,
     hasCamera: false,
     helperText: "Verificando capacidades del dispositivo...",
+    isQrBlocked: true,
+    blockedMessage: "Verificando capacidades del dispositivo...",
   });
 
   useEffect(() => {
@@ -16,9 +18,8 @@ export function useDeviceCapabilities(): DeviceCapabilities {
       // 1. Detección de dispositivo móvil / táctil
       const isTouch =
         typeof window !== "undefined" &&
-        ("ontouchstart" in window ||
-          navigator.maxTouchPoints > 0 ||
-          window.matchMedia("(pointer: coarse)").matches);
+        ((Boolean(navigator.maxTouchPoints) && navigator.maxTouchPoints > 0) ||
+          Boolean(typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)")?.matches));
 
       const isNarrowScreen =
         typeof window !== "undefined" && window.innerWidth < 768;
@@ -47,8 +48,9 @@ export function useDeviceCapabilities(): DeviceCapabilities {
       }
 
       const canScanQr = isMobile && hasCamera;
+      const isQrBlocked = !canScanQr;
 
-      const helperText = !isMobile
+      const blockedMessage = !isMobile
         ? "El escaneo QR requiere la cámara. Ingresa desde un dispositivo móvil."
         : !hasCamera
         ? "No se detectó una cámara disponible en este dispositivo."
@@ -58,7 +60,9 @@ export function useDeviceCapabilities(): DeviceCapabilities {
         canScanQr,
         isMobile,
         hasCamera,
-        helperText,
+        helperText: blockedMessage,
+        isQrBlocked,
+        blockedMessage,
       });
     }
 
