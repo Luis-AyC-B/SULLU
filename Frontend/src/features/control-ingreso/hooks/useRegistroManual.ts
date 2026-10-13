@@ -160,6 +160,8 @@ export function useRegistroManual(examen: ExamenAsignado, onIngresoExitoso?: () 
 
       await controlIngresoService.registrarIngresoManual(examen.id, {
         estudianteId: estudianteSeleccionado.id,
+        identificador:
+          estudianteSeleccionado.codSis || estudianteSeleccionado.ci,
         clienteSyncId: syncId,
       });
 
