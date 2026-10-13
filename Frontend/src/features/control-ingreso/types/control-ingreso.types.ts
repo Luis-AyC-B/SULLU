@@ -41,6 +41,8 @@ export interface DeviceCapabilities {
   isMobile: boolean;
   hasCamera: boolean;
   helperText?: string;
+  isQrBlocked?: boolean;
+  blockedMessage?: string;
 }
 
 export type TipoExcepcionIngreso =

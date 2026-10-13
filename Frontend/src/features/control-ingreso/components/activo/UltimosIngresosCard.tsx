@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { UltimoIngresoItem } from "../../types/control-ingreso.types";
 
 interface UltimosIngresosCardProps {
@@ -17,9 +18,12 @@ export function UltimosIngresosCard({
         <h3 className="text-base font-bold text-slate-900 tracking-tight">
           Últimos ingresos
         </h3>
-        <span className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
+        <Link
+          href="/ingresos"
+          className="text-xs font-semibold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
+        >
           Ver lista
-        </span>
+        </Link>
       </div>
 
       {isLoading && (

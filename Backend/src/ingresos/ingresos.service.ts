@@ -1,18 +1,510 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { EstadoExamen, TipoIncidencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
+import { CreateIngresoDto } from './dto/create-ingreso.dto';
+import { UpdateIngresoDto } from './dto/update-ingreso.dto';
 import { RegistrarIngresoManualDto } from './dto/registrar-ingreso-manual.dto';
 import { SincronizarIngresosDto } from './dto/sincronizar-ingresos.dto';
 import { VerificarIngresoQrDto } from './dto/verificar-ingreso-qr.dto';
+import { ExamenAsignadoResponseDto } from './dto/examen-asignado-response.dto';
+import {
+  ResumenExamenResponseDto,
+  UltimoIngresoItemDto,
+} from './dto/resumen-examen-response.dto';
+
+const MESES = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+];
 
 @Injectable()
 export class IngresosService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ──────────────────────────────────────────────────────────────────
+  // Helpers privados (HU7)
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Determina el estado operativo del examen ('EN_CURSO', 'PROXIMO' o 'FINALIZADO')
+   * según el estado registrado en BD, la fecha y los horarios de inicio y fin.
+   */
+  private calcularEstado(
+    estadoExamen: EstadoExamen,
+    fecha: Date,
+    horaIni?: Date | null,
+    horaFin?: Date | null,
+  ): 'EN_CURSO' | 'PROXIMO' | 'FINALIZADO' {
+    if (
+      estadoExamen === EstadoExamen.FINALIZADO ||
+      estadoExamen === EstadoExamen.CANCELADO
+    ) {
+      return 'FINALIZADO';
+    }
+
+    if (estadoExamen === EstadoExamen.EN_CURSO) {
+      return 'EN_CURSO';
+    }
+
+    const ahora = new Date();
+    const fechaYMD = fecha.toISOString().split('T')[0];
+    const ahoraYMD = ahora.toISOString().split('T')[0];
+
+    if (fechaYMD > ahoraYMD) {
+      return 'PROXIMO';
+    }
+
+    if (fechaYMD < ahoraYMD) {
+      return 'FINALIZADO';
+    }
+
+    if (!horaIni || !horaFin) {
+      return 'EN_CURSO';
+    }
+
+    const ahoraMinutos = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
+    const iniMinutos = horaIni.getUTCHours() * 60 + horaIni.getUTCMinutes();
+    const finMinutos = horaFin.getUTCHours() * 60 + horaFin.getUTCMinutes();
+
+    if (ahoraMinutos < iniMinutos) {
+      return 'PROXIMO';
+    }
+
+    if (ahoraMinutos <= finMinutos) {
+      return 'EN_CURSO';
+    }
+
+    return 'FINALIZADO';
+  }
+
+  /**
+   * Método público para el cálculo dinámico del estado del examen según horario y fecha.
+   */
+  calcularEstadoExamen(
+    fecha: Date,
+    horaIni?: Date | null,
+    horaFin?: Date | null,
+    estadoExamen: EstadoExamen = EstadoExamen.PROGRAMADO,
+  ): 'EN_CURSO' | 'PROXIMO' | 'FINALIZADO' {
+    return this.calcularEstado(estadoExamen, fecha, horaIni, horaFin);
+  }
+
+  /**
+   * Retorna 'Hoy' si la fecha corresponde al día actual, o 'D mes YYYY' para otras fechas.
+   */
+  private formatearFechaBadge(fecha: Date): string {
+    const ahora = new Date();
+    const fechaYMD = fecha.toISOString().split('T')[0];
+    const ahoraYMD = ahora.toISOString().split('T')[0];
+
+    if (fechaYMD === ahoraYMD) {
+      return 'Hoy';
+    }
+
+    const d = fecha.getUTCDate();
+    const m = MESES[fecha.getUTCMonth()];
+    const y = fecha.getUTCFullYear();
+    return `${d} ${m} ${y}`;
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // HU7 – Consulta de exámenes y resumen en vivo
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * HU7: Obtiene todos los exámenes asignados al colaborador de control autenticado.
+   */
+  async getMisExamenes(
+    colaboradorId: number,
+  ): Promise<ExamenAsignadoResponseDto[]> {
+    const asignaciones = await this.prisma.examenControlador.findMany({
+      where: {
+        colaboradorId,
+        examen: {
+          estado: {
+            notIn: [EstadoExamen.FINALIZADO, EstadoExamen.CANCELADO],
+          },
+        },
+      },
+      include: {
+        examen: {
+          include: {
+            reservaAmbiente: {
+              include: {
+                horarioFijo: true,
+                ambiente: true,
+              },
+            },
+            responsable: {
+              select: {
+                id: true,
+                nombre: true,
+                apellido: true,
+              },
+            },
+            carrerasMaterias: {
+              include: {
+                carrera_materia: {
+                  include: {
+                    materia: true,
+                  },
+                },
+              },
+            },
+            _count: {
+              select: {
+                estudiantes: {
+                  where: { estado_habilitado: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    asignaciones.sort((a, b) => {
+      const fechaA = a.examen.reservaAmbiente?.fecha
+        ? new Date(a.examen.reservaAmbiente.fecha).getTime()
+        : 0;
+      const fechaB = b.examen.reservaAmbiente?.fecha
+        ? new Date(b.examen.reservaAmbiente.fecha).getTime()
+        : 0;
+      if (fechaA !== fechaB) return fechaA - fechaB;
+
+      const horaA = a.examen.reservaAmbiente?.horarioFijo?.horaIni
+        ? new Date(a.examen.reservaAmbiente.horarioFijo.horaIni).getTime()
+        : 0;
+      const horaB = b.examen.reservaAmbiente?.horarioFijo?.horaIni
+        ? new Date(b.examen.reservaAmbiente.horarioFijo.horaIni).getTime()
+        : 0;
+      return horaA - horaB;
+    });
+
+    const resultados: ExamenAsignadoResponseDto[] = [];
+
+    for (const asig of asignaciones) {
+      const ex = asig.examen;
+      const resAmb = ex.reservaAmbiente;
+      const horFijo = resAmb?.horarioFijo;
+      const cm = ex.carrerasMaterias?.[0]?.carrera_materia;
+
+      const fechaDate = resAmb?.fecha ? new Date(resAmb.fecha) : new Date();
+      const horaIni = horFijo?.horaIni ? new Date(horFijo.horaIni) : null;
+      const horaFin = horFijo?.horaFin ? new Date(horFijo.horaFin) : null;
+
+      const estadoCalculado = this.calcularEstado(
+        ex.estado,
+        fechaDate,
+        horaIni,
+        horaFin,
+      );
+
+      if (estadoCalculado === 'FINALIZADO') {
+        continue;
+      }
+
+      const horaInicioStr = horaIni
+        ? horaIni.toISOString().substring(11, 16)
+        : '08:00';
+      const horaFinStr = horaFin
+        ? horaFin.toISOString().substring(11, 16)
+        : '09:30';
+
+      const docenteNombre = ex.responsable
+        ? `${ex.responsable.nombre} ${ex.responsable.apellido ?? ''}`.trim()
+        : 'Docente no asignado';
+
+      resultados.push({
+        id: ex.id,
+        asignatura: cm?.materia?.nombre ?? 'Materia general',
+        sigla: cm?.materia?.sigla ?? undefined,
+        docente: docenteNombre,
+        rolAsignacion: asig.rolAsignacion || 'Control principal',
+        estado: estadoCalculado,
+        totalEstudiantes: ex._count?.estudiantes ?? 0,
+        fecha: this.formatearFechaBadge(fechaDate),
+        horario: `${horaInicioStr}–${horaFinStr}`,
+        ambiente: resAmb?.ambiente?.nombre ?? 'Aula asignada',
+        capacidadAmbiente: resAmb?.ambiente?.capacidad ?? undefined,
+        tipoExamen: ex.tipoExamen ?? 'Examen programado',
+      });
+    }
+
+    return resultados;
+  }
+
+  /**
+   * HU7: Obtiene el resumen en vivo y la lista de últimos ingresos de un examen asignado.
+   */
+  async getResumenExamen(
+    examenId: number,
+    user: AuthenticatedUser,
+  ): Promise<ResumenExamenResponseDto> {
+    const examen = await this.prisma.examen.findUnique({
+      where: { id: examenId },
+      include: {
+        reservaAmbiente: {
+          include: {
+            horarioFijo: true,
+            ambiente: true,
+          },
+        },
+        carrerasMaterias: {
+          include: {
+            carrera_materia: {
+              include: {
+                materia: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!examen) {
+      throw new NotFoundException(`Examen con ID ${examenId} no encontrado.`);
+    }
+
+    const esAdmin = (user.permisos ?? []).includes('usuarios.crear');
+    if (!esAdmin) {
+      const asignacion = await this.prisma.examenControlador.findUnique({
+        where: {
+          examenId_colaboradorId: {
+            examenId,
+            colaboradorId: user.id,
+          },
+        },
+      });
+
+      if (!asignacion) {
+        throw new ForbiddenException(
+          'No tienes permiso para controlar este examen.',
+        );
+      }
+    }
+
+    const [totalHabilitados, ingresados, incidencias, ultimosIngresosRaw] =
+      await Promise.all([
+        this.prisma.examen_Estudiante.count({
+          where: {
+            examenId,
+            estado_habilitado: true,
+          },
+        }),
+        this.prisma.ingreso.count({
+          where: { examenId },
+        }),
+        this.prisma.incidenciaIngreso.count({
+          where: { examenId },
+        }),
+        this.prisma.ingreso.findMany({
+          where: { examenId },
+          include: {
+            estudiante: {
+              select: {
+                id: true,
+                nombre: true,
+                apellido: true,
+                cod_sis: true,
+              },
+            },
+          },
+          orderBy: { fechaHora: 'desc' },
+          take: 10,
+        }),
+      ]);
+
+    const pendientes = Math.max(0, totalHabilitados - ingresados);
+
+    const resAmb = examen.reservaAmbiente;
+    const horFijo = resAmb?.horarioFijo;
+    const cm = examen.carrerasMaterias?.[0]?.carrera_materia;
+
+    const fechaDate = resAmb?.fecha ? new Date(resAmb.fecha) : new Date();
+    const horaIni = horFijo?.horaIni ? new Date(horFijo.horaIni) : null;
+    const horaFin = horFijo?.horaFin ? new Date(horFijo.horaFin) : null;
+
+    const horaInicioStr = horaIni
+      ? horaIni.toISOString().substring(11, 16)
+      : '08:00';
+    const horaFinStr = horaFin
+      ? horaFin.toISOString().substring(11, 16)
+      : '09:30';
+
+    const estadoCalculado = this.calcularEstado(
+      examen.estado,
+      fechaDate,
+      horaIni,
+      horaFin,
+    );
+
+    const ultimosIngresos: UltimoIngresoItemDto[] = ultimosIngresosRaw.map(
+      (ing) => {
+        const horaStr = ing.fechaHora
+          ? new Date(ing.fechaHora).toISOString().substring(11, 16)
+          : '';
+        const nombreCompleto = ing.estudiante
+          ? `${ing.estudiante.nombre} ${ing.estudiante.apellido ?? ''}`.trim()
+          : 'Estudiante no registrado';
+
+        const metodoUpper = (ing.metodo || 'QR').toUpperCase();
+        const metodo: 'QR' | 'MANUAL' =
+          metodoUpper === 'MANUAL' ? 'MANUAL' : 'QR';
+
+        return {
+          id: ing.id,
+          nombre: nombreCompleto,
+          codSis: ing.estudiante?.cod_sis ?? '',
+          hora: horaStr,
+          metodo,
+        };
+      },
+    );
+
+    return {
+      examenId: examen.id,
+      asignatura: cm?.materia?.nombre ?? 'Materia general',
+      ambiente: resAmb?.ambiente?.nombre ?? 'Aula asignada',
+      horario: `${horaInicioStr}–${horaFinStr}`,
+      estado: estadoCalculado,
+      totalHabilitados,
+      ingresados,
+      pendientes,
+      incidencias,
+      ultimosIngresos,
+    };
+  }
+
+  /**
+   * HU7: Obtiene la ficha de un examen individual asignado al colaborador.
+   */
+  async getExamenDetalle(
+    examenId: number,
+    user: AuthenticatedUser,
+  ): Promise<ExamenAsignadoResponseDto> {
+    const examen = await this.prisma.examen.findUnique({
+      where: { id: examenId },
+      include: {
+        reservaAmbiente: {
+          include: {
+            horarioFijo: true,
+            ambiente: true,
+          },
+        },
+        responsable: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+          },
+        },
+        carrerasMaterias: {
+          include: {
+            carrera_materia: {
+              include: {
+                materia: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            estudiantes: {
+              where: { estado_habilitado: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!examen) {
+      throw new NotFoundException(`Examen con ID ${examenId} no encontrado.`);
+    }
+
+    const esAdmin = (user.permisos ?? []).includes('usuarios.crear');
+    let rolAsignacion = 'Control principal';
+
+    if (!esAdmin) {
+      const asignacion = await this.prisma.examenControlador.findUnique({
+        where: {
+          examenId_colaboradorId: {
+            examenId,
+            colaboradorId: user.id,
+          },
+        },
+      });
+
+      if (!asignacion) {
+        throw new ForbiddenException(
+          'No tienes permiso para controlar este examen.',
+        );
+      }
+      rolAsignacion = asignacion.rolAsignacion || 'Control principal';
+    }
+
+    const resAmb = examen.reservaAmbiente;
+    const horFijo = resAmb?.horarioFijo;
+    const cm = examen.carrerasMaterias?.[0]?.carrera_materia;
+
+    const fechaDate = resAmb?.fecha ? new Date(resAmb.fecha) : new Date();
+    const horaIni = horFijo?.horaIni ? new Date(horFijo.horaIni) : null;
+    const horaFin = horFijo?.horaFin ? new Date(horFijo.horaFin) : null;
+
+    const horaInicioStr = horaIni
+      ? horaIni.toISOString().substring(11, 16)
+      : '08:00';
+    const horaFinStr = horaFin
+      ? horaFin.toISOString().substring(11, 16)
+      : '09:30';
+
+    const estadoCalculado = this.calcularEstado(
+      examen.estado,
+      fechaDate,
+      horaIni,
+      horaFin,
+    );
+
+    const docenteNombre = examen.responsable
+      ? `${examen.responsable.nombre} ${examen.responsable.apellido ?? ''}`.trim()
+      : 'Docente no asignado';
+
+    return {
+      id: examen.id,
+      asignatura: cm?.materia?.nombre ?? 'Materia general',
+      sigla: cm?.materia?.sigla ?? undefined,
+      docente: docenteNombre,
+      rolAsignacion,
+      estado: estadoCalculado,
+      totalEstudiantes: examen._count?.estudiantes ?? 0,
+      fecha: this.formatearFechaBadge(fechaDate),
+      horario: `${horaInicioStr}–${horaFinStr}`,
+      ambiente: resAmb?.ambiente?.nombre ?? 'Aula asignada',
+      capacidadAmbiente: resAmb?.ambiente?.capacidad ?? undefined,
+      tipoExamen: examen.tipoExamen ?? 'Examen programado',
+    };
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // HU8 – Registro de ingreso manual
+  // ──────────────────────────────────────────────────────────────────
 
   async registrarIngresoManual(
     dto: RegistrarIngresoManualDto,
@@ -163,6 +655,10 @@ export class IngresosService {
       ingreso: nuevoIngreso,
     };
   }
+
+  // ──────────────────────────────────────────────────────────────────
+  // HU9 – Registro de ingreso por QR
+  // ──────────────────────────────────────────────────────────────────
 
   async registrarIngresoQr(
     dto: VerificarIngresoQrDto,
@@ -327,6 +823,10 @@ export class IngresosService {
       ingreso: nuevoIngreso,
     };
   }
+
+  // ──────────────────────────────────────────────────────────────────
+  // HU9 – Sincronización offline en lote
+  // ──────────────────────────────────────────────────────────────────
 
   async sincronizarEnLote(
     dto: SincronizarIngresosDto,
@@ -509,6 +1009,10 @@ export class IngresosService {
     };
   }
 
+  // ──────────────────────────────────────────────────────────────────
+  // Consultas auxiliares
+  // ──────────────────────────────────────────────────────────────────
+
   async findByExamen(examenId: number) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
@@ -533,5 +1037,21 @@ export class IngresosService {
       },
       orderBy: { fechaHora: 'desc' },
     });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // CRUD básico (scaffolding generado)
+  // ──────────────────────────────────────────────────────────────────
+
+  create(_createIngresoDto: CreateIngresoDto) {
+    return 'This action adds a new ingreso';
+  }
+
+  findAll() {
+    return 'This action returns all ingresos';
+  }
+
+  update(id: number, _updateIngresoDto: UpdateIngresoDto) {
+    return `This action updates a #${id} ingreso`;
   }
 }
