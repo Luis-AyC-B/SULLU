@@ -9,6 +9,7 @@ import type {
   EstudianteQrResultado,
 } from "../../types/control-ingreso.types";
 import { controlIngresoService } from "../../services/control-ingreso.service";
+import { offlineIngresosService } from "../../services/offline-ingresos.service";
 import { playSuccessChime } from "../../utils/audio-feedback";
 import { QrViewfinder } from "./QrViewfinder";
 import { QrSuccessCard } from "./QrSuccessCard";
@@ -65,9 +66,13 @@ export function EscanearQrModal({
 
   useEffect(() => {
     const updateCount = () => {
-      setPendientesOfflineCount(
-        offlineIngresosService.contarPendientesSync(examen.id)
-      );
+      try {
+        setPendientesOfflineCount(
+          offlineIngresosService?.contarPendientesSync?.(examen.id) ?? 0
+        );
+      } catch {
+        setPendientesOfflineCount(0);
+      }
     };
     updateCount();
     if (typeof window !== "undefined") {

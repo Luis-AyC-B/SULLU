@@ -18,6 +18,8 @@ export function QrViewfinder({
   videoRef,
   canvasRef,
   cameraActiva,
+  pendientesCount = 0,
+  onSincronizar,
 }: QrViewfinderProps) {
   return (
     <div className="relative w-full flex-1 min-h-0 bg-[#0E131F] overflow-hidden flex flex-col justify-between p-5">
