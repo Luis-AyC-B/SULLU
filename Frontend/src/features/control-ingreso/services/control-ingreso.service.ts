@@ -94,6 +94,7 @@ export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
     ci: "V-27.104.882",
     nombre: "Valentina",
     apellido: "Pérez",
+    carrera: "Ingeniería de Sistemas",
     estadoHabilitado: true,
     motivoInhabilitacion: null,
     ambienteAsignado: "Sala 204",
@@ -101,27 +102,29 @@ export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
   },
   {
     id: 102,
-    codSis: "202110965",
-    ci: "V-25.992.301",
-    nombre: "Diego",
-    apellido: "Fernández",
-    estadoHabilitado: true,
-    motivoInhabilitacion: null,
-    ambienteAsignado: "Sala 204",
-    yaIngreso: false,
-  },
-  {
-    id: 103,
-    codSis: "202109442",
+    codSis: "202008711",
     ci: "V-26.411.092",
-    nombre: "Camila",
-    apellido: "Méndez",
+    nombre: "Andrés",
+    apellido: "González",
+    carrera: "Ingeniería de Sistemas",
     estadoHabilitado: true,
     motivoInhabilitacion: null,
     ambienteAsignado: "Sala 204",
     yaIngreso: true,
-    horaIngresoPrevio: "08:44",
-    metodoIngresoPrevio: "MANUAL",
+    horaIngresoPrevio: "08:47:32",
+    metodoIngresoPrevio: "QR",
+  },
+  {
+    id: 103,
+    codSis: "202211582",
+    ci: "V-28.012.441",
+    nombre: "Mariana",
+    apellido: "Rojas",
+    carrera: "Ingeniería de Sistemas",
+    estadoHabilitado: false,
+    motivoInhabilitacion: "Inscripción de la asignatura no confirmada",
+    ambienteAsignado: "Sala 204",
+    yaIngreso: false,
   },
   {
     id: 104,
@@ -129,6 +132,7 @@ export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
     ci: "V-24.819.330",
     nombre: "Carlos",
     apellido: "Rocha",
+    carrera: "Ingeniería de Sistemas",
     estadoHabilitado: true,
     motivoInhabilitacion: null,
     ambienteAsignado: "Aula A-101",
@@ -136,13 +140,13 @@ export const SEED_ESTUDIANTES_BUSQUEDA: EstudianteBusquedaItem[] = [
   },
   {
     id: 105,
-    codSis: "202111884",
-    ci: "V-28.012.441",
-    nombre: "Rodrigo",
-    apellido: "Torrico",
-    estadoHabilitado: false,
-    motivoInhabilitacion:
-      "No cumple con el porcentaje mínimo de asistencia (menor al 80%)",
+    codSis: "202110965",
+    ci: "V-25.992.301",
+    nombre: "Diego",
+    apellido: "Fernández",
+    carrera: "Ingeniería de Sistemas",
+    estadoHabilitado: true,
+    motivoInhabilitacion: null,
     ambienteAsignado: "Sala 204",
     yaIngreso: false,
   },
@@ -379,12 +383,20 @@ export const controlIngresoService = {
           }
         ).data;
 
-        const excepcion =
-          (errorData.excepcion as any) || (errorData.error as any);
-        if (excepcion) {
+        const VALID_EXCEPCIONES = new Set([
+          "YA_REGISTRADO",
+          "NO_HABILITADO",
+          "AMBIENTE_INCORRECTO",
+          "QR_INVALIDO",
+          "SIN_CONEXION",
+          "CAMARA_DENEGADA",
+        ]);
+
+        const rawExcepcion = errorData.excepcion;
+        if (rawExcepcion && VALID_EXCEPCIONES.has(rawExcepcion)) {
           return {
             success: false,
-            excepcion,
+            excepcion: rawExcepcion as TipoExcepcionQr,
             mensaje: errorData.message,
             estudiante: errorData.estudiante,
             horaIngresoPrevio: errorData.horaIngresoPrevio,

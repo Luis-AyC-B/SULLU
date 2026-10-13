@@ -144,6 +144,106 @@ export function EscanearQrModal({
     [examen.id, examen.ambiente, excepcionActiva, estudianteExitoso, onIngresoExitoso]
   );
 
+  // Simulación directa para pruebas visuales de cada uno de los mockups oficiales
+  const simularEscenario = useCallback(
+    (
+      escenario:
+        | "VALIDO"
+        | "YA_REGISTRADO"
+        | "NO_HABILITADO"
+        | "AMBIENTE_INCORRECTO"
+        | "INVALIDO"
+        | "SIN_CONEXION"
+    ) => {
+      isProcessingRef.current = false;
+      cooldownUntilRef.current = 0;
+      setExcepcionActiva(null);
+      setEstudianteExitoso(null);
+
+      switch (escenario) {
+        case "VALIDO": {
+          playSuccessChime();
+          setEstudianteExitoso({
+            id: 101,
+            nombre: "Valentina",
+            apellido: "Pérez",
+            codSis: "2021-10234",
+            carrera: "Ingeniería de Sistemas",
+            horaIngreso: "12:18:41",
+          });
+          onIngresoExitoso?.();
+          setTimeout(() => {
+            setEstudianteExitoso(null);
+          }, 1600);
+          break;
+        }
+        case "YA_REGISTRADO": {
+          setExcepcionActiva({
+            tipo: "YA_REGISTRADO",
+            estudiante: {
+              id: 102,
+              nombre: "Andrés",
+              apellido: "González",
+              codSis: "2020-08711",
+              carrera: "Ingeniería de Sistemas",
+            },
+            horaIngresoPrevio: "08:47:32",
+          });
+          break;
+        }
+        case "NO_HABILITADO": {
+          setExcepcionActiva({
+            tipo: "NO_HABILITADO",
+            estudiante: {
+              id: 103,
+              nombre: "Mariana",
+              apellido: "Rojas",
+              codSis: "2022-11582",
+              carrera: "Ingeniería de Sistemas",
+            },
+            motivoInhabilitacion: "Inscripción de la asignatura no confirmada",
+          });
+          break;
+        }
+        case "AMBIENTE_INCORRECTO": {
+          setExcepcionActiva({
+            tipo: "AMBIENTE_INCORRECTO",
+            estudiante: {
+              id: 104,
+              nombre: "Carlos",
+              apellido: "Rocha",
+              codSis: "2020-05819",
+              carrera: "Ingeniería de Sistemas",
+            },
+            ambienteAsignado: "Aula A-101",
+          });
+          break;
+        }
+        case "INVALIDO": {
+          setExcepcionActiva({
+            tipo: "QR_INVALIDO",
+          });
+          break;
+        }
+        case "SIN_CONEXION": {
+          setExcepcionActiva({
+            tipo: "SIN_CONEXION",
+            estudiante: {
+              id: 101,
+              nombre: "Valentina",
+              apellido: "Pérez",
+              codSis: "2021-10234",
+              carrera: "Ingeniería de Sistemas",
+            },
+            pendientesOffline: 1,
+          });
+          break;
+        }
+      }
+    },
+    [onIngresoExitoso]
+  );
+
   // Inicializar cámara y bucle de lectura continua
   const iniciarCamara = useCallback(async () => {
     setPermisoDenegado(false);
@@ -316,38 +416,45 @@ export function EscanearQrModal({
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
-              onClick={() => procesarTokenQr("202110234")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer active:scale-95"
+              onClick={() => simularEscenario("VALIDO")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer active:scale-95 shrink-0"
             >
               Válido (Valentina)
             </button>
             <button
               type="button"
-              onClick={() => procesarTokenQr("202008711")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer active:scale-95"
+              onClick={() => simularEscenario("YA_REGISTRADO")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer active:scale-95 shrink-0"
             >
               Ya registrado (Andrés)
             </button>
             <button
               type="button"
-              onClick={() => procesarTokenQr("202211582")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer active:scale-95"
+              onClick={() => simularEscenario("NO_HABILITADO")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer active:scale-95 shrink-0"
             >
               No habilitado (Mariana)
             </button>
             <button
               type="button"
-              onClick={() => procesarTokenQr("202005819")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors cursor-pointer active:scale-95"
+              onClick={() => simularEscenario("AMBIENTE_INCORRECTO")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors cursor-pointer active:scale-95 shrink-0"
             >
               Otro ambiente (Carlos)
             </button>
             <button
               type="button"
-              onClick={() => procesarTokenQr("codigo-invalido-xyz")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-white hover:bg-slate-800 transition-colors cursor-pointer active:scale-95"
+              onClick={() => simularEscenario("INVALIDO")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-white hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 shrink-0"
             >
-              Inválido
+              QR no válido
+            </button>
+            <button
+              type="button"
+              onClick={() => simularEscenario("SIN_CONEXION")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 transition-colors cursor-pointer active:scale-95 shrink-0"
+            >
+              Sin conexión
             </button>
           </div>
         </div>

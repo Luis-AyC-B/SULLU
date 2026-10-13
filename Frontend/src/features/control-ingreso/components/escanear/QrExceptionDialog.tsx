@@ -7,6 +7,7 @@ import {
   MapPin,
   WifiOff,
   CameraOff,
+  RotateCw,
 } from "lucide-react";
 import type {
   TipoExcepcionQr,
@@ -275,29 +276,31 @@ export function QrExceptionDialog({
             </>
           )}
 
-          {/* 5. INGRESO GUARDADO SIN CONEXIÓN (Criterio de aceptación Task-9.5) */}
+          {/* 5. INGRESO GUARDADO SIN CONEXIÓN (Mockup oficial) */}
           {excepcion === "SIN_CONEXION" && (
             <>
-              <div className="h-16 w-16 rounded-full bg-sky-50 text-sky-700 flex items-center justify-center mb-4">
-                <WifiOff className="h-8 w-8" />
+              <div className="h-16 w-16 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mb-4">
+                <RotateCw className="h-8 w-8" />
               </div>
 
-              <h4 className="text-lg font-bold text-slate-900 mb-2">
+              <h4 className="text-lg font-bold text-slate-900 mb-1">
                 Ingreso guardado sin conexión
               </h4>
 
-              <div className="w-full bg-sky-50/70 border border-sky-200 rounded-2xl p-4 mb-3 text-center">
-                <p className="text-xs text-sky-900 leading-relaxed font-medium">
-                  El dispositivo no tiene conexión a internet. El ingreso quedó
-                  almacenado localmente con su hora exacta de lectura y se
-                  sincronizará automáticamente al restablecerse la red.
+              <p className="text-sm text-slate-500 mb-4 font-medium">
+                {estudiante?.nombre || "Valentina"} {estudiante?.apellido ?? "Pérez"} ·{" "}
+                {formatSis(estudiante?.codSis || "202110234")}
+              </p>
+
+              <div className="w-full bg-[#FEF9E7] border border-[#F9E79F] rounded-2xl p-3.5 mb-2 text-center">
+                <p className="text-xs text-amber-900 font-semibold leading-relaxed">
+                  El ingreso quedó pendiente y se sincronizará automáticamente cuando vuelva la conexión.
                 </p>
               </div>
 
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold mb-6">
-                <span>Pendientes de sincronización:</span>
-                <span className="font-extrabold">{pendientesOffline ?? 1}</span>
-              </div>
+              <p className="text-[11px] text-amber-900/80 font-medium mb-6">
+                {pendientesOffline ?? 1} ingreso{(pendientesOffline ?? 1) === 1 ? "" : "s"} pendiente{(pendientesOffline ?? 1) === 1 ? "" : "s"} de sincronización
+              </p>
 
               <button
                 type="button"
@@ -305,6 +308,14 @@ export function QrExceptionDialog({
                 className="w-full py-3.5 px-4 rounded-xl bg-[#002D62] text-white font-bold text-sm hover:bg-[#00224d] transition-colors cursor-pointer shadow-xs active:scale-98"
               >
                 Continuar
+              </button>
+
+              <button
+                type="button"
+                onClick={onRegistrarIncidencia}
+                className="w-full mt-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                Registrar incidencia
               </button>
             </>
           )}
