@@ -1,5 +1,10 @@
-import { ModuloEnConstruccion } from "@/shared/components/ModuloEnConstruccion";
+import { StudentAuthGuard } from './StudentAuthGuard';
+import { StudentExamsView } from './StudentExamsView';
 
 export function PortalPageContainer() {
-  return <ModuloEnConstruccion titulo="Mis exámenes" hus="HU6" />;
+  return (
+    <StudentAuthGuard>
+      <StudentExamsView />
+    </StudentAuthGuard>
+  );
 }
