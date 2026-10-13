@@ -162,23 +162,29 @@ export class IngresosService {
     };
   }
 
-  create(_createIngresoDto?: unknown) {
-    return 'This action adds a new ingreso';
-  }
+  async findByExamen(examenId: number) {
+    const examen = await this.prisma.examen.findUnique({
+      where: { id: examenId },
+    });
 
-  findAll() {
-    return `This action returns all ingresos`;
-  }
+    if (!examen) {
+      throw new NotFoundException('Examen no encontrado');
+    }
 
-  findOne(id: number) {
-    return `This action returns a #${id} ingreso`;
-  }
-
-  update(id: number, _updateIngresoDto?: unknown) {
-    return `This action updates a #${id} ingreso`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} ingreso`;
+    return this.prisma.ingreso.findMany({
+      where: { examenId },
+      include: {
+        estudiante: {
+          select: {
+            id: true,
+            cod_sis: true,
+            nombre: true,
+            apellido: true,
+            ci: true,
+          },
+        },
+      },
+      orderBy: { fechaHora: 'desc' },
+    });
   }
 }
