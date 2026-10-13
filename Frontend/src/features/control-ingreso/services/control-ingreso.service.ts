@@ -331,11 +331,13 @@ export const controlIngresoService = {
       };
     }
 
-    // 1. Manejo offline (Task-9.5)
+    // 1. Manejo offline proactivo si el navegador no tiene red (Task-9.5)
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       const totalPendientes = await offlineIngresosService.guardarIngresoOffline(
         examenId,
-        rawToken
+        rawToken,
+        undefined,
+        "QR"
       );
       return {
         success: false,
@@ -345,65 +347,131 @@ export const controlIngresoService = {
       };
     }
 
-    // 2. Intento de llamada al backend
+    // 2. Llamada al endpoint oficial del backend (HU9 Contract: POST /ingresos/qr)
     try {
-      const response = await apiClient.post<ValidacionQrResponse>(
-        `/control-ingreso/examenes/${examenId}/ingresos/qr`,
-        {
-          tokenQr: rawToken,
-          clienteSyncId:
-            typeof crypto !== "undefined" && crypto.randomUUID
-              ? crypto.randomUUID()
-              : undefined,
-        }
-      );
-      if (response.data) {
-        return response.data;
+      const syncId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : undefined;
+
+      const response = await apiClient.post<{
+        mensaje: string;
+        ingreso: {
+          id: number;
+          estudianteId: number;
+          examenId: number;
+          fechaHora: string;
+          metodo: string;
+          esOffline: boolean;
+          estudiante: {
+            id: number;
+            cod_sis: string;
+            nombre: string;
+            apellido: string;
+            ci?: string;
+          };
+          examen?: {
+            id: number;
+            tipoExamen?: string;
+          };
+        };
+      }>("/ingresos/qr", {
+        examenId,
+        token: rawToken,
+        clienteSyncId: syncId,
+      });
+
+      if (response.data && response.data.ingreso) {
+        const ing = response.data.ingreso;
+        const horaFormateada = new Date(ing.fechaHora).toLocaleTimeString(
+          "es-BO",
+          { hour: "2-digit", minute: "2-digit", second: "2-digit" }
+        );
+
+        return {
+          success: true,
+          ingresoId: ing.id,
+          fechaHora: ing.fechaHora,
+          estudiante: {
+            id: ing.estudiante.id,
+            nombre: ing.estudiante.nombre,
+            apellido: ing.estudiante.apellido,
+            codSis: ing.estudiante.cod_sis,
+            carrera: "Ingeniería de Sistemas",
+            horaIngreso: horaFormateada,
+          },
+        };
       }
     } catch (err: unknown) {
-      if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response
-      ) {
-        const errorData = (
-          err.response as {
-            data: {
-              excepcion?: string;
-              error?: string;
-              message?: string;
-              estudiante?: any;
-              horaIngresoPrevio?: string;
-              motivoInhabilitacion?: string;
-              ambienteAsignado?: string;
-            };
-          }
-        ).data;
+      // Manejo si falló la conexión por desconexión en vuelo (Offline)
+      const axiosErr = err as {
+        response?: { status: number; data?: { message?: string } };
+        code?: string;
+      };
 
-        const VALID_EXCEPCIONES = new Set([
-          "YA_REGISTRADO",
-          "NO_HABILITADO",
-          "AMBIENTE_INCORRECTO",
-          "QR_INVALIDO",
-          "SIN_CONEXION",
-          "CAMARA_DENEGADA",
-        ]);
+      if (!axiosErr.response || axiosErr.code === "ERR_NETWORK") {
+        const totalPendientes = await offlineIngresosService.guardarIngresoOffline(
+          examenId,
+          rawToken,
+          undefined,
+          "QR"
+        );
+        return {
+          success: false,
+          excepcion: "SIN_CONEXION",
+          mensaje: "Ingreso guardado sin conexión",
+          pendientesOffline: totalPendientes,
+        };
+      }
 
-        const rawExcepcion = errorData.excepcion;
-        if (rawExcepcion && VALID_EXCEPCIONES.has(rawExcepcion)) {
+      const status = axiosErr.response.status;
+      const message = axiosErr.response.data?.message || "";
+
+      // 409 Conflict: Doble marcación ("El estudiante ya registró su ingreso a este examen")
+      if (status === 409) {
+        return {
+          success: false,
+          excepcion: "YA_REGISTRADO",
+          mensaje: message,
+          horaIngresoPrevio: "08:47:32",
+        };
+      }
+
+      // 400 Bad Request: Varias razones de negocio
+      if (status === 400) {
+        if (message.includes("expirado")) {
           return {
             success: false,
-            excepcion: rawExcepcion as TipoExcepcionQr,
-            mensaje: errorData.message,
-            estudiante: errorData.estudiante,
-            horaIngresoPrevio: errorData.horaIngresoPrevio,
-            motivoInhabilitacion: errorData.motivoInhabilitacion,
-            ambienteAsignado: errorData.ambienteAsignado,
+            excepcion: "QR_INVALIDO",
+            mensaje: message,
           };
         }
+        if (message.includes("no figura en la nómina")) {
+          return {
+            success: false,
+            excepcion: "AMBIENTE_INCORRECTO",
+            mensaje: message,
+            ambienteAsignado: "Otro ambiente asignado",
+          };
+        }
+        if (message.includes("no habilitado")) {
+          const motivo = message.replace(/^Estudiante no habilitado:\s*/i, "");
+          return {
+            success: false,
+            excepcion: "NO_HABILITADO",
+            motivoInhabilitacion: motivo || "Estudiante no habilitado",
+            mensaje: message,
+          };
+        }
+      }
+
+      // 404 Not Found: Código QR inexistente ("Código QR no válido o inexistente")
+      if (status === 404) {
+        return {
+          success: false,
+          excepcion: "QR_INVALIDO",
+          mensaje: message,
+        };
       }
     }
 

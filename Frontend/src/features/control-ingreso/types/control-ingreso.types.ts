@@ -114,11 +114,15 @@ export interface ValidacionQrResponse {
 }
 
 export interface IngresoOfflineItem {
-  id: string; // UUID o ID único
+  id?: string;
+  clienteSyncId: string;
   examenId: number;
-  tokenQr: string;
+  identificador: string;
+  tokenQr?: string;
+  metodo: "QR" | "MANUAL";
+  fechaHora: string;
+  fechaHoraCaptura?: string;
   codSis?: string;
   nombreReferencial?: string;
-  fechaHoraCaptura: string;
   sincronizado: boolean;
 }

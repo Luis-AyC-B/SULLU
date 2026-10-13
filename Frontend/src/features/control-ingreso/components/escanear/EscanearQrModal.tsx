@@ -59,6 +59,35 @@ export function EscanearQrModal({
     pendientesOffline?: number;
   } | null>(null);
 
+  // Contador reactivo de ingresos offline pendientes en IndexedDB
+  const [pendientesOfflineCount, setPendientesOfflineCount] =
+    useState<number>(0);
+
+  useEffect(() => {
+    const updateCount = () => {
+      setPendientesOfflineCount(
+        offlineIngresosService.contarPendientesSync(examen.id)
+      );
+    };
+    updateCount();
+    if (typeof window !== "undefined") {
+      window.addEventListener("sullu_offline_updated", updateCount);
+      return () =>
+        window.removeEventListener("sullu_offline_updated", updateCount);
+    }
+  }, [examen.id]);
+
+  const handleSincronizarOffline = async () => {
+    try {
+      const res = await offlineIngresosService.sincronizarLote(examen.id);
+      if (res.totalSincronizados > 0) {
+        onIngresoExitoso?.();
+      }
+    } catch {
+      // Si continúa sin conexión, se mantiene en cola en IndexedDB
+    }
+  };
+
   // Detener la cámara
   const detenerCamara = useCallback(() => {
     if (animFrameRef.current) {
@@ -226,17 +255,31 @@ export function EscanearQrModal({
           break;
         }
         case "SIN_CONEXION": {
-          setExcepcionActiva({
-            tipo: "SIN_CONEXION",
-            estudiante: {
-              id: 101,
-              nombre: "Valentina",
-              apellido: "Pérez",
-              codSis: "2021-10234",
-              carrera: "Ingeniería de Sistemas",
-            },
-            pendientesOffline: 1,
-          });
+          offlineIngresosService
+            .guardarIngresoOffline(
+              examen.id,
+              "202110234",
+              {
+                nombre: "Valentina",
+                apellido: "Pérez",
+                codSis: "2021-10234",
+              },
+              "QR"
+            )
+            .then((count) => {
+              setPendientesOfflineCount(count);
+              setExcepcionActiva({
+                tipo: "SIN_CONEXION",
+                estudiante: {
+                  id: 101,
+                  nombre: "Valentina",
+                  apellido: "Pérez",
+                  codSis: "2021-10234",
+                  carrera: "Ingeniería de Sistemas",
+                },
+                pendientesOffline: count,
+              });
+            });
           break;
         }
       }
@@ -400,6 +443,8 @@ export function EscanearQrModal({
           videoRef={videoRef}
           canvasRef={canvasRef}
           cameraActiva={cameraActiva && !permisoDenegado}
+          pendientesCount={pendientesOfflineCount}
+          onSincronizar={handleSincronizarOffline}
         />
 
         {/* Confirmación verde de 1 a 2 segundos (Mockup 2) */}

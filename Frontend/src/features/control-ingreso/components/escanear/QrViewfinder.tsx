@@ -1,6 +1,7 @@
 "use client";
 
 import { RefObject } from "react";
+import { RotateCw } from "lucide-react";
 import type { ExamenAsignado } from "../../types/control-ingreso.types";
 
 interface QrViewfinderProps {
@@ -8,6 +9,8 @@ interface QrViewfinderProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
   cameraActiva: boolean;
+  pendientesCount?: number;
+  onSincronizar?: () => void;
 }
 
 export function QrViewfinder({
@@ -44,12 +47,28 @@ export function QrViewfinder({
           </p>
         </div>
 
-        {cameraActiva && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#E6F4EA] text-[#137333] text-xs font-bold shrink-0 shadow-xs border border-emerald-300/40 animate-in fade-in duration-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#137333] animate-pulse" />
-            <span>Cámara activa</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {pendientesCount !== undefined && pendientesCount > 0 && (
+            <button
+              type="button"
+              onClick={onSincronizar}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/95 hover:bg-amber-600 text-white text-xs font-bold shrink-0 shadow-xs transition-colors cursor-pointer active:scale-95 border border-amber-400/40"
+              title="Sincronizar ingresos pendientes"
+            >
+              <RotateCw className="h-3 w-3" />
+              <span>
+                {pendientesCount} pendiente{pendientesCount === 1 ? "" : "s"}
+              </span>
+            </button>
+          )}
+
+          {cameraActiva && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#E6F4EA] text-[#137333] text-xs font-bold shrink-0 shadow-xs border border-emerald-300/40 animate-in fade-in duration-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#137333] animate-pulse" />
+              <span>Cámara activa</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 3. Marco de Escaneo con esquinas blancas redondeadas y rayo láser rojo */}
