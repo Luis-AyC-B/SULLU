@@ -1,0 +1,153 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { Camera, Lock, Search, AlertTriangle, ArrowRight } from "lucide-react";
+import { useDeviceCapabilities } from "../../hooks/useDeviceCapabilities";
+import { toast } from "sonner";
+
+export function AccionesOperativasGrid() {
+  const router = useRouter();
+  const { canScanQr, helperText } = useDeviceCapabilities();
+
+  const handleEscanearQr = () => {
+    if (!canScanQr) {
+      toast.info(helperText);
+      return;
+    }
+    // HU9: Módulo de escáner QR
+    router.push("/control-ingreso/escanear");
+  };
+
+  const handleRegistroManual = () => {
+    // HU8: Búsqueda y registro manual de estudiante
+    router.push("/control-ingreso/manual");
+  };
+
+  const handleRegistrarIncidencia = () => {
+    // Módulo de incidencias
+    router.push("/incidencias");
+  };
+
+  return (
+    <div className="flex flex-col gap-4 w-full">
+      {/* Grid de 2 Tarjetas Principales: Escanear QR y Registro Manual */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Tarjeta 1: Escanear QR (Adaptativa por Dispositivo) */}
+        <div
+          className={`rounded-2xl p-6 text-left transition-all border flex flex-col justify-between ${
+            canScanQr
+              ? "bg-white border-slate-200/90 hover:border-slate-300 shadow-xs cursor-pointer"
+              : "bg-slate-50/70 border-slate-200/80 cursor-default"
+          }`}
+          onClick={canScanQr ? handleEscanearQr : undefined}
+        >
+          <div>
+            <div
+              className={`flex h-11 w-11 items-center justify-center rounded-xl mb-4 ${
+                canScanQr
+                  ? "bg-blue-50 text-[#002D62]"
+                  : "bg-slate-200/60 text-slate-400"
+              }`}
+            >
+              {canScanQr ? (
+                <Camera className="h-6 w-6" />
+              ) : (
+                <Lock className="h-5 w-5" />
+              )}
+            </div>
+
+            <h3
+              className={`text-lg font-bold mb-1.5 ${
+                canScanQr ? "text-slate-900" : "text-slate-700"
+              }`}
+            >
+              Escanear QR
+            </h3>
+
+            {!canScanQr && (
+              <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                El escaneo QR requiere la cámara. Ingresa desde un dispositivo
+                móvil.
+              </p>
+            )}
+          </div>
+
+          <div className="pt-2">
+            {canScanQr ? (
+              <button
+                type="button"
+                onClick={handleEscanearQr}
+                className="text-sm font-bold text-[#002D62] hover:underline underline-offset-4 cursor-pointer"
+              >
+                Abrir cámara
+              </button>
+            ) : (
+              <span className="text-xs font-medium text-slate-400 select-none">
+                No disponible en este dispositivo
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Tarjeta 2: Registrar ingreso manual */}
+        <div
+          onClick={handleRegistroManual}
+          className="rounded-2xl bg-white border border-slate-200/90 hover:border-slate-300 p-6 text-left shadow-xs transition-all flex flex-col justify-between cursor-pointer"
+        >
+          <div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-[#002D62] mb-4">
+              <Search className="h-6 w-6" />
+            </div>
+
+            <h3 className="text-lg font-bold text-slate-900 mb-1.5">
+              Registrar ingreso manual
+            </h3>
+
+            <p className="hidden md:block text-xs text-slate-500 leading-relaxed mb-4">
+              Busca por código SIS, CI o nombre y verifica los datos antes de
+              registrar.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleRegistroManual}
+              className="inline-flex items-center gap-1.5 text-sm font-bold text-[#002D62] hover:underline underline-offset-4 cursor-pointer"
+            >
+              <span>Buscar estudiante</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tarjeta 3: ¿Ocurrió una incidencia? */}
+      <div className="rounded-2xl bg-white border border-slate-200/90 p-5 shadow-xs flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 shrink-0">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-sm md:text-base font-bold text-slate-900 truncate">
+              ¿Ocurrió una incidencia?
+            </h4>
+            <p className="hidden md:block text-xs text-slate-500 mt-0.5">
+              Deja constancia de problemas de identificación, acceso o
+              ambiente.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleRegistrarIncidencia}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-xs md:text-sm font-semibold text-slate-700 transition-colors shrink-0 shadow-2xs cursor-pointer active:scale-95"
+        >
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <span>Registrar</span>
+        </button>
+      </div>
+    </div>
+  );
+}
