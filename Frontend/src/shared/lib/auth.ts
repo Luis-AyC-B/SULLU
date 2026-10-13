@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { studentCredentialsProvider } from '@/features/portal/lib/student-credentials.provider';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -70,7 +71,9 @@ export const authOptions: NextAuthOptions = {
                 'roles.ver', 'roles.crear', 'roles.editar', 'roles.eliminar',
                 'examenes.ver', 'examenes.crear', 'examenes.editar', 'examenes.eliminar',
                 'estudiantes.ver', 'estudiantes.registrar', 'estudiantes.habilitar',
-                'reportes.ver'
+                'reportes.ver',
+                'ambientes.ver', 'ambientes.editar',
+                'colaboradores.ver', 'colaboradores.crear', 'colaboradores.editar', 'colaboradores.eliminar', 'colaboradores.aprobar'
               ],
               accessToken: 'mock-jwt-token-admin',
             } as any;
@@ -83,7 +86,9 @@ export const authOptions: NextAuthOptions = {
               email: 'docente@umss.edu',
               permisos: [
                 'examenes.ver', 'examenes.crear', 'examenes.editar',
-                'estudiantes.ver'
+                'estudiantes.ver',
+                'ambientes.ver',
+                'colaboradores.ver', 'colaboradores.crear', 'colaboradores.editar'
               ],
               accessToken: 'mock-jwt-token-docente',
             } as any;
@@ -116,6 +121,7 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
+    studentCredentialsProvider,
   ],
   session: { strategy: 'jwt' },
   callbacks: {
