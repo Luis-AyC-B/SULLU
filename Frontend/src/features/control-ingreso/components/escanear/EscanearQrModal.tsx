@@ -216,12 +216,12 @@ export function EscanearQrModal({
       const error = err as { name?: string };
       if (
         error.name === "NotAllowedError" ||
-        error.name === "PermissionDeniedError" ||
-        error.name === "NotFoundError"
+        error.name === "PermissionDeniedError"
       ) {
         setPermisoDenegado(true);
       } else {
-        // En navegadores de escritorio sin webcam o simuladores, mantener activo el modo
+        // En navegadores de escritorio sin webcam física (NotFoundError) o entornos de desarrollo,
+        // mantenemos activo el visor visual con los botones de simulación interactiva
         setCameraActiva(true);
       }
     }
