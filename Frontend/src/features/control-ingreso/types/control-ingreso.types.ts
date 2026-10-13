@@ -66,7 +66,8 @@ export interface EstudianteBusquedaItem {
 }
 
 export interface RegistroManualPayload {
-  estudianteId: number;
+  estudianteId?: number;
+  identificador: string;
   clienteSyncId?: string;
 }
 

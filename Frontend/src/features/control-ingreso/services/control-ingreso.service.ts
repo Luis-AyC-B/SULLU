@@ -205,16 +205,35 @@ export const controlIngresoService = {
     if (!term) return [];
 
     try {
-      const response = await apiClient.get<EstudianteBusquedaItem[]>(
-        `/control-ingreso/examenes/${examenId}/estudiantes/buscar?q=${encodeURIComponent(
-          term
-        )}`
-      );
-      if (Array.isArray(response.data)) {
-        return response.data;
+      // 1. Intentar consultar el endpoint del examen en el backend
+      const response = await apiClient.get<{
+        total?: number;
+        data?: Array<{
+          estudiante_id: number;
+          cod_sis: string;
+          nombre: string;
+          apellido?: string;
+          ci?: string;
+          estado_habilitado: boolean;
+          motivo_inhabilitacion?: string | null;
+        }>;
+      }>(`/examenes/${examenId}/estudiantes?q=${encodeURIComponent(term)}&limit=50`);
+
+      if (response.data && Array.isArray(response.data.data)) {
+        return response.data.data.map((item) => ({
+          id: item.estudiante_id,
+          codSis: item.cod_sis,
+          ci: item.ci || "",
+          nombre: item.nombre,
+          apellido: item.apellido,
+          estadoHabilitado: item.estado_habilitado,
+          motivoInhabilitacion: item.motivo_inhabilitacion,
+          ambienteAsignado: "",
+          yaIngreso: false,
+        }));
       }
     } catch {
-      // Fallback a simulación con datos locales
+      // Fallback a simulación con datos locales si el endpoint no está disponible
     }
 
     return SEED_ESTUDIANTES_BUSQUEDA.filter((est) => {
@@ -235,46 +254,84 @@ export const controlIngresoService = {
 
   /**
    * HU8: Registra el ingreso manual de un estudiante validado en el examen activo.
+   * Conectado con el contrato oficial de backend: POST /ingresos/manual
    */
   async registrarIngresoManual(
     examenId: number,
     payload: RegistroManualPayload
   ): Promise<RegistroManualResponse> {
     try {
-      const response = await apiClient.post<RegistroManualResponse>(
-        `/control-ingreso/examenes/${examenId}/ingresos/manual`,
-        payload
-      );
-      if (response.data) {
-        return response.data;
+      const response = await apiClient.post<{
+        mensaje: string;
+        ingreso: {
+          id: number;
+          estudianteId: number;
+          examenId: number;
+          fechaHora: string;
+          metodo: string;
+          esOffline: boolean;
+          estudiante: {
+            id: number;
+            cod_sis: string;
+            nombre: string;
+            apellido: string;
+            ci?: string;
+          };
+          examen?: {
+            id: number;
+            tipoExamen?: string;
+          };
+        };
+      }>("/ingresos/manual", {
+        examenId,
+        identificador: payload.identificador,
+        clienteSyncId: payload.clienteSyncId,
+      });
+
+      if (response.data && response.data.ingreso) {
+        const ing = response.data.ingreso;
+        return {
+          success: true,
+          ingresoId: ing.id,
+          fechaHora: ing.fechaHora,
+          estudiante: {
+            id: ing.estudiante.id,
+            codSis: ing.estudiante.cod_sis,
+            ci: ing.estudiante.ci || "",
+            nombre: ing.estudiante.nombre,
+            apellido: ing.estudiante.apellido,
+            estadoHabilitado: true,
+            ambienteAsignado: "",
+            yaIngreso: true,
+          },
+          mensaje: response.data.mensaje || "Ingreso registrado exitosamente",
+        };
       }
     } catch (err: unknown) {
-      // Si la API responde con un error estructurado, relanzarlo
-      if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response
-      ) {
-        const errorData = (err.response as { data: { message?: string } }).data;
-        if (errorData?.message) {
-          throw new Error(errorData.message);
-        }
+      // Si la API responde con un error estructurado, relanzarlo con el mensaje del backend
+      const axiosErr = err as {
+        response?: { status: number; data?: { message?: string } };
+      };
+      if (axiosErr.response?.data?.message) {
+        throw new Error(axiosErr.response.data.message);
       }
     }
 
     // Fallback de registro simulado si backend no está disponible
     const estudiante =
-      SEED_ESTUDIANTES_BUSQUEDA.find((e) => e.id === payload.estudianteId) || {
-        id: payload.estudianteId,
-        codSis: "202110234",
-        ci: "V-27.104.882",
+      SEED_ESTUDIANTES_BUSQUEDA.find(
+        (e) =>
+          e.id === payload.estudianteId ||
+          e.codSis === payload.identificador ||
+          e.ci === payload.identificador
+      ) || {
+        id: payload.estudianteId || 999,
+        codSis: payload.identificador,
+        ci: "",
         nombre: "Estudiante",
         apellido: "Registrado",
         estadoHabilitado: true,
-        ambienteAsignado: "Sala 204",
+        ambienteAsignado: "",
         yaIngreso: true,
       };
 

@@ -39,12 +39,6 @@ export function ExitoIngresoFeedback({
           <span className="font-semibold text-slate-800">Manual</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-500">Carrera:</span>
-          <span className="font-semibold text-slate-800 truncate max-w-[200px]">
-            {estudiante.carrera}
-          </span>
-        </div>
-        <div className="flex justify-between">
           <span className="text-slate-500">Fecha y hora:</span>
           <span className="font-semibold text-slate-800">
             {new Date().toLocaleTimeString([], {

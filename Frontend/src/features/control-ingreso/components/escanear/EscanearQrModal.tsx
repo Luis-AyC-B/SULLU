@@ -318,10 +318,11 @@ export function EscanearQrModal({
       }
 
       // Preparar detector nativo de códigos de barra si está soportado
-      let barcodeDetector: any = null;
+      let barcodeDetector: { detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>> } | null = null;
       if (typeof window !== "undefined" && "BarcodeDetector" in window) {
         try {
-          barcodeDetector = new (window as any).BarcodeDetector({
+          const DetectorClass = (window as unknown as { BarcodeDetector: new (opts: { formats: string[] }) => { detect: (s: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
+          barcodeDetector = new DetectorClass({
             formats: ["qr_code"],
           });
         } catch {
