@@ -19,6 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { RegistrarIngresoManualDto } from './dto/registrar-ingreso-manual.dto';
+import { SincronizarIngresosDto } from './dto/sincronizar-ingresos.dto';
 import { VerificarIngresoQrDto } from './dto/verificar-ingreso-qr.dto';
 import { IngresosService } from './ingresos.service';
 
@@ -75,6 +76,23 @@ export class IngresosController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ingresosService.registrarIngresoQr(dto, user.id);
+  }
+
+  @Post('sincronizar')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Sincronizar ingresos capturados en modo offline en lote',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Lote sincronizado exitosamente con detalle de ingresados, omitidos y rechazados',
+  })
+  sincronizarOffline(
+    @Body() dto: SincronizarIngresosDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ingresosService.sincronizarEnLote(dto, user.id);
   }
 
   @Post()
