@@ -276,112 +276,109 @@ export function EscanearQrModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end justify-center p-0 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-[#0E131F] flex flex-col w-full h-full text-white animate-in fade-in duration-200 overflow-hidden"
     >
-      <div className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl p-4 sm:p-5 flex flex-col relative animate-in slide-in-from-bottom duration-200 border-t border-slate-100 max-h-[96vh]">
-        {/* Barra superior indicadora */}
-        <div className="h-1 w-12 rounded-full bg-slate-200 mx-auto mb-2 shrink-0" />
+      {/* 1. Header superior que tapa el header del dashboard (como en Yape) */}
+      <div className="flex items-center justify-between px-5 py-4 z-20 shrink-0 bg-[#0E131F] border-b border-slate-800/80 shadow-md">
+        <h3 className="text-lg font-bold text-white tracking-tight">
+          Escanear código QR
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-10 w-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer active:scale-95"
+          aria-label="Cerrar escáner"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-        {/* Encabezado: "Escanear código QR" con botón 'x' (Mockup 1) */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-          <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-            Escanear código QR
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-            aria-label="Cerrar escáner"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+      {/* 2. Contenido principal a pantalla completa: Visor de cámara */}
+      <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+        <QrViewfinder
+          examen={examen}
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          cameraActiva={cameraActiva && !permisoDenegado}
+        />
 
-        {/* Contenido principal: Visor de cámara */}
-        <div className="relative mt-3 flex-1 flex flex-col">
-          <QrViewfinder
-            examen={examen}
-            videoRef={videoRef}
-            canvasRef={canvasRef}
-            cameraActiva={cameraActiva && !permisoDenegado}
-          />
+        {/* Confirmación verde de 1 a 2 segundos (Mockup 2) */}
+        {estudianteExitoso && <QrSuccessCard estudiante={estudianteExitoso} />}
+      </div>
 
-          {/* Confirmación verde de 1 a 2 segundos (Mockup 2) */}
-          {estudianteExitoso && <QrSuccessCard estudiante={estudianteExitoso} />}
-
-          {/* Simulador rápido de prueba para desarrollo / testing sin código impreso */}
-          <div className="mt-3 flex items-center justify-between gap-1 overflow-x-auto py-1 px-1 bg-slate-50 border border-slate-200/60 rounded-xl shrink-0">
-            <span className="text-[10px] font-bold text-slate-500 uppercase px-1.5 flex items-center gap-1 shrink-0">
-              <Sparkles className="h-3 w-3 text-amber-500" />
-              Simular QR:
-            </span>
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => procesarTokenQr("202110234")}
-                className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer"
-              >
-                Válido (Valentina)
-              </button>
-              <button
-                type="button"
-                onClick={() => procesarTokenQr("202109442")}
-                className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer"
-              >
-                Ya registrado
-              </button>
-              <button
-                type="button"
-                onClick={() => procesarTokenQr("202111884")}
-                className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer"
-              >
-                No habilitado
-              </button>
-              <button
-                type="button"
-                onClick={() => procesarTokenQr("202005819")}
-                className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors cursor-pointer"
-              >
-                Otro ambiente
-              </button>
-              <button
-                type="button"
-                onClick={() => procesarTokenQr("codigo-invalido-xyz")}
-                className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-slate-700 text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Inválido
-              </button>
-            </div>
+      {/* 3. Barra de Simulación en la parte inferior de la pantalla */}
+      <div className="z-20 px-3 py-3 bg-slate-950/95 border-t border-slate-800 shrink-0">
+        <div className="flex items-center justify-between gap-1 overflow-x-auto max-w-lg mx-auto">
+          <span className="text-[10px] font-bold text-slate-400 uppercase px-1.5 flex items-center gap-1 shrink-0">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+            Simular:
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => procesarTokenQr("202110234")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer active:scale-95"
+            >
+              Válido (Valentina)
+            </button>
+            <button
+              type="button"
+              onClick={() => procesarTokenQr("202008711")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer active:scale-95"
+            >
+              Ya registrado (Andrés)
+            </button>
+            <button
+              type="button"
+              onClick={() => procesarTokenQr("202211582")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer active:scale-95"
+            >
+              No habilitado (Mariana)
+            </button>
+            <button
+              type="button"
+              onClick={() => procesarTokenQr("202005819")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors cursor-pointer active:scale-95"
+            >
+              Otro ambiente (Carlos)
+            </button>
+            <button
+              type="button"
+              onClick={() => procesarTokenQr("codigo-invalido-xyz")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-white hover:bg-slate-800 transition-colors cursor-pointer active:scale-95"
+            >
+              Inválido
+            </button>
           </div>
         </div>
-
-        {/* Modal de Excepción Activa (Mockups 1, 3, 4, 5) */}
-        {excepcionActiva && (
-          <QrExceptionDialog
-            excepcion={excepcionActiva.tipo}
-            estudiante={excepcionActiva.estudiante}
-            horaIngresoPrevio={excepcionActiva.horaIngresoPrevio}
-            motivoInhabilitacion={excepcionActiva.motivoInhabilitacion}
-            ambienteAsignado={excepcionActiva.ambienteAsignado}
-            ambienteActual={examen.ambiente}
-            pendientesOffline={excepcionActiva.pendientesOffline}
-            onContinuar={handleContinuarExcepcion}
-            onRegistrarIncidencia={handleRegistrarIncidencia}
-            onAbrirRegistroManual={handleIrARegistroManual}
-          />
-        )}
-
-        {/* Modal de Permiso Denegado (Task-9.7) */}
-        {permisoDenegado && (
-          <QrExceptionDialog
-            excepcion="CAMARA_DENEGADA"
-            onContinuar={() => setPermisoDenegado(false)}
-            onRegistrarIncidencia={handleRegistrarIncidencia}
-            onAbrirRegistroManual={handleIrARegistroManual}
-            onReintentarPermiso={iniciarCamara}
-          />
-        )}
       </div>
+
+      {/* Modal de Excepción Activa (Mockups 1, 3, 4, 5) */}
+      {excepcionActiva && (
+        <QrExceptionDialog
+          excepcion={excepcionActiva.tipo}
+          estudiante={excepcionActiva.estudiante}
+          horaIngresoPrevio={excepcionActiva.horaIngresoPrevio}
+          motivoInhabilitacion={excepcionActiva.motivoInhabilitacion}
+          ambienteAsignado={excepcionActiva.ambienteAsignado}
+          ambienteActual={examen.ambiente}
+          pendientesOffline={excepcionActiva.pendientesOffline}
+          onContinuar={handleContinuarExcepcion}
+          onRegistrarIncidencia={handleRegistrarIncidencia}
+          onAbrirRegistroManual={handleIrARegistroManual}
+        />
+      )}
+
+      {/* Modal de Permiso Denegado (Task-9.7) */}
+      {permisoDenegado && (
+        <QrExceptionDialog
+          excepcion="CAMARA_DENEGADA"
+          onContinuar={() => setPermisoDenegado(false)}
+          onRegistrarIncidencia={handleRegistrarIncidencia}
+          onAbrirRegistroManual={handleIrARegistroManual}
+          onReintentarPermiso={iniciarCamara}
+        />
+      )}
     </div>
   );
 }

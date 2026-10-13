@@ -17,7 +17,7 @@ export function QrViewfinder({
   cameraActiva,
 }: QrViewfinderProps) {
   return (
-    <div className="relative w-full h-[520px] sm:h-[560px] bg-[#0E131F] rounded-3xl overflow-hidden shadow-inner flex flex-col justify-between p-5 border border-slate-800/80">
+    <div className="relative w-full flex-1 min-h-0 bg-[#0E131F] overflow-hidden flex flex-col justify-between p-5">
       {/* 1. Elemento de Video para la cámara física */}
       <video
         ref={videoRef}

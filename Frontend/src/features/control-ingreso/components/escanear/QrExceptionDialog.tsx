@@ -60,13 +60,22 @@ export function QrExceptionDialog({
     }
   };
 
+  const formatSis = (sis?: string) => {
+    if (!sis) return "";
+    const clean = sis.replace(/[^0-9]/g, "");
+    if (clean.length === 9) {
+      return `${clean.substring(0, 4)}-${clean.substring(4)}`;
+    }
+    return sis;
+  };
+
   return (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end justify-center p-0 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-60 flex items-end justify-center p-0 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
     >
-      <div className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl p-6 flex flex-col relative animate-in slide-in-from-bottom duration-200 border-t border-slate-100">
+      <div className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl p-6 flex flex-col relative animate-in slide-in-from-bottom duration-200 border-t border-slate-100 max-h-[92vh] overflow-y-auto">
         {/* Barra superior de arrastre en mobile */}
         <div className="h-1 w-12 rounded-full bg-slate-200 mx-auto mb-3 shrink-0" />
 
@@ -100,7 +109,7 @@ export function QrExceptionDialog({
               {estudiante && (
                 <p className="text-sm text-slate-500 mb-4 font-medium">
                   {estudiante.nombre} {estudiante.apellido ?? ""} ·{" "}
-                  {estudiante.codSis}
+                  {formatSis(estudiante.codSis)}
                 </p>
               )}
 
@@ -143,7 +152,7 @@ export function QrExceptionDialog({
               {estudiante && (
                 <p className="text-sm text-slate-500 mb-4 font-medium">
                   {estudiante.nombre} {estudiante.apellido ?? ""} ·{" "}
-                  {estudiante.codSis}
+                  {formatSis(estudiante.codSis)}
                 </p>
               )}
 
@@ -190,7 +199,7 @@ export function QrExceptionDialog({
               {estudiante && (
                 <p className="text-sm text-slate-500 mb-4 font-medium">
                   {estudiante.nombre} {estudiante.apellido ?? ""} ·{" "}
-                  {estudiante.codSis}
+                  {formatSis(estudiante.codSis)}
                 </p>
               )}
 
@@ -336,6 +345,42 @@ export function QrExceptionDialog({
                   Volver a intentar
                 </button>
               )}
+            </>
+          )}
+
+          {/* 7. FALLBACK SEGURO ANTE CUALQUIER OTRA EXCEPCIÓN */}
+          {!["YA_REGISTRADO", "NO_HABILITADO", "AMBIENTE_INCORRECTO", "QR_INVALIDO", "SIN_CONEXION", "CAMARA_DENEGADA"].includes(excepcion) && (
+            <>
+              <div className="h-16 w-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+                <Clock className="h-8 w-8" />
+              </div>
+
+              <h4 className="text-lg font-bold text-slate-900 mb-2">
+                Observación de ingreso
+              </h4>
+
+              <div className="w-full bg-[#FEF9E7] border border-[#F9E79F] rounded-2xl p-4 mb-6 text-center">
+                <p className="text-xs text-amber-900 leading-relaxed font-semibold">
+                  Se ha generado una excepción en la validación del código QR.
+                  Por favor continúa para reintentar o utiliza el registro manual.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={onContinuar}
+                className="w-full py-3.5 px-4 rounded-xl bg-[#002D62] text-white font-bold text-sm hover:bg-[#00224d] transition-colors cursor-pointer shadow-xs active:scale-98"
+              >
+                Continuar
+              </button>
+
+              <button
+                type="button"
+                onClick={onAbrirRegistroManual}
+                className="w-full mt-3 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                Registro manual
+              </button>
             </>
           )}
         </div>
