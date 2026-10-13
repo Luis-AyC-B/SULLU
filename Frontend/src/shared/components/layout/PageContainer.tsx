@@ -3,6 +3,8 @@ interface PageContainerProps {
   subtitle?: string;
   actionLabel?: string;
   onAction?: () => void;
+  /** Contenido opcional junto al título (ej: badge "En vivo"). */
+  headerExtra?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -11,6 +13,7 @@ export function PageContainer({
   subtitle,
   actionLabel,
   onAction,
+  headerExtra,
   children,
 }: PageContainerProps) {
   return (
@@ -22,6 +25,8 @@ export function PageContainer({
             <p className="mt-1 text-body text-muted-foreground">{subtitle}</p>
           )}
         </div>
+
+        {headerExtra && <div className="self-start">{headerExtra}</div>}
 
         {actionLabel && (
           <button

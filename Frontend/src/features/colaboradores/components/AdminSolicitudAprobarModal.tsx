@@ -1,0 +1,102 @@
+"use client";
+
+import { UserCheck, UserPlus } from "lucide-react";
+import { Colaborador } from "../schemas/colaborador.schema";
+
+interface AdminSolicitudAprobarModalProps {
+  isOpen: boolean;
+  colaborador: Colaborador | null;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  isProcessing?: boolean;
+}
+
+export function AdminSolicitudAprobarModal({
+  isOpen,
+  colaborador,
+  onClose,
+  onConfirm,
+  isProcessing = false,
+}: AdminSolicitudAprobarModalProps) {
+  if (!isOpen || !colaborador) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200/80 p-6 sm:p-7 relative animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Icono azul en cuadro suave */}
+        <div className="bg-sky-50 border border-sky-100 p-3 rounded-2xl w-12 h-12 flex items-center justify-center text-[#003770] mb-4">
+          <UserCheck className="h-6 w-6 text-[#003770]" />
+        </div>
+
+        {/* Título y subtítulo */}
+        <h3 className="text-2xl font-bold text-[#003770]">
+          Aprobar solicitud
+        </h3>
+        <p className="text-xs text-gray-500 mt-1 mb-5">
+          Confirma los datos para vincular al colaborador con el docente solicitante.
+        </p>
+
+        {/* Caja de detalles */}
+        <div className="bg-gray-50/80 border border-gray-100 rounded-2xl p-4 space-y-3 text-left mb-4">
+          <div>
+            <span className="block text-xs text-gray-500">Docente</span>
+            <span className="font-bold text-[#003770] text-sm">
+              {colaborador.docenteNombre || "Docente"}
+            </span>
+          </div>
+          <div>
+            <span className="block text-xs text-gray-500">Colaborador</span>
+            <span className="font-bold text-[#003770] text-sm">
+              {colaborador.nombreCompleto}
+            </span>
+          </div>
+          <div>
+            <span className="block text-xs text-gray-500">Correo</span>
+            <span className="font-bold text-[#003770] text-sm break-all">
+              {colaborador.email}
+            </span>
+          </div>
+        </div>
+
+        {/* Tag oficial de tipo de usuario (amarillo/durazno para nuevo, verde para existente) */}
+        {!colaborador.usuarioExiste ? (
+          <div className="bg-[#fef3c7] border border-[#fde68a] text-[#92400e] rounded-xl p-2.5 text-xs font-semibold flex items-center gap-2 mb-6">
+            <UserPlus className="h-4 w-4 shrink-0" />
+            <span>Usuario nuevo: se creará la cuenta</span>
+          </div>
+        ) : (
+          <div className="bg-[#f0fdf4] border border-[#bbf7d0] text-[#166534] rounded-xl p-2.5 text-xs font-semibold flex items-center gap-2 mb-6">
+            <UserCheck className="h-4 w-4 shrink-0" />
+            <span>Usuario existente: se vinculará al docente</span>
+          </div>
+        )}
+
+        {/* Botones de acción */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isProcessing}
+            className="border border-gray-300 text-gray-700 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-50 flex-1 text-sm transition-colors cursor-pointer"
+          >
+            Volver
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isProcessing}
+            className="bg-[#003770] hover:bg-[#002a57] text-white font-medium px-5 py-2.5 rounded-xl flex-1 text-sm transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+          >
+            {isProcessing ? "Aprobando..." : "Aprobar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
