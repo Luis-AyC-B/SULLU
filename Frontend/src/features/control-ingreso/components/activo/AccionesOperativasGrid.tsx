@@ -8,16 +8,28 @@ import { toast } from "sonner";
 
 interface AccionesOperativasGridProps {
   onAbrirRegistroManual?: () => void;
+  onAbrirScanner?: () => void;
 }
 
 export function AccionesOperativasGrid({
   onAbrirRegistroManual,
+  onAbrirScanner,
 }: AccionesOperativasGridProps = {}) {
   const router = useRouter();
   const { data: session } = useSession();
   const { canScanQr, helperText } = useDeviceCapabilities();
 
   const permisos = (session?.user?.permisos as string[]) || [];
+
+  const canEscanearQr =
+    permisos.length === 0 || // Desarrollo / fallback inicial
+    permisos.some(
+      (p) =>
+        p === "control_ingreso.escanear_qr" ||
+        p === "control_ingreso" ||
+        p === "usuarios.crear"
+    );
+
   const canRegistroManual =
     permisos.length === 0 || // Desarrollo / fallback inicial
     permisos.some(
@@ -28,11 +40,18 @@ export function AccionesOperativasGrid({
     );
 
   const handleEscanearQr = () => {
+    if (!canEscanearQr) {
+      toast.error("No tienes permiso para escanear códigos QR");
+      return;
+    }
     if (!canScanQr) {
       toast.info(helperText);
       return;
     }
-    // HU9: Módulo de escáner QR
+    if (onAbrirScanner) {
+      onAbrirScanner();
+      return;
+    }
     router.push("/control-ingreso/escanear");
   };
 
@@ -58,24 +77,24 @@ export function AccionesOperativasGrid({
     <div className="flex flex-col gap-4 w-full">
       {/* Grid de 2 Tarjetas Principales: Escanear QR y Registro Manual */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Tarjeta 1: Escanear QR (Adaptativa por Dispositivo) */}
+        {/* Tarjeta 1: Escanear QR (Adaptativa por Dispositivo y RBAC) */}
         <div
           className={`rounded-2xl p-6 text-left transition-all border flex flex-col justify-between ${
-            canScanQr
+            canEscanearQr && canScanQr
               ? "bg-white border-slate-200/90 hover:border-slate-300 shadow-xs cursor-pointer"
               : "bg-slate-50/70 border-slate-200/80 cursor-default"
           }`}
-          onClick={canScanQr ? handleEscanearQr : undefined}
+          onClick={canEscanearQr && canScanQr ? handleEscanearQr : undefined}
         >
           <div>
             <div
               className={`flex h-11 w-11 items-center justify-center rounded-xl mb-4 ${
-                canScanQr
+                canEscanearQr && canScanQr
                   ? "bg-blue-50 text-[#002D62]"
                   : "bg-slate-200/60 text-slate-400"
               }`}
             >
-              {canScanQr ? (
+              {canEscanearQr && canScanQr ? (
                 <Camera className="h-6 w-6" />
               ) : (
                 <Lock className="h-5 w-5" />
@@ -84,22 +103,30 @@ export function AccionesOperativasGrid({
 
             <h3
               className={`text-lg font-bold mb-1.5 ${
-                canScanQr ? "text-slate-900" : "text-slate-700"
+                canEscanearQr && canScanQr ? "text-slate-900" : "text-slate-700"
               }`}
             >
               Escanear QR
             </h3>
 
-            {!canScanQr && (
+            {!canEscanearQr ? (
+              <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                No dispones del permiso necesario para escanear códigos QR.
+              </p>
+            ) : !canScanQr ? (
               <p className="text-xs text-slate-500 leading-relaxed mb-4">
                 El escaneo QR requiere la cámara. Ingresa desde un dispositivo
                 móvil.
               </p>
-            )}
+            ) : null}
           </div>
 
           <div className="pt-2">
-            {canScanQr ? (
+            {!canEscanearQr ? (
+              <span className="text-xs font-medium text-slate-400 select-none">
+                Permiso no asignado
+              </span>
+            ) : canScanQr ? (
               <button
                 type="button"
                 onClick={handleEscanearQr}
