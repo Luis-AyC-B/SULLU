@@ -47,14 +47,16 @@ export function useDeviceCapabilities(): DeviceCapabilities {
         hasCamera = true;
       }
 
-      const canScanQr = isMobile && hasCamera;
+      const isDev = process.env.NODE_ENV !== "production";
+      const canScanQr = (isMobile && hasCamera) || isDev;
       const isQrBlocked = !canScanQr;
 
-      const blockedMessage = !isMobile
-        ? "El escaneo QR requiere la cámara. Ingresa desde un dispositivo móvil."
-        : !hasCamera
-        ? "No se detectó una cámara disponible en este dispositivo."
-        : "Cámara disponible para escaneo de códigos QR.";
+      const blockedMessage =
+        !isMobile && !isDev
+          ? "El escaneo QR requiere la cámara. Ingresa desde un dispositivo móvil."
+          : !hasCamera && !isDev
+          ? "No se detectó una cámara disponible en este dispositivo."
+          : "Cámara disponible para escaneo de códigos QR.";
 
       setCapabilities({
         canScanQr,
