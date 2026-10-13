@@ -39,6 +39,9 @@ export default withAuth(
       const permisos = (token.permisos as string[]) || [];
 
       // Mapeo de rutas a prefijos de permisos requeridos
+      if ((pathname === '/ambientes' || pathname.startsWith('/ambientes/')) && !permisos.includes('ambientes.ver')) {
+        return NextResponse.redirect(new URL('/unauthorized?modulo=ambientes', req.url));
+      }
       const routePermissions: Record<string, string> = {
         '/usuarios': 'usuarios',
         '/roles': 'roles',

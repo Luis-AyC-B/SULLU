@@ -33,7 +33,7 @@ export class PermissionsGuard implements CanActivate {
     const moduloNombre = moduloClave.toUpperCase(); 
 
     const modulo = await this.prisma.modulo.findFirst({
-      where: { nombre: moduloNombre }
+      where: { nombre: { equals: moduloNombre, mode: 'insensitive' } }
     });
 
     if (modulo && !modulo.activo) {
