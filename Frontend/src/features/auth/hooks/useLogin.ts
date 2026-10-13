@@ -18,7 +18,6 @@ import { modules } from '@/shared/config/modules';
  * Debe mantenerse igual al de `redirectsPorModulo` de middleware.ts.
  */
 const LANDING_POR_MODULO: [string, string][] = [
-  ['portal_estudiante', '/portal'],
   ['usuarios', '/usuarios'],
   ['roles', '/roles'],
   ['examenes', '/examenes'],
@@ -29,6 +28,7 @@ const LANDING_POR_MODULO: [string, string][] = [
   ['registro_ingresos', '/ingresos'],
   ['incidencias', '/incidencias'],
   ['colaboradores', '/colaboradores'],
+  ['portal_estudiante', '/portal'],
 ];
 
 /** true si algún permiso es el prefijo exacto o empieza con "prefijo." */
