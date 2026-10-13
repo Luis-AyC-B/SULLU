@@ -37,6 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Si el usuario no existe, o si el sessionId del token no coincide con el de la BD, rechazar
     if (
       !usuario ||
+      usuario.deletedAt !== null ||
       (usuario.sessionId && usuario.sessionId !== payload.sessionId)
     ) {
       throw new UnauthorizedException(

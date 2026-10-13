@@ -13,6 +13,8 @@ import {
 } from "../types/exam.types";
 import { ExamFormValues } from "../schemas/exam.schema";
 import { dbService } from "@/shared/lib/db/indexedDB";
+import { toast } from 'sonner';
+import { mensajeApi } from '@/features/ambientes/lib/integracion';
 
 // Tipado seguro para la sesión de NextAuth
 interface CustomSession {
@@ -337,8 +339,8 @@ export function useExams() {
       }));
       setAmbientes(mapped);
     } catch (err) {
-      console.warn("Aviso: no se pudieron cargar los ambientes reservados:", err);
       setAmbientes([]);
+      toast.error(mensajeApi(err, 'No se pudieron cargar tus reservas para el examen.'));
     }
   }, []);
 
@@ -400,12 +402,13 @@ export function useExams() {
         ...response.data,
         // Se conserva el id de la reserva para que coincida con el select del formulario
         ambienteId: values.ambienteId,
-        fecha: normalizeDateString(response.data.fecha) || "2026-09-20",
+        fecha: normalizeDateString(response.data.fecha),
         createdAt: response.data.createdAt || new Date().toISOString(),
         estado: normalizeEstado(response.data.estado),
       };
       setExams((prev) => (Array.isArray(prev) ? [newExam, ...prev] : [newExam]));
       await dbService.saveExam(newExam);
+      await loadAmbientes();
       return newExam;
     } catch (err) {
       console.error("Error creando examen en NestJS:", err);
@@ -439,6 +442,7 @@ export function useExams() {
         Array.isArray(prev) ? prev.map((e) => (e.id === examId ? updatedExam : e)) : [updatedExam]
       );
       await dbService.saveExam(updatedExam);
+      await loadAmbientes();
       return updatedExam;
     } catch (err) {
       console.error("Error editando examen en NestJS:", err);
@@ -457,6 +461,7 @@ export function useExams() {
       });
       // Recarga desde el backend para reflejar el estado real
       await loadExams();
+      await loadAmbientes();
     } catch (err) {
       console.error("Error cancelando examen en NestJS:", err);
       throw err;
