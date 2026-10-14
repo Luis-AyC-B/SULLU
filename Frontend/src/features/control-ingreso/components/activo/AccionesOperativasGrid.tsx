@@ -115,8 +115,8 @@ export function AccionesOperativasGrid({
               </p>
             ) : !canScanQr ? (
               <p className="text-xs text-slate-500 leading-relaxed mb-4">
-                El escaneo QR requiere la cámara. Ingresa desde un dispositivo
-                móvil.
+                {helperText ||
+                  "No se detectó una cámara disponible en este dispositivo."}
               </p>
             ) : null}
           </div>
