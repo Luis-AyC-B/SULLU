@@ -50,7 +50,7 @@ export class IngresosService {
     estadoExamen: EstadoExamen,
     fecha: Date,
     horaIni?: Date | null,
-    horaFin?: Date | null,
+    _horaFin?: Date | null,
   ): 'EN_CURSO' | 'PROXIMO' | 'FINALIZADO' {
     if (
       estadoExamen === EstadoExamen.FINALIZADO ||
@@ -63,35 +63,32 @@ export class IngresosService {
       return 'EN_CURSO';
     }
 
-    const ahora = new Date();
+    const hoyYMD = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'America/La_Paz',
+    });
     const fechaYMD = fecha.toISOString().split('T')[0];
-    const ahoraYMD = ahora.toISOString().split('T')[0];
 
-    if (fechaYMD > ahoraYMD) {
+    if (fechaYMD > hoyYMD) {
       return 'PROXIMO';
     }
 
-    if (fechaYMD < ahoraYMD) {
-      return 'FINALIZADO';
+    if (fechaYMD === hoyYMD && horaIni) {
+      const ahora = new Date();
+      const horaStr = ahora.toLocaleTimeString('en-US', {
+        timeZone: 'America/La_Paz',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const [h, m] = horaStr.split(':').map(Number);
+      const ahoraMinutos = h * 60 + m;
+      const iniMinutos = horaIni.getUTCHours() * 60 + horaIni.getUTCMinutes();
+      if (ahoraMinutos < iniMinutos) {
+        return 'PROXIMO';
+      }
     }
 
-    if (!horaIni || !horaFin) {
-      return 'EN_CURSO';
-    }
-
-    const ahoraMinutos = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
-    const iniMinutos = horaIni.getUTCHours() * 60 + horaIni.getUTCMinutes();
-    const finMinutos = horaFin.getUTCHours() * 60 + horaFin.getUTCMinutes();
-
-    if (ahoraMinutos < iniMinutos) {
-      return 'PROXIMO';
-    }
-
-    if (ahoraMinutos <= finMinutos) {
-      return 'EN_CURSO';
-    }
-
-    return 'FINALIZADO';
+    return 'EN_CURSO';
   }
 
   /**
@@ -111,10 +108,12 @@ export class IngresosService {
    */
   private formatearFechaBadge(fecha: Date): string {
     const ahora = new Date();
+    const hoyYMD = ahora.toLocaleDateString('en-CA', {
+      timeZone: 'America/La_Paz',
+    });
     const fechaYMD = fecha.toISOString().split('T')[0];
-    const ahoraYMD = ahora.toISOString().split('T')[0];
 
-    if (fechaYMD === ahoraYMD) {
+    if (fechaYMD === hoyYMD) {
       return 'Hoy';
     }
 
@@ -217,7 +216,11 @@ export class IngresosService {
         horaFin,
       );
 
-      if (estadoCalculado === 'FINALIZADO') {
+      if (
+        estadoCalculado === 'FINALIZADO' &&
+        (ex.estado === EstadoExamen.FINALIZADO ||
+          ex.estado === EstadoExamen.CANCELADO)
+      ) {
         continue;
       }
 

@@ -394,18 +394,20 @@ enum EstadoSolicitud {
 
 // HU13: Plantilla fija de colaboradores del docente
 model DocenteColaborador {
-  id              Int              @id @default(autoincrement())
-  docenteId       Int              @map("id_docente")
-  colaboradorId   Int              @map("id_colaborador")
-  estadoSolicitud EstadoSolicitud  @default(PENDIENTE) @map("estado_solicitud")
-  aprobadoPor     Int?             @map("aprobado_por")
-  fechaSolicitud  DateTime         @default(now()) @map("fecha_solicitud") @db.Timestamp()
-  fechaRespuesta  DateTime?        @map("fecha_respuesta") @db.Timestamp()
+  id                   Int              @id @default(autoincrement())
+  docenteId            Int              @map("id_docente")
+  colaboradorId        Int?             @map("id_colaborador")
+  estadoSolicitud      EstadoSolicitud  @default(PENDIENTE) @map("estado_solicitud")
+  aprobadoPor          Int?             @map("aprobado_por")
+  fechaSolicitud       DateTime         @default(now()) @map("fecha_solicitud") @db.Timestamp()
+  fechaRespuesta       DateTime?        @map("fecha_respuesta") @db.Timestamp()
   // Correo guardado para el caso de que aún no exista Usuario al momento de solicitar
-  correoSolicitado String?         @map("correo_solicitado")
+  correoSolicitado     String?          @map("correo_solicitado")
+  nombresSolicitados   String?          @map("nombres_solicitados")
+  apellidosSolicitados String?          @map("apellidos_solicitados")
 
   docente      Usuario  @relation("DocenteSolicita", fields: [docenteId], references: [id])
-  colaborador  Usuario  @relation("ColaboradorAuxiliar", fields: [colaboradorId], references: [id])
+  colaborador  Usuario? @relation("ColaboradorAuxiliar", fields: [colaboradorId], references: [id])
   aprobador    Usuario? @relation("AdminAprueba", fields: [aprobadoPor], references: [id])
 
   @@map("docente_colaborador")

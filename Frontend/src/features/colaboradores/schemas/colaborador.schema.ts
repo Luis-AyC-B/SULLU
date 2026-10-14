@@ -14,10 +14,15 @@ export const SolicitudColaboradorSchema = z.object({
     .trim()
     .min(1, "El correo electrónico es requerido")
     .email("Ingresa un formato de correo electrónico válido")
-    .refine(
-      (val) => val.toLowerCase().endsWith("@umss.edu.bo") || val.toLowerCase().endsWith("@umss.edu"),
-      "Debe ser un correo institucional (@umss.edu.bo)"
-    ),
+    .refine((val) => {
+      const lower = val.toLowerCase().trim();
+      return (
+        lower.endsWith("@umss.edu.bo") ||
+        lower.endsWith("@umss.edu") ||
+        lower.endsWith(".umss.edu.bo") ||
+        lower.endsWith(".umss.edu")
+      );
+    }, "Debe ser un correo institucional (@umss.edu.bo)"),
   nombres: z
     .string()
     .trim()
@@ -45,15 +50,18 @@ export interface ExamenItem {
 
 export interface Colaborador {
   id: string | number;
+  colaboradorId?: number | null;
   nombres: string;
   apellidos: string;
   nombreCompleto: string; // "Ana Lucía Rojas"
   email: string;
   estado: EstadoColaborador;
   fechaSolicitud: string; // Ej: "10 oct 2026"
-  examenesAsignadosIds: (string | number)[];
-  docenteEmail: string; // Docente que lo solicitó
-  docenteNombre: string; // Ej: "Luis Medina" o "Elena Paredes"
+  examenesAsignadosIds?: (string | number)[];
+  examenesAsignadosCount?: number;
+  docenteId?: number | null;
+  docenteEmail?: string; // Docente que lo solicitó
+  docenteNombre?: string; // Ej: "Luis Medina" o "Elena Paredes"
   aprobadoPor?: string; // "Admin" o "—"
   fechaRespuesta?: string; // "07 oct 2026" o "—"
   usuarioExiste: boolean; // true = "Usuario existente: se vinculará al docente", false = "Usuario nuevo: se creará la cuenta"

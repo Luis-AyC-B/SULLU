@@ -16,6 +16,7 @@ import { IngresosModule } from './ingresos/ingresos.module';
 import { HabilitacionesModule } from './habilitaciones/habilitaciones.module';
 import { MailModule } from './mail/mail.module';
 import { ReservasModule } from './reservas/reservas.module';
+import { ColaboradoresModule } from './colaboradores/colaboradores.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ReservasModule } from './reservas/reservas.module';
     CodigosQrModule,
     IngresosModule,
     HabilitacionesModule,
+    ColaboradoresModule,
   ],
   controllers: [AppController],
   providers: [AppService],
