@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { studentCredentialsProvider } from '@/features/portal/lib/student-credentials.provider';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -121,7 +120,6 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
-    studentCredentialsProvider,
   ],
   session: { strategy: 'jwt' },
   callbacks: {
