@@ -85,7 +85,7 @@ export class DocenteColaboradorService {
     return this.prisma.docenteColaborador.create({
       data: {
         docenteId,
-        colaboradorId: usuarioExistente ? usuarioExistente.id : null,
+        colaboradorId: usuarioExistente ? usuarioExistente.id : undefined,
         correoSolicitado: rawEmail,
         nombresSolicitados: (data.nombres || '').trim(),
         apellidosSolicitados: (data.apellidos || '').trim(),
