@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2, AlertCircle, ShieldAlert, X } from 'lucide-react';
 import { loginSchema, LoginFormValues } from '../schemas/login.schema';
 import { useLogin } from '../hooks/useLogin';
+import { useStudentLogin } from '@/features/portal/hooks/useStudentLogin';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Checkbox } from '@/shared/components/ui/checkbox';
@@ -16,15 +17,24 @@ interface LoginFormProps {
   onClose?: () => void;
 }
 
+/** Un código SIS es solo numérico; cualquier otro usuario (correo) es personal del sistema. */
+const esCodigoSis = (valor: string) => /^\d+$/.test(valor.trim());
+
 export function LoginForm({ onClose }: LoginFormProps = {}) {
   const {
     login,
-    isLoading,
-    authError,
+    isLoading: isStaffLoading,
+    authError: staffError,
     sessionConflict,
     confirmSessionOverride,
     cancelSessionOverride,
   } = useLogin();
+  const student = useStudentLogin();
+
+  // El error y la carga que se muestran son los del flujo que el usuario intentó
+  const [isStudentAttempt, setIsStudentAttempt] = useState(false);
+  const isLoading = isStaffLoading || student.isLoading;
+  const authError = isStudentAttempt ? student.authError : staffError;
 
   const [showPassword, setShowPassword] = useState(false);
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
@@ -62,6 +72,14 @@ export function LoginForm({ onClose }: LoginFormProps = {}) {
   const isInactiveError = authError?.toLowerCase().includes('habilitado');
 
   const onSubmit = (data: LoginFormValues) => {
+    if (esCodigoSis(data.email)) {
+      // Estudiante: código SIS + CI
+      setIsStudentAttempt(true);
+      student.login({ sis: data.email.trim(), ci: data.password.trim() });
+      return;
+    }
+    // Personal del sistema: correo + contraseña
+    setIsStudentAttempt(false);
     login(data);
   };
 
@@ -110,18 +128,18 @@ export function LoginForm({ onClose }: LoginFormProps = {}) {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          {/* Campo Correo Institucional */}
+          {/* Campo Correo Institucional o código SIS */}
           <div className="space-y-1.5">
             <label
               htmlFor="email-input"
               className="block text-[11px] font-bold tracking-wider text-slate-700 uppercase"
             >
-              CORREO INSTITUCIONAL
+              CORREO INSTITUCIONAL O CÓDIGO SIS
             </label>
             <Input
               id="email-input"
-              type="email"
-              placeholder="usuario@universidad.edu"
+              type="text"
+              placeholder="usuario@universidad.edu o código SIS"
               autoComplete="username"
               disabled={isLoading}
               className={`h-11 rounded-lg border-input bg-slate-50/50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-primary ${
@@ -138,14 +156,14 @@ export function LoginForm({ onClose }: LoginFormProps = {}) {
             )}
           </div>
 
-          {/* Campo Contraseña con contador dinámico y toggle de visibilidad */}
+          {/* Campo Contraseña (o CI) con contador dinámico y toggle de visibilidad */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label
                 htmlFor="password-input"
                 className="text-sm font-medium text-slate-700"
               >
-                Contraseña
+                Contraseña o CI
               </label>
               <span className="text-[11px] font-mono text-slate-400 tracking-tight">
                 {passwordValue.length}/12
