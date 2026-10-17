@@ -377,7 +377,10 @@ export class DocenteColaboradorService {
     });
   }
 
-  private formatearFecha(fecha: Date): string {
+  private formatearFecha(fecha: Date | string | null | undefined): string {
+    if (!fecha) return '—';
+    const dateObj = typeof fecha === 'string' ? new Date(fecha) : fecha;
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return '—';
     const meses = [
       'ene',
       'feb',
@@ -392,9 +395,9 @@ export class DocenteColaboradorService {
       'nov',
       'dic',
     ];
-    const d = String(fecha.getDate()).padStart(2, '0');
-    const m = meses[fecha.getMonth()];
-    const y = fecha.getFullYear();
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    const m = meses[dateObj.getMonth()];
+    const y = dateObj.getFullYear();
     return `${d} ${m} ${y}`;
   }
 }
