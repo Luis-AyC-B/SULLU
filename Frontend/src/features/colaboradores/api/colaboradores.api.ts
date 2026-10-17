@@ -77,7 +77,7 @@ function normalizeColaborador(raw: Record<string, any>): Colaborador {
 }
 
 /**
- * HU13: Consulta nómina del docente autenticado o solicitudes pendientes de admin.
+ * HU13: Consulta nómina del docente autenticado.
  */
 export async function getColaboradores(params?: {
   docenteEmail?: string;
@@ -91,6 +91,21 @@ export async function getColaboradores(params?: {
     return raw.map(normalizeColaborador);
   } catch (error: unknown) {
     throw new Error(extractErrorMessage(error, "Error al cargar la nómina de colaboradores"));
+  }
+}
+
+/**
+ * HU13: Obtiene TODOS los registros de colaboradores (todos los estados) para el admin.
+ * Corresponde a la pestaña "Todos" del panel de administración.
+ */
+export async function getTodosAdmin(): Promise<Colaborador[]> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiClient.get<Record<string, any>[]>("/colaboradores/todos");
+    const raw = Array.isArray(res.data) ? res.data : [];
+    return raw.map(normalizeColaborador);
+  } catch (error: unknown) {
+    throw new Error(extractErrorMessage(error, "Error al cargar el registro de colaboradores"));
   }
 }
 

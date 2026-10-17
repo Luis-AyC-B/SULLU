@@ -343,38 +343,76 @@ export class DocenteColaboradorService {
       orderBy: { fechaSolicitud: 'desc' },
     });
 
-    return solicitudes.map((sol) => {
-      const nombres: string = String(
-        sol.colaborador?.nombre || (sol as any).nombresSolicitados || '',
-      );
-      const apellidos: string = String(
-        sol.colaborador?.apellido || (sol as any).apellidosSolicitados || '',
-      );
-      const email: string = String(
-        sol.colaborador?.correo || sol.correoSolicitado || '',
-      );
-      const docenteNombre = sol.docente
-        ? `${sol.docente.nombre} ${sol.docente.apellido || ''}`.trim()
-        : 'Docente';
+    return solicitudes.map((sol) => this.mapearSolicitudAdmin(sol));
+  }
 
-      return {
-        id: sol.id,
-        colaboradorId: sol.colaboradorId,
-        nombres,
-        apellidos,
-        nombreCompleto: `${nombres} ${apellidos}`.trim(),
-        email,
-        estado: sol.estadoSolicitud,
-        fechaSolicitud: this.formatearFecha(sol.fechaSolicitud),
-        docenteId: sol.docenteId,
-        docenteNombre,
-        docenteEmail: sol.docente?.correo || '',
-        usuarioExiste: Boolean(sol.colaboradorId),
-        rol: 'Personal de control',
-        examenesAsignadosIds: [],
-        examenesAsignadosCount: 0,
-      };
+  /**
+   * HU13: Obtiene TODOS los registros de colaboradores (todos los estados) para el admin.
+   * Usado en la pestaña "Todos" del panel de administración.
+   */
+  async getTodosAdmin() {
+    const registros = await this.prisma.docenteColaborador.findMany({
+      include: {
+        docente: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            correo: true,
+          },
+        },
+        colaborador: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            correo: true,
+          },
+        },
+      },
+      orderBy: { fechaSolicitud: 'desc' },
     });
+
+    return registros.map((sol) => this.mapearSolicitudAdmin(sol));
+  }
+
+  /**
+   * Mapea un registro de DocenteColaborador al formato de respuesta del admin.
+   */
+  private mapearSolicitudAdmin(sol: any) {
+    const nombres: string = String(
+      sol.colaborador?.nombre || sol.nombresSolicitados || '',
+    );
+    const apellidos: string = String(
+      sol.colaborador?.apellido || sol.apellidosSolicitados || '',
+    );
+    const email: string = String(
+      sol.colaborador?.correo || sol.correoSolicitado || '',
+    );
+    const docenteNombre = sol.docente
+      ? `${sol.docente.nombre} ${sol.docente.apellido || ''}`.trim()
+      : 'Docente';
+
+    return {
+      id: sol.id,
+      colaboradorId: sol.colaboradorId,
+      nombres,
+      apellidos,
+      nombreCompleto: `${nombres} ${apellidos}`.trim(),
+      email,
+      estado: sol.estadoSolicitud,
+      fechaSolicitud: this.formatearFecha(sol.fechaSolicitud),
+      fechaRespuesta: sol.fechaRespuesta
+        ? this.formatearFecha(sol.fechaRespuesta)
+        : '—',
+      docenteId: sol.docenteId,
+      docenteNombre,
+      docenteEmail: sol.docente?.correo || '',
+      usuarioExiste: Boolean(sol.colaboradorId),
+      rol: 'Personal de control',
+      examenesAsignadosIds: [],
+      examenesAsignadosCount: 0,
+    };
   }
 
   private formatearFecha(fecha: Date | string | null | undefined): string {

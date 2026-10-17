@@ -82,6 +82,16 @@ export class ColaboradoresController {
     return this.docenteColaboradorService.getSolicitudesPendientesAdmin();
   }
 
+  @Get('todos')
+  @Permissions('colaboradores.ver_solicitudes', 'colaboradores.aprobar')
+  @ApiOperation({
+    summary:
+      'Listar TODOS los colaboradores de todos los docentes (Administrador - HU13)',
+  })
+  async getTodos() {
+    return this.docenteColaboradorService.getTodosAdmin();
+  }
+
   @Patch('solicitudes/:id/aprobar')
   @Permissions('colaboradores.aprobar')
   @ApiOperation({

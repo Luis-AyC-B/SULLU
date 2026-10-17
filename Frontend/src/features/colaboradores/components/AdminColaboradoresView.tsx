@@ -9,13 +9,15 @@ import { AdminSolicitudAprobarModal } from "./AdminSolicitudAprobarModal";
 import { AdminSolicitudRechazarModal } from "./AdminSolicitudRechazarModal";
 
 interface AdminColaboradoresViewProps {
-  colaboradores: Colaborador[];
+  solicitudesPendientes: Colaborador[];
+  todosAdmin: Colaborador[];
   onAprobar: (id: string | number) => Promise<{ success: boolean }>;
   onRechazar: (id: string | number) => Promise<{ success: boolean }>;
 }
 
 export function AdminColaboradoresView({
-  colaboradores,
+  solicitudesPendientes,
+  todosAdmin,
   onAprobar,
   onRechazar,
 }: AdminColaboradoresViewProps) {
@@ -26,22 +28,17 @@ export function AdminColaboradoresView({
   const [colaboradorARechazar, setColaboradorARechazar] = useState<Colaborador | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  // Solicitudes pendientes
-  const solicitudesPendientes = useMemo(() => {
-    return colaboradores.filter((c) => c.estado === "PENDIENTE");
-  }, [colaboradores]);
-
-  // Filtro de tabla "Todos"
+  // Filtro de tabla "Todos" con buscador
   const colaboradoresFiltrados = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    if (!term) return colaboradores;
-    return colaboradores.filter(
+    if (!term) return todosAdmin;
+    return todosAdmin.filter(
       (c) =>
         c.nombreCompleto.toLowerCase().includes(term) ||
         c.email.toLowerCase().includes(term) ||
         c.docenteNombre?.toLowerCase().includes(term)
     );
-  }, [colaboradores, searchTerm]);
+  }, [todosAdmin, searchTerm]);
 
   const handleConfirmAprobar = async () => {
     if (!colaboradorAAprobar) return;
@@ -241,7 +238,7 @@ export function AdminColaboradoresView({
             </div>
 
             <div className="text-xs sm:text-sm text-gray-500 font-medium">
-              {colaboradores.length} colaboradores · Todos los estados
+              {todosAdmin.length} colaboradores · Todos los estados
             </div>
           </div>
 
