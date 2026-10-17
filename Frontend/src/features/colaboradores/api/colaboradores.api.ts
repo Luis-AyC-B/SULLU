@@ -151,8 +151,9 @@ export async function solicitarColaborador(
  */
 export async function darDeBajaColaborador(id: string | number): Promise<Colaborador> {
   try {
-    const res = await apiClient.patch<Colaborador>(`/colaboradores/${id}/baja`);
-    return res.data;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiClient.patch<Record<string, any>>(`/colaboradores/${id}/baja`);
+    return normalizeColaborador(res.data);
   } catch (error: unknown) {
     throw new Error(extractErrorMessage(error, "Error al dar de baja al colaborador"));
   }
@@ -163,8 +164,9 @@ export async function darDeBajaColaborador(id: string | number): Promise<Colabor
  */
 export async function aprobarSolicitud(id: string | number): Promise<Colaborador> {
   try {
-    const res = await apiClient.patch<Colaborador>(`/colaboradores/solicitudes/${id}/aprobar`);
-    return res.data;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiClient.patch<Record<string, any>>(`/colaboradores/solicitudes/${id}/aprobar`);
+    return normalizeColaborador(res.data);
   } catch (error: unknown) {
     throw new Error(extractErrorMessage(error, "Error al aprobar la solicitud"));
   }
@@ -175,12 +177,14 @@ export async function aprobarSolicitud(id: string | number): Promise<Colaborador
  */
 export async function rechazarSolicitud(id: string | number): Promise<Colaborador> {
   try {
-    const res = await apiClient.patch<Colaborador>(`/colaboradores/solicitudes/${id}/rechazar`);
-    return res.data;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiClient.patch<Record<string, any>>(`/colaboradores/solicitudes/${id}/rechazar`);
+    return normalizeColaborador(res.data);
   } catch (error: unknown) {
     throw new Error(extractErrorMessage(error, "Error al rechazar la solicitud"));
   }
 }
+
 
 /**
  * HU13: Obtiene los exámenes asignados y disponibles de un colaborador para el docente autenticado.
