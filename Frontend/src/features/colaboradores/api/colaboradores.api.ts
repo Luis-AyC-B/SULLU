@@ -37,6 +37,45 @@ function extractErrorMessage(error: unknown, defaultMsg: string): string {
   return defaultMsg;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeColaborador(raw: Record<string, any>): Colaborador {
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+  const formatDate = (val: unknown): string => {
+    if (!val) return "—";
+    if (typeof val === "string" && val.includes(" ")) return val; // ya formateado por backend
+    const d = new Date(val as string);
+    if (isNaN(d.getTime())) return "—";
+    return `${String(d.getDate()).padStart(2, "0")} ${meses[d.getMonth()]} ${d.getFullYear()}`;
+  };
+
+  const nombres: string = String(raw.nombres || raw.nombresSolicitados || "");
+  const apellidos: string = String(raw.apellidos || raw.apellidosSolicitados || "");
+  const nombreCompleto: string = raw.nombreCompleto || `${nombres} ${apellidos}`.trim();
+  const email: string = String(raw.email || raw.correoSolicitado || "");
+  const estado = (raw.estado || raw.estadoSolicitud || "PENDIENTE") as Colaborador["estado"];
+
+  return {
+    id: raw.id,
+    colaboradorId: raw.colaboradorId ?? null,
+    nombres,
+    apellidos,
+    nombreCompleto,
+    email,
+    estado,
+    fechaSolicitud: formatDate(raw.fechaSolicitud),
+    fechaRespuesta: raw.fechaRespuesta ? formatDate(raw.fechaRespuesta) : "—",
+    examenesAsignadosIds: raw.examenesAsignadosIds || [],
+    examenesAsignadosCount: raw.examenesAsignadosCount || 0,
+    docenteId: raw.docenteId ?? null,
+    docenteEmail: raw.docenteEmail || "",
+    docenteNombre: raw.docenteNombre || "",
+    aprobadoPor: raw.aprobadoPor ? String(raw.aprobadoPor) : "—",
+    usuarioExiste: Boolean(raw.usuarioExiste ?? raw.colaboradorId),
+    rol: raw.rol || "Personal de control",
+  };
+}
+
 /**
  * HU13: Consulta nómina del docente autenticado o solicitudes pendientes de admin.
  */
@@ -46,12 +85,15 @@ export async function getColaboradores(params?: {
 }): Promise<Colaborador[]> {
   try {
     const url = params?.isAdmin ? "/colaboradores/solicitudes" : "/colaboradores/nomina";
-    const res = await apiClient.get<Colaborador[]>(url);
-    return res.data || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiClient.get<Record<string, any>[]>(url);
+    const raw = Array.isArray(res.data) ? res.data : [];
+    return raw.map(normalizeColaborador);
   } catch (error: unknown) {
     throw new Error(extractErrorMessage(error, "Error al cargar la nómina de colaboradores"));
   }
 }
+
 
 /**
  * HU13: Envía una solicitud de vinculación de colaborador (Docente).
