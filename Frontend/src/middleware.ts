@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 // Orden de prioridad para redirigir tras el login: [prefijo de permiso, ruta]
 const redirectsPorModulo: [string, string][] = [
-  ['portal_estudiante', '/portal'],
   ['usuarios', '/usuarios'],
   ['roles', '/roles'],
   ['examenes', '/examenes'],
@@ -13,6 +12,7 @@ const redirectsPorModulo: [string, string][] = [
   ['registro_ingresos', '/ingresos'],
   ['incidencias', '/incidencias'],
   ['colaboradores', '/colaboradores'],
+  ['portal_estudiante', '/portal'],
 ];
 
 export default withAuth(
@@ -39,6 +39,9 @@ export default withAuth(
       const permisos = (token.permisos as string[]) || [];
 
       // Mapeo de rutas a prefijos de permisos requeridos
+      if ((pathname === '/ambientes' || pathname.startsWith('/ambientes/')) && !permisos.includes('ambientes.ver')) {
+        return NextResponse.redirect(new URL('/unauthorized?modulo=ambientes', req.url));
+      }
       const routePermissions: Record<string, string> = {
         '/usuarios': 'usuarios',
         '/roles': 'roles',

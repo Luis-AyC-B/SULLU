@@ -18,7 +18,9 @@ export function ColaboradorCard({
   onDarDeBaja,
   isProcessing = false,
 }: ColaboradorCardProps) {
-  const numExamenes = colaborador.examenesAsignadosIds?.length || 0;
+  const numExamenes =
+    colaborador.examenesAsignadosCount ??
+    (colaborador.examenesAsignadosIds?.length || 0);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs hover:shadow-sm transition-shadow flex flex-col justify-between">

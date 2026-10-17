@@ -10,8 +10,10 @@ export function useExamenesColaborador(colaborador: Colaborador | null) {
   const [asignados, setAsignados] = useState<ExamenItem[]>([]);
   const [disponibles, setDisponibles] = useState<api.ExamenDisponibleItem[]>([]);
 
+  const colTargetId = colaborador?.colaboradorId || colaborador?.id;
+
   const fetchExamenes = useCallback(async () => {
-    if (!colaborador) {
+    if (!colaborador || !colTargetId) {
       setAsignados([]);
       setDisponibles([]);
       return;
@@ -20,7 +22,7 @@ export function useExamenesColaborador(colaborador: Colaborador | null) {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getExamenesColaborador(colaborador.id);
+      const data = await api.getExamenesColaborador(colTargetId);
       setAsignados(data.asignados);
       setDisponibles(data.disponibles);
     } catch (err: unknown) {
@@ -29,17 +31,17 @@ export function useExamenesColaborador(colaborador: Colaborador | null) {
     } finally {
       setLoading(false);
     }
-  }, [colaborador]);
+  }, [colaborador, colTargetId]);
 
   useEffect(() => {
     fetchExamenes();
   }, [fetchExamenes]);
 
   const asignar = async (examenId: string | number) => {
-    if (!colaborador) return { success: false, error: "Colaborador no seleccionado" };
+    if (!colaborador || !colTargetId) return { success: false, error: "Colaborador no seleccionado" };
 
     try {
-      await api.asignarExamen(colaborador.id, examenId);
+      await api.asignarExamen(colTargetId, examenId);
       await fetchExamenes();
       return { success: true };
     } catch (err: unknown) {
@@ -49,10 +51,10 @@ export function useExamenesColaborador(colaborador: Colaborador | null) {
   };
 
   const quitar = async (examenId: string | number) => {
-    if (!colaborador) return { success: false, error: "Colaborador no seleccionado" };
+    if (!colaborador || !colTargetId) return { success: false, error: "Colaborador no seleccionado" };
 
     try {
-      await api.quitarExamen(colaborador.id, examenId);
+      await api.quitarExamen(colTargetId, examenId);
       await fetchExamenes();
       return { success: true };
     } catch (err: unknown) {
