@@ -7,7 +7,14 @@ import * as api from "../api/colaboradores.api";
 
 export function useColaboradores() {
   const { data: session } = useSession();
+
+  // Para docente: su nómina
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
+  // Para admin: solicitudes PENDIENTES (pestaña "Solicitudes")
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState<Colaborador[]>([]);
+  // Para admin: todos los registros (pestaña "Todos")
+  const [todosAdmin, setTodosAdmin] = useState<Colaborador[]>([]);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -24,11 +31,23 @@ export function useColaboradores() {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getColaboradores({
-        docenteEmail: userEmail,
-        isAdmin,
-      });
-      setColaboradores(data);
+
+      if (isAdmin) {
+        // Admin carga dos endpoints en paralelo
+        const [solicitudes, todos] = await Promise.all([
+          api.getColaboradores({ isAdmin: true }),
+          api.getTodosAdmin(),
+        ]);
+        setSolicitudesPendientes(solicitudes);
+        setTodosAdmin(todos);
+        // Para compatibilidad con componentes que usen `colaboradores` en admin,
+        // exponemos los todos (todos los estados)
+        setColaboradores(todos);
+      } else {
+        // Docente carga su nómina
+        const data = await api.getColaboradores({ docenteEmail: userEmail, isAdmin: false });
+        setColaboradores(data);
+      }
     } catch (err: unknown) {
       console.error("Error al cargar colaboradores:", err);
       setError(err instanceof Error ? err.message : "Error al cargar los colaboradores");
@@ -41,7 +60,7 @@ export function useColaboradores() {
     fetchColaboradores();
   }, [fetchColaboradores]);
 
-  // Filtrado por buscador y estado
+  // Filtrado por buscador y estado (para vista docente)
   const colaboradoresFiltrados = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     return colaboradores.filter((col) => {
@@ -95,10 +114,9 @@ export function useColaboradores() {
 
   const aprobar = async (id: string | number) => {
     try {
-      const actualizado = await api.aprobarSolicitud(id);
-      setColaboradores((prev) =>
-        prev.map((c) => (String(c.id) === String(id) ? actualizado : c))
-      );
+      await api.aprobarSolicitud(id);
+      // Recargamos ambas listas para reflejar el cambio de PENDIENTE → APROBADO
+      await fetchColaboradores();
       return { success: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error al aprobar la solicitud";
@@ -108,10 +126,9 @@ export function useColaboradores() {
 
   const rechazar = async (id: string | number) => {
     try {
-      const actualizado = await api.rechazarSolicitud(id);
-      setColaboradores((prev) =>
-        prev.map((c) => (String(c.id) === String(id) ? actualizado : c))
-      );
+      await api.rechazarSolicitud(id);
+      // Recargamos ambas listas para reflejar el cambio de PENDIENTE → RECHAZADO
+      await fetchColaboradores();
       return { success: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error al rechazar la solicitud";
@@ -122,6 +139,8 @@ export function useColaboradores() {
   return {
     colaboradores,
     colaboradoresFiltrados,
+    solicitudesPendientes,
+    todosAdmin,
     loading,
     error,
     searchTerm,

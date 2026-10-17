@@ -16,6 +16,8 @@ export function ColaboradoresPageContainer() {
   const {
     colaboradores,
     colaboradoresFiltrados,
+    solicitudesPendientes,
+    todosAdmin,
     loading,
     searchTerm,
     setSearchTerm,
@@ -112,7 +114,8 @@ export function ColaboradoresPageContainer() {
       {isAdmin ? (
         /* VISTA DE ADMINISTRADOR: Pestañas Solicitudes / Todos, tabla y modales de aprobación/rechazo */
         <AdminColaboradoresView
-          colaboradores={colaboradores}
+          solicitudesPendientes={solicitudesPendientes}
+          todosAdmin={todosAdmin}
           onAprobar={aprobar}
           onRechazar={rechazar}
         />
