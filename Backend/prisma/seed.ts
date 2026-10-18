@@ -1649,6 +1649,17 @@ async function main() {
       fechaRespuesta: new Date(ahora.getTime() - 4 * 24 * 60 * 60 * 1000),
     },
   });
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docEdgar,
+      colaboradorId: controlUser1.id,
+      estadoSolicitud: 'APROBADO',
+      aprobadoPor: adminUser.id,
+      correoSolicitado: 'j.perez@umss.edu.bo',
+      fechaSolicitud: new Date(ahora.getTime() - 5 * 24 * 60 * 60 * 1000),
+      fechaRespuesta: new Date(ahora.getTime() - 4 * 24 * 60 * 60 * 1000),
+    },
+  });
 
   // 2.12 ExamenControlador
   await prisma.examenControlador.create({

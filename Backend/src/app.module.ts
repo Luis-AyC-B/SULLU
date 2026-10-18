@@ -16,6 +16,8 @@ import { CodigosQrModule } from './codigos-qr/codigos-qr.module';
 import { IngresosModule } from './ingresos/ingresos.module';
 import { HabilitacionesModule } from './habilitaciones/habilitaciones.module';
 import { MailModule } from './mail/mail.module';
+import { ReservasModule } from './reservas/reservas.module';
+import { ColaboradoresModule } from './colaboradores/colaboradores.module';
 
 @Module({
   imports: [
@@ -37,11 +39,13 @@ import { MailModule } from './mail/mail.module';
     CargasEstudiantesModule,
     EstudiantesModule,
     AmbientesModule,
+    ReservasModule,
     IncidenciasModule,
     ExamenesModule,
     CodigosQrModule,
     IngresosModule,
     HabilitacionesModule,
+    ColaboradoresModule,
   ],
   controllers: [AppController],
   providers: [AppService],
