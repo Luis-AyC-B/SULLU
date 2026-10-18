@@ -67,6 +67,7 @@ export function useColaboradores() {
       const matchSearch =
         term === "" ||
         col.nombreCompleto.toLowerCase().includes(term) ||
+        (col.codSis && col.codSis.toLowerCase().includes(term)) ||
         col.email.toLowerCase().includes(term);
 
       const matchEstado =

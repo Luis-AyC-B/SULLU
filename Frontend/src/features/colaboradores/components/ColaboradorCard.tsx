@@ -24,7 +24,7 @@ export function ColaboradorCard({
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs hover:shadow-sm transition-shadow flex flex-col justify-between">
-      {/* Top: Avatar, Nombre, Correo y Badge */}
+      {/* Top: Avatar, Nombre, Código SIS y Badge */}
       <div>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -33,8 +33,12 @@ export function ColaboradorCard({
               <h3 className="font-bold text-[#003770] text-base leading-snug truncate">
                 {colaborador.nombreCompleto}
               </h3>
-              <p className="text-xs text-gray-500 truncate mt-0.5">
-                {colaborador.email}
+              <p className="text-xs text-gray-500 truncate mt-0.5 font-medium">
+                {colaborador.codSis && (
+                  <span className="font-mono text-[#003770] font-semibold">
+                    SIS: {colaborador.codSis}
+                  </span>
+                )}
               </p>
             </div>
           </div>

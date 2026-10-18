@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, X, Calendar, UserPlus, UserCheck, Info } from "lucide-react";
+import { Search, X, Calendar, Info } from "lucide-react";
 import { Colaborador } from "../schemas/colaborador.schema";
 import { ColaboradorAvatar } from "./ColaboradorAvatar";
 import { ColaboradorEstadoBadge } from "./ColaboradorEstadoBadge";
@@ -35,7 +35,8 @@ export function AdminColaboradoresView({
     return todosAdmin.filter(
       (c) =>
         c.nombreCompleto.toLowerCase().includes(term) ||
-        c.email.toLowerCase().includes(term) ||
+        (c.codSis && c.codSis.toLowerCase().includes(term)) ||
+        (c.email && c.email.toLowerCase().includes(term)) ||
         c.docenteNombre?.toLowerCase().includes(term)
     );
   }, [todosAdmin, searchTerm]);
@@ -151,51 +152,37 @@ export function AdminColaboradoresView({
                     </div>
                   </div>
 
-                  {/* Fila central: avatar, nombre y correo */}
+                  {/* Fila central: avatar, nombre y código SIS */}
                   <div className="flex items-center gap-3">
                     <ColaboradorAvatar nombreCompleto={sol.nombreCompleto} />
                     <div>
                       <h3 className="font-bold text-[#003770] text-base leading-snug">
                         {sol.nombreCompleto}
                       </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {sol.email}
-                      </p>
+                      {sol.codSis && (
+                        <p className="text-xs font-mono text-[#003770] font-bold mt-0.5">
+                          SIS: {sol.codSis}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Fila inferior: etiqueta de tipo de usuario y botones de acción */}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
-                    <div>
-                      {!sol.usuarioExiste ? (
-                        <div className="inline-flex items-center gap-2 bg-[#fff7ed] border border-[#fde68a] text-[#92400e] rounded-xl px-3 py-1.5 text-xs font-semibold">
-                          <UserPlus className="h-3.5 w-3.5" />
-                          <span>Usuario nuevo: se creará la cuenta</span>
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-2 bg-[#f0fdf4] border border-[#bbf7d0] text-[#166534] rounded-xl px-3 py-1.5 text-xs font-semibold">
-                          <UserCheck className="h-3.5 w-3.5" />
-                          <span>Usuario existente: se vinculará al docente</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setColaboradorARechazar(sol)}
-                        className="border border-rose-300 text-rose-600 hover:bg-rose-50 px-5 py-2 font-semibold text-sm rounded-xl transition-colors cursor-pointer"
-                      >
-                        Rechazar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setColaboradorAAprobar(sol)}
-                        className="bg-[#003770] hover:bg-[#002a57] text-white px-5 py-2 font-semibold text-sm rounded-xl transition-colors shadow-xs cursor-pointer"
-                      >
-                        Aprobar
-                      </button>
-                    </div>
+                  {/* Fila inferior: botones de acción */}
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setColaboradorARechazar(sol)}
+                      className="border border-rose-300 text-rose-600 hover:bg-rose-50 px-5 py-2 font-semibold text-sm rounded-xl transition-colors cursor-pointer"
+                    >
+                      Rechazar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setColaboradorAAprobar(sol)}
+                      className="bg-[#003770] hover:bg-[#002a57] text-white px-5 py-2 font-semibold text-sm rounded-xl transition-colors shadow-xs cursor-pointer"
+                    >
+                      Aprobar
+                    </button>
                   </div>
                 </div>
               ))}
@@ -223,7 +210,7 @@ export function AdminColaboradoresView({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nombre, correo o docente"
+                placeholder="Buscar por nombre, código SIS o docente"
                 className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-slate-800 placeholder-gray-400 focus:outline-none focus:border-[#003770] focus:ring-1 focus:ring-[#003770] transition-colors shadow-2xs"
               />
               {searchTerm && (
@@ -258,7 +245,7 @@ export function AdminColaboradoresView({
                 <thead>
                   <tr className="border-b border-gray-100 text-gray-500 font-semibold text-xs">
                     <th className="py-3 px-5">Colaborador</th>
-                    <th className="py-3 px-5">Correo</th>
+                    <th className="py-3 px-5">Código SIS</th>
                     <th className="py-3 px-5">Docente</th>
                     <th className="py-3 px-5">Estado</th>
                     <th className="py-3 px-5">Aprobado por</th>
@@ -271,11 +258,11 @@ export function AdminColaboradoresView({
                       key={item.id}
                       className="hover:bg-gray-50/60 transition-colors"
                     >
-                      <td className="py-4 px-5 font-bold text-[#003770]">
-                        {item.nombreCompleto}
+                      <td className="py-4 px-5">
+                        <div className="font-bold text-[#003770]">{item.nombreCompleto}</div>
                       </td>
-                      <td className="py-4 px-5 text-gray-500">
-                        {item.email}
+                      <td className="py-4 px-5 text-gray-700 font-mono font-medium">
+                        {item.codSis || "—"}
                       </td>
                       <td className="py-4 px-5 text-slate-700 font-medium">
                         {item.docenteNombre}
