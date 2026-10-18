@@ -23,6 +23,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed": "ts-node prisma/seed.ts",
     "seed:reservas": "ts-node prisma/seed-mock-reservas.ts",
+    "seed:hu6": "ts-node prisma/seed-hu6.ts",
     "seed:full": "ts-node prisma/seed.ts && ts-node prisma/seed-mock-reservas.ts"
   },
   "dependencies": {
