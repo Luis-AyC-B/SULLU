@@ -115,6 +115,23 @@ export const authOptions: NextAuthOptions = {
             } as any;
           }
 
+             // Estudiantes de prueba (HU6) mientras el backend no esté conectado
+             const estudiantesMock: Record<string, { id: number; name: string; token: string }> = {
+               'ana.rojas@umss.edu': { id: 101, name: 'Ana Rojas Mamani', token: 'mock-jwt-token-estudiante-ana' },
+               'luis.quispe@umss.edu': { id: 102, name: 'Luis Quispe Vargas', token: 'mock-jwt-token-estudiante-empty' },
+               'marta.flores@umss.edu': { id: 103, name: 'Marta Flores Rojas', token: 'mock-jwt-token-estudiante-error' },
+             };
+             const estudiante = estudiantesMock[email];
+             if (estudiante && password === 'estudiante123') {
+               return {
+                 id: estudiante.id,
+                 name: estudiante.name,
+                 email,
+                 permisos: ['portal_estudiante'],
+                 accessToken: estudiante.token,
+               } as any;
+             }
+
           // Credenciales incorrectas
           throw new Error('INVALID_CREDENTIALS');
         }

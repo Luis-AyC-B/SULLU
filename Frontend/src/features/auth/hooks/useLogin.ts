@@ -18,8 +18,13 @@ import { modules } from '@/shared/config/modules';
  * según los módulos y permisos asignados a su cuenta (soporta roles dinámicos).
  */
 export function getLandingRoute(permisos?: string[]): string {
+  
   if (!permisos || permisos.length === 0) {
     return '/usuarios';
+  }
+  // Portal del estudiante (HU6)
+  if (permisos.some((p) => p === 'portal_estudiante' || p.startsWith('portal_estudiante.'))) {
+    return '/portal';
   }
 
   // Comprueba la prioridad de navegación según los módulos autorizados
