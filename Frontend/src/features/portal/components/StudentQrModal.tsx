@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { QRCodeCanvas } from 'qrcode.react';
+import { ArrowLeft, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/shared/components/ui/dialog';
 import { getMiQr } from '../api/student-exam.service';
@@ -17,6 +17,7 @@ export function StudentQrModal({ open, onClose }: StudentQrModalProps) {
   const [qr, setQr] = useState<StudentQrPayload | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -33,6 +34,15 @@ export function StudentQrModal({ open, onClose }: StudentQrModalProps) {
   useEffect(() => {
     if (open) load();
   }, [open, load]);
+
+  const handleDownload = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !qr) return;
+    const enlace = document.createElement('a');
+    enlace.href = canvas.toDataURL('image/png');
+    enlace.download = `QR-${qr.sis}.png`;
+    enlace.click();
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o: boolean) => !o && onClose()}>
@@ -72,8 +82,17 @@ export function StudentQrModal({ open, onClose }: StudentQrModalProps) {
 
           {qr && !isLoading && !hasError && (
             <>
-              <div className="mt-5 rounded-xl border border-border bg-white p-3">
-                <QRCodeSVG value={qr.token} size={220} level="M" bgColor="#FFFFFF" fgColor="#1A1A1A" />
+              <div className="mt-5 rounded-xl border border-border bg-white p-2">
+                <QRCodeCanvas
+                  ref={canvasRef}
+                  value={qr.token}
+                  size={1024}
+                  marginSize={4}
+                  level="M"
+                  bgColor="#FFFFFF"
+                  fgColor="#1A1A1A"
+                  style={{ width: 220, height: 220 }}
+                />
               </div>
 
               <h2 className="mt-6 text-xl font-bold text-foreground">{qr.nombre}</h2>
@@ -86,7 +105,14 @@ export function StudentQrModal({ open, onClose }: StudentQrModalProps) {
             </>
           )}
 
-          <Button variant="outline" onClick={onClose} className="mt-6 hidden h-11 w-full text-primary sm:inline-flex">
+          {qr && !isLoading && !hasError && (
+            <Button onClick={handleDownload} className="mt-6 h-11 w-full gap-2">
+              <Download className="h-4 w-4" />
+              Descargar QR
+            </Button>
+          )}
+
+          <Button variant="outline" onClick={onClose} className="mt-3 hidden h-11 w-full text-primary sm:inline-flex">
             Cerrar
           </Button>
         </div>
