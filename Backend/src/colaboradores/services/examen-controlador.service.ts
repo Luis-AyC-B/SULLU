@@ -61,7 +61,32 @@ export class ExamenControladorService {
       throw new NotFoundException('Examen no encontrado.');
     }
 
-    // 3. Algoritmo de detección de colisión y choque de horarios
+    // 3. Validar que el examen no haya terminado, esté en curso ni cancelado
+    if (examen.estado === EstadoExamen.FINALIZADO) {
+      throw new BadRequestException('No se puede asignar a un examen que ya finalizó.');
+    }
+    if (examen.estado === EstadoExamen.EN_CURSO) {
+      throw new BadRequestException('No se puede asignar a un examen que ya está en curso.');
+    }
+    if (examen.estado === EstadoExamen.CANCELADO) {
+      throw new BadRequestException('No se puede asignar a un examen cancelado.');
+    }
+
+    // Validar por fecha/hora: si ya pasó el inicio, tampoco se permite
+    if (examen.reservaAmbiente?.fecha) {
+      const fechaInicioEx = new Date(examen.reservaAmbiente.fecha);
+      if (examen.reservaAmbiente.horarioFijo?.horaIni) {
+        const hIni = new Date(examen.reservaAmbiente.horarioFijo.horaIni);
+        fechaInicioEx.setUTCHours(hIni.getUTCHours(), hIni.getUTCMinutes(), 0, 0);
+      }
+      if (Date.now() >= fechaInicioEx.getTime()) {
+        throw new BadRequestException(
+          'No se puede asignar a un examen que ya inició o cuya fecha pasó.',
+        );
+      }
+    }
+
+    // 4. Algoritmo de detección de colisión y choque de horarios
     const asignacionesExistentes = await this.prisma.examenControlador.findMany(
       {
         where: { colaboradorId: colId },
@@ -334,8 +359,8 @@ export class ExamenControladorService {
 
       if (estaAsignado) {
         asignados.push(itemFormateado);
-      } else {
-        // Evaluar choque de horario contra asignaciones totales del colaborador
+      } else if (!yaInicio) {
+        // Solo mostrar como disponible si el examen aún no ha iniciado
         let tieneChoque = false;
         let motivoChoque: string | undefined;
 
