@@ -11,6 +11,7 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -18,15 +19,18 @@ import { ExamenEstudiantesService } from './examen-estudiantes.service';
 import { QueryEstudiantesExamenDto } from './dto/query-estudiantes-examen.dto';
 import { CreateEstudianteExamenDto } from './dto/create-estudiante-examen.dto';
 import { UpdateEstadoEstudianteDto } from './dto/update-estado-estudiante.dto';
-// import { Permissions } from '../auth/decorators/permissions.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('examenes/:examenId/estudiantes')
 export class ExamenEstudiantesController {
   constructor(private readonly service: ExamenEstudiantesService) {}
 
   // Task 7
   @Get()
-  // @Permissions('estudiantes.ver')
+  @Permissions('estudiantes.ver')
   findByExamen(
     @Param('examenId', ParseIntPipe) examenId: number,
     @Query() query: QueryEstudiantesExamenDto,
@@ -36,7 +40,7 @@ export class ExamenEstudiantesController {
 
   // Task 9
   @Post()
-  // @Permissions('estudiantes.registrar')
+  @Permissions('estudiantes.cargar')
   @HttpCode(HttpStatus.CREATED)
   registrarManual(
     @Param('examenId', ParseIntPipe) examenId: number,
@@ -47,7 +51,7 @@ export class ExamenEstudiantesController {
 
   // Task 8
   @Post('masivo')
-  // @Permissions('estudiantes.registrar')
+  @Permissions('estudiantes.cargar')
   @UseInterceptors(FileInterceptor('archivo'))
   cargaMasiva(
     @Param('examenId', ParseIntPipe) examenId: number,
@@ -58,7 +62,7 @@ export class ExamenEstudiantesController {
 
   // Task 10
   @Patch(':estudianteId/estado')
-  // @Permissions('estudiantes.habilitar')
+  @Permissions('estudiantes.habilitar')
   actualizarEstado(
     @Param('examenId', ParseIntPipe) examenId: number,
     @Param('estudianteId', ParseIntPipe) estudianteId: number,
