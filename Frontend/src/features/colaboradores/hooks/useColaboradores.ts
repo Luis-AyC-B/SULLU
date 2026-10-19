@@ -24,8 +24,8 @@ export function useColaboradores() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userRole = ((session?.user as any)?.rol || "").toLowerCase();
   const isAdmin = userRole.includes("admin");
-  const userEmail = session?.user?.email || "docente@umss.edu";
-  const userNombre = session?.user?.name || "Luis Medina";
+  // userEmail se mantiene por si algún componente lo necesita para mostrar en UI
+  const userEmail = session?.user?.email || "";
 
   const fetchColaboradores = useCallback(async () => {
     try {
@@ -44,8 +44,8 @@ export function useColaboradores() {
         // exponemos los todos (todos los estados)
         setColaboradores(todos);
       } else {
-        // Docente carga su nómina
-        const data = await api.getColaboradores({ docenteEmail: userEmail, isAdmin: false });
+        // Docente carga su nómina (el backend filtra por el JWT)
+        const data = await api.getColaboradores();
         setColaboradores(data);
       }
     } catch (err: unknown) {
@@ -54,7 +54,7 @@ export function useColaboradores() {
     } finally {
       setLoading(false);
     }
-  }, [userEmail, isAdmin]);
+  }, [isAdmin]);
 
   useEffect(() => {
     fetchColaboradores();
@@ -91,7 +91,7 @@ export function useColaboradores() {
   // Acciones
   const solicitar = async (input: SolicitudColaboradorInput) => {
     try {
-      const nuevo = await api.solicitarColaborador(input, userEmail, userNombre);
+      const nuevo = await api.solicitarColaborador(input);
       setColaboradores((prev) => [nuevo, ...prev]);
       return { success: true, data: nuevo };
     } catch (err: unknown) {
