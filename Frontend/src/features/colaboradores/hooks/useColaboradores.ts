@@ -33,9 +33,9 @@ export function useColaboradores() {
       setError(null);
 
       if (isAdmin) {
-        // Admin carga dos endpoints en paralelo
+        // Admin carga dos endpoints en paralelo: solo pendientes para solicitudes, y todos para el registro
         const [solicitudes, todos] = await Promise.all([
-          api.getColaboradores({ isAdmin: true }),
+          api.getSolicitudesPendientesAdmin(),
           api.getTodosAdmin(),
         ]);
         setSolicitudesPendientes(solicitudes);

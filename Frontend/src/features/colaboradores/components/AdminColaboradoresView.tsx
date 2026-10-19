@@ -141,7 +141,7 @@ export function AdminColaboradoresView({
                   {/* Fila superior: badge pendiente, docente solicitante y fecha */}
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <div className="flex items-center gap-3">
-                      <ColaboradorEstadoBadge estado="PENDIENTE" />
+                      <ColaboradorEstadoBadge estado={sol.estado} />
                       <span className="text-slate-600 font-medium">
                         Solicitado por {sol.docenteNombre}
                       </span>

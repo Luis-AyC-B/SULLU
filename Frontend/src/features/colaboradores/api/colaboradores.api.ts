@@ -343,8 +343,17 @@ export async function buscarEstudiantesPorCodSis(
 }
 
 /**
- * Obtener nómina de colaboradores.
- * Cada docente ve solo su propia nómina. El administrador ve todo.
+ * Obtener solicitudes pendientes para el administrador.
+ * Solo retorna aquellas con estado PENDIENTE.
+ */
+export async function getSolicitudesPendientesAdmin(): Promise<Colaborador[]> {
+  await delay(200);
+  const list = getStoredColaboradores();
+  return list.filter((c) => c.estado === "PENDIENTE");
+}
+
+/**
+ * Obtener nómina de colaboradores para docente o todos para admin.
  */
 export async function getColaboradores(params?: {
   docenteEmail?: string;
@@ -353,15 +362,20 @@ export async function getColaboradores(params?: {
   await delay(200);
   const list = getStoredColaboradores();
   if (params?.isAdmin) {
-    return list;
+    return list.filter((c) => c.estado === "PENDIENTE");
   }
   // Cada docente ve solo su propia nómina
   const email = (params?.docenteEmail || DEFAULT_DOCENTE_EMAIL).toLowerCase();
   return list.filter((c) => c.docenteEmail?.toLowerCase() === email);
 }
 
+/**
+ * Obtener registro global de colaboradores para el administrador (Pestaña "Todos").
+ * Retorna todos los estados (Aprobado, Pendiente, Rechazado, Inactivo).
+ */
 export async function getTodosAdmin(): Promise<Colaborador[]> {
-  return getColaboradores({ isAdmin: true });
+  await delay(200);
+  return getStoredColaboradores();
 }
 
 /**
