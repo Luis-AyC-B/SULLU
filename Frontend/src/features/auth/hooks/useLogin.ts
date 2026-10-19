@@ -19,34 +19,33 @@ import { modules } from '@/shared/config/modules';
  */
 export function getLandingRoute(permisos?: string[]): string {
   
-  if (!permisos || permisos.length === 0) {
+ if (!permisos || permisos.length === 0) {
     return '/usuarios';
   }
-  // Portal del estudiante (HU6)
-  if (permisos.some((p) => p === 'portal_estudiante' || p.startsWith('portal_estudiante.'))) {
-    return '/portal';
+
+  // Mismo criterio que el middleware: el permiso exacto o cualquiera con ese prefijo (clave.*)
+  const tiene = (clave: string) => permisos.some((p) => p === clave || p.startsWith(`${clave}.`));
+
+  // Prioridad de navegación según los módulos autorizados
+  const prioridad: [string, string][] = [
+    ['usuarios', '/usuarios'],
+    ['roles', '/roles'],
+    ['examenes', '/examenes'],
+    ['estudiantes', '/estudiantes'],
+    ['reportes', '/reportes'],
+  ];
+  for (const [clave, ruta] of prioridad) {
+    if (tiene(clave)) return ruta;
   }
 
-  // Comprueba la prioridad de navegación según los módulos autorizados
-  if (permisos.some((p) => p.startsWith('usuarios') || p === 'usuarios')) {
-    return '/usuarios';
-  }
-  if (permisos.some((p) => p.startsWith('roles') || p === 'roles')) {
-    return '/roles';
-  }
-  if (permisos.some((p) => p.startsWith('examenes') || p === 'examenes')) {
-    return '/examenes';
-  }
-  if (permisos.some((p) => p.startsWith('estudiantes') || p === 'estudiantes')) {
-    return '/estudiantes';
-  }
-  if (permisos.some((p) => p.startsWith('reportes') || p === 'reportes')) {
-    return '/reportes';
-  }
+  // Resto de módulos configurados en el sistema, en su orden, dejando el portal para el final
+  const otroModulo = modules.find((m) => m.clave !== 'portal_estudiante' && tiene(m.clave));
+  if (otroModulo) return otroModulo.ruta;
 
-  // Fallback: busca el primer módulo configurado en el sistema que tenga coincidencia
-  const firstMatch = modules.find((m) => permisos.includes(m.clave));
-  return firstMatch ? firstMatch.ruta : '/usuarios';
+  // Portal del estudiante (HU6): solo si no tiene ningún otro módulo
+  if (tiene('portal_estudiante')) return '/portal';
+
+  return '/usuarios';
 }
 
 export function useLogin() {

@@ -3,16 +3,17 @@ import { NextResponse } from 'next/server';
 
 // Orden de prioridad para redirigir tras el login: [prefijo de permiso, ruta]
 const redirectsPorModulo: [string, string][] = [
-  ['portal_estudiante', '/portal'],
   ['usuarios', '/usuarios'],
   ['roles', '/roles'],
   ['examenes', '/examenes'],
   ['estudiantes', '/estudiantes'],
+  ['reportes', '/reportes'],
   ['ambientes', '/ambientes'],
   ['control_ingreso', '/control-ingreso'],
   ['registro_ingresos', '/ingresos'],
   ['incidencias', '/incidencias'],
   ['colaboradores', '/colaboradores'],
+  ['portal_estudiante', '/portal'],
 ];
 
 export default withAuth(
