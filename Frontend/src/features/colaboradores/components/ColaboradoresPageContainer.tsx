@@ -130,7 +130,7 @@ export function ColaboradoresPageContainer() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nombre o correo"
+                placeholder="Buscar por nombre o código SIS"
                 className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-slate-800 placeholder-gray-400 focus:outline-none focus:border-[#003770] focus:ring-1 focus:ring-[#003770] transition-colors shadow-2xs"
               />
               {searchTerm && (

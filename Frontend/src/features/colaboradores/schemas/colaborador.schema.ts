@@ -9,31 +9,32 @@ export const EstadoColaboradorEnum = z.enum([
 export type EstadoColaborador = z.infer<typeof EstadoColaboradorEnum>;
 
 export const SolicitudColaboradorSchema = z.object({
-  email: z
+  codSis: z
     .string()
     .trim()
-    .min(1, "El correo electrónico es requerido")
-    .email("Ingresa un formato de correo electrónico válido")
-    .refine((val) => {
-      const lower = val.toLowerCase().trim();
-      return (
-        lower.endsWith("@umss.edu.bo") ||
-        lower.endsWith("@umss.edu") ||
-        lower.endsWith(".umss.edu.bo") ||
-        lower.endsWith(".umss.edu")
-      );
-    }, "Debe ser un correo institucional (@umss.edu.bo)"),
-  nombres: z
+    .min(1, "Debes seleccionar un código SIS de la lista de estudiantes registrados"),
+  nombre: z
     .string()
     .trim()
-    .min(2, "Los nombres deben tener al menos 2 caracteres"),
-  apellidos: z
+    .min(1, "El nombre del estudiante es requerido"),
+  apellido: z
     .string()
     .trim()
-    .min(2, "Los apellidos deben tener al menos 2 caracteres"),
+    .min(1, "El apellido del estudiante es requerido"),
+  email: z.string().trim().optional(),
+  estudianteId: z.union([z.string(), z.number()]).optional(),
 });
 
 export type SolicitudColaboradorInput = z.infer<typeof SolicitudColaboradorSchema>;
+
+export interface EstudianteRegistrado {
+  id: number | string;
+  codSis: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  carrera?: string;
+}
 
 export interface ExamenItem {
   id: string | number;
@@ -51,8 +52,11 @@ export interface ExamenItem {
 export interface Colaborador {
   id: string | number;
   colaboradorId?: number | null;
-  nombres: string;
-  apellidos: string;
+  codSis: string; // Código SIS del estudiante
+  nombre: string; // Nombre
+  apellido: string; // Apellido
+  nombres?: string;
+  apellidos?: string;
   nombreCompleto: string; // "Ana Lucía Rojas"
   email: string;
   estado: EstadoColaborador;
@@ -64,6 +68,6 @@ export interface Colaborador {
   docenteNombre?: string; // Ej: "Luis Medina" o "Elena Paredes"
   aprobadoPor?: string; // "Admin" o "—"
   fechaRespuesta?: string; // "07 oct 2026" o "—"
-  usuarioExiste: boolean; // true = "Usuario existente: se vinculará al docente", false = "Usuario nuevo: se creará la cuenta"
-  rol: string; // "Personal de control"
+  usuarioExiste?: boolean;
+  rol?: string; // "Personal de control"
 }
