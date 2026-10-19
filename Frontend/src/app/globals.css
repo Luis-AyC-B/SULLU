@@ -5,9 +5,6 @@
 
 /* =============================================================================
    SULLU SRL — paleta de marca + tipografía Geist
-   Tamaños de Headline/Body/Label no venían especificados en la muestra (solo
-   "Aa"), así que se usó una escala tipográfica razonable de 3 niveles. Ajustar
-   los valores de font-size más abajo si el diseño define números exactos.
    ============================================================================= */
 
 @theme inline {
@@ -41,6 +38,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Fondos de referencia de la fotografía (fijos, no cambian en modo oscuro) */
+  --color-photo-blue: var(--photo-blue);
+  --color-photo-red: var(--photo-red);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -100,6 +101,10 @@
   --border: #DCDCD9;
   --input: #DCDCD9;
   --ring: #003770;
+
+  /* --- fondos de referencia de la fotografía --- */
+  --photo-blue: #003770;
+  --photo-red: #D3101E;
 
   /* --- gráficos (Recharts, Sprint 3) --- */
   --chart-1: #003770;
@@ -175,27 +180,36 @@
     @apply bg-background text-foreground font-sans;
   }
 }
-@layer utilities {
-  .text-headline {
-    font-family: var(--font-sans);
-    font-weight: 700;
-    font-size: 2.25rem;   /* 36px */
-    line-height: 2.5rem;
-    letter-spacing: -0.02em;
-  }
 
-  .text-body {
-    font-family: var(--font-sans);
-    font-weight: 400;
-    font-size: 1rem;      /* 16px */
-    line-height: 1.5rem;
-  }
+/* Tipografía de marca: con @utility funcionan con variantes (hover:, md:) y
+   se pueden combinar con font-semibold, font-normal, etc. */
+@utility text-headline {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 2.25rem; /* 36px */
+  line-height: 2.5rem;
+  letter-spacing: -0.02em;
+}
 
-  .text-label {
-    font-family: var(--font-sans);
-    font-weight: 500;
-    font-size: 0.8125rem; /* 13px */
-    line-height: 1.125rem;
-    letter-spacing: 0.01em;
-  }
+@utility text-title {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 1.5rem; /* 24px */
+  line-height: 2rem;
+  letter-spacing: -0.025em;
+}
+
+@utility text-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 1rem; /* 16px */
+  line-height: 1.5rem;
+}
+
+@utility text-label {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.125rem;
+  letter-spacing: 0.01em;
 }

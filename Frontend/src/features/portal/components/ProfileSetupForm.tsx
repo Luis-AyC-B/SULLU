@@ -3,28 +3,17 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  AlertCircle,
-  Camera,
-  Contact,
-  KeyRound,
-  Loader2,
-  Lock,
-  Phone,
-  Save,
-  ShieldCheck,
-  UserRound,
-  type LucideIcon,
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Alert } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import {
   cambiarPassword,
   guardarDatosPerfil,
   PerfilError,
   subirFotoPerfil,
 } from '../api/student-profile.service';
-import { AVISO_ERROR, BTN_PRIMARIO } from '../lib/estilos-perfil';
 import { mensajePerfilError } from '../lib/perfil-errors';
 import {
   configurarPerfilSchema,
@@ -46,29 +35,25 @@ interface ProfileSetupFormProps {
 interface SeccionProps {
   id: string;
   paso: number;
-  icon: LucideIcon;
   titulo: string;
   descripcion: string;
   children: ReactNode;
 }
 
-function Seccion({ id, paso, icon: Icon, titulo, descripcion, children }: SeccionProps) {
+function Seccion({ id, paso, titulo, descripcion, children }: SeccionProps) {
   return (
-    <section aria-labelledby={id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      <header className="flex items-center gap-3 border-b border-border bg-primary/5 px-6 py-4">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Paso {paso} de 3</p>
-          <h2 id={id} className="text-base font-bold text-foreground">
-            {titulo}
-          </h2>
-          <p className="text-sm text-muted-foreground">{descripcion}</p>
-        </div>
-      </header>
-      <div className="p-6">{children}</div>
-    </section>
+    <Card aria-labelledby={id}>
+      <CardHeader>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Paso {paso} de 3
+        </p>
+        <h2 id={id} className="text-title text-primary">
+          {titulo}
+        </h2>
+        <p className="text-sm text-muted-foreground">{descripcion}</p>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }
 
@@ -159,11 +144,10 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
   });
 
   return (
-    <form onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate className="mx-auto flex max-w-3xl flex-col gap-5">
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate className="mx-auto flex max-w-3xl flex-col gap-4">
       <Seccion
         id="perfil-foto"
         paso={1}
-        icon={Camera}
         titulo="Fotografía actualizada"
         descripcion="Se usa para verificar tu identidad cuando presentas tu código QR."
       >
@@ -182,7 +166,6 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
       <Seccion
         id="perfil-datos"
         paso={2}
-        icon={UserRound}
         titulo="Datos personales"
         descripcion="Tu carnet de identidad y un celular de contacto."
       >
@@ -190,7 +173,6 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
           <ProfileTextField
             id="perfil-ci"
             label="Carnet de identidad"
-            icon={Contact}
             registration={register('ci')}
             maxLength={10}
             placeholder="Ej. 8123456"
@@ -200,7 +182,6 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
           <ProfileTextField
             id="perfil-telefono"
             label="Teléfono celular"
-            icon={Phone}
             type="tel"
             registration={register('telefono')}
             autoComplete="tel-national"
@@ -215,7 +196,6 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
       <Seccion
         id="perfil-password"
         paso={3}
-        icon={Lock}
         titulo="Nueva contraseña"
         descripcion="Reemplaza la contraseña inicial por una que solo tú conozcas."
       >
@@ -223,7 +203,6 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
           <PasswordField
             id="perfil-password-actual"
             label="Contraseña actual"
-            icon={Lock}
             autoComplete="current-password"
             registration={register('passwordActual')}
             error={errors.passwordActual?.message}
@@ -233,18 +212,17 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
             <PasswordField
               id="perfil-password-nueva"
               label="Nueva contraseña"
-              icon={KeyRound}
               autoComplete="new-password"
               registration={nueva}
               error={errors.passwordNueva?.message}
-              hint={`De ${PASSWORD_MIN} a ${PASSWORD_MAX} caracteres, con al menos una letra y un número · ${largoNueva}/${PASSWORD_MAX}`}
+              counter={`${largoNueva}/${PASSWORD_MAX}`}
+              hint={`De ${PASSWORD_MIN} a ${PASSWORD_MAX} caracteres, con al menos una letra y un número`}
               maxLength={PASSWORD_MAX}
               disabled={isSubmitting}
             />
             <PasswordField
               id="perfil-password-confirmar"
               label="Confirmar nueva contraseña"
-              icon={ShieldCheck}
               autoComplete="new-password"
               registration={register('confirmar')}
               error={errors.confirmar?.message}
@@ -256,19 +234,10 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
       </Seccion>
 
       <div className="flex flex-col gap-3 pb-4">
-        {submitError && (
-          <p role="alert" className={AVISO_ERROR}>
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>{submitError}</span>
-          </p>
-        )}
+        {submitError && <Alert>{submitError}</Alert>}
 
-        <Button type="submit" disabled={isSubmitting} className={`h-12 w-full text-base ${BTN_PRIMARIO}`}>
-          {isSubmitting ? (
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-          ) : (
-            <Save className="h-5 w-5" aria-hidden="true" />
-          )}
+        <Button type="submit" disabled={isSubmitting} className="h-11 w-full">
+          {isSubmitting && <Loader2 className="animate-spin" aria-hidden="true" />}
           {isSubmitting ? 'Guardando…' : 'Guardar y continuar'}
         </Button>
         <p className="text-center text-xs text-muted-foreground">

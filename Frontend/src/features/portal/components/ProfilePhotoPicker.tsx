@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from 'react';
-import { AlertCircle, Camera, CheckCircle2, ImagePlus, Info, Loader2, Trash2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { Alert } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
-import { AVISO_ERROR, BTN_PELIGRO, BTN_PRIMARIO, BTN_SECUNDARIO } from '../lib/estilos-perfil';
 import { validarDimensionesFoto } from '../lib/validar-foto-dimensiones';
 import {
-  FOTO_MAX_KB,
+  FOTO_MAX_MB,
   FOTO_MIN_PX,
   FOTO_TIPOS_PERMITIDOS,
   validarFoto,
@@ -24,17 +24,10 @@ interface ProfilePhotoPickerProps {
 }
 
 const ACCEPT = FOTO_TIPOS_PERMITIDOS.join(',');
-const AZUL = '#003770';
-const ROJO = '#D3101E';
 
-function Muestra({ color }: { color: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="mx-0.5 inline-block h-3 w-3 rounded-full border border-border align-middle"
-      style={{ backgroundColor: color }}
-    />
-  );
+/** Punto de color que indica el fondo permitido. */
+function Muestra({ className }: { className: string }) {
+  return <span aria-hidden="true" className={`mx-1 inline-block size-2.5 rounded-full align-middle ${className}`} />;
 }
 
 const REQUISITOS: { id: string; contenido: ReactNode }[] = [
@@ -42,8 +35,8 @@ const REQUISITOS: { id: string; contenido: ReactNode }[] = [
     id: 'formato',
     contenido: (
       <>
-        Formato <strong className="text-foreground">JPG o PNG</strong>, de máximo{' '}
-        <strong className="text-foreground">{FOTO_MAX_KB} KB</strong>.
+        Formato <strong className="font-semibold text-foreground">JPG o PNG</strong>, de máximo{' '}
+        <strong className="font-semibold text-foreground">{FOTO_MAX_MB} MB</strong>.
       </>
     ),
   },
@@ -52,7 +45,7 @@ const REQUISITOS: { id: string; contenido: ReactNode }[] = [
     contenido: (
       <>
         Cuadrada, de{' '}
-        <strong className="text-foreground">
+        <strong className="font-semibold text-foreground">
           {FOTO_MIN_PX} × {FOTO_MIN_PX} px
         </strong>{' '}
         como mínimo.
@@ -63,9 +56,9 @@ const REQUISITOS: { id: string; contenido: ReactNode }[] = [
     id: 'fondo',
     contenido: (
       <>
-        Fondo liso <strong className="text-foreground">azul</strong>
-        <Muestra color={AZUL} /> o <strong className="text-foreground">rojo</strong>
-        <Muestra color={ROJO} />.
+        Fondo liso <strong className="font-semibold text-foreground">azul</strong>
+        <Muestra className="bg-photo-blue" /> o <strong className="font-semibold text-foreground">rojo</strong>
+        <Muestra className="bg-photo-red" />.
       </>
     ),
   },
@@ -73,8 +66,8 @@ const REQUISITOS: { id: string; contenido: ReactNode }[] = [
     id: 'rostro',
     contenido: (
       <>
-        Rostro <strong className="text-foreground">de frente y centrado</strong>, con los ojos visibles (sin lentes
-        oscuros, gorra ni nada que cubra la cara).
+        Rostro <strong className="font-semibold text-foreground">de frente y centrado</strong>, con los ojos visibles
+        (sin lentes oscuros, gorra ni nada que cubra la cara).
       </>
     ),
   },
@@ -82,7 +75,8 @@ const REQUISITOS: { id: string; contenido: ReactNode }[] = [
     id: 'tamano',
     contenido: (
       <>
-        El rostro ocupa entre el <strong className="text-foreground">50 % y el 69 %</strong> de la altura de la foto.
+        El rostro ocupa entre el <strong className="font-semibold text-foreground">50 % y el 69 %</strong> de la altura
+        de la foto.
       </>
     ),
   },
@@ -90,28 +84,72 @@ const REQUISITOS: { id: string; contenido: ReactNode }[] = [
     id: 'reciente',
     contenido: (
       <>
-        Fotografía <strong className="text-foreground">reciente</strong> y a color, sin filtros.
+        Fotografía <strong className="font-semibold text-foreground">reciente</strong> y a color, sin filtros.
       </>
     ),
   },
 ];
 
-/** Esquema de referencia: fondo liso, rostro centrado y de frente. */
-function GuiaFoto({ fondo, etiqueta }: { fondo: string; etiqueta: string }) {
+/** Esquema de referencia con medidas: foto cuadrada y rostro centrado entre el 50 % y el 69 % de la altura. */
+function GuiaFoto() {
   return (
-    <figure className="flex flex-col items-center gap-1">
+    <figure className="mb-4">
       <svg
-        viewBox="0 0 160 160"
+        viewBox="0 0 290 206"
         role="img"
-        aria-label={`Esquema de fotografía válida con ${etiqueta.toLowerCase()}`}
-        className="h-28 w-28 overflow-hidden rounded-lg shadow-sm"
+        aria-label={`Esquema de fotografía válida: ${FOTO_MIN_PX} px por lado y rostro entre el 50 % y el 69 % de la altura`}
+        className="mx-auto h-auto w-full max-w-72"
       >
-        <rect width="160" height="160" fill={fondo} />
-        <path d="M24 160 C24 122 52 110 80 110 C108 110 136 122 136 160 Z" fill="#cbd5e1" />
-        <ellipse cx="80" cy="74" rx="27" ry="36" fill="#e2e8f0" />
-        <line x1="80" y1="0" x2="80" y2="160" stroke="#ffffff" strokeWidth="1" strokeDasharray="4 4" opacity="0.7" />
+        {/* Foto */}
+        <rect x="40" y="34" width="160" height="160" className="fill-muted stroke-border" />
+
+        {/* Silueta */}
+        <g className="fill-muted-foreground/40">
+          <rect x="108" y="146" width="24" height="24" />
+          <path d="M52 194 C52 170 84 162 120 162 C156 162 188 170 188 194 Z" />
+          <ellipse cx="120" cy="107" rx="30" ry="45" />
+        </g>
+
+        {/* Líneas de medida */}
+        <g className="stroke-muted-foreground" strokeWidth="1" fill="none">
+          {/* Eje central */}
+          <line x1="120" y1="34" x2="120" y2="194" strokeDasharray="4 3" />
+
+          {/* Ancho */}
+          <line x1="40" y1="16" x2="200" y2="16" />
+          <line x1="40" y1="10" x2="40" y2="22" />
+          <line x1="200" y1="10" x2="200" y2="22" />
+
+          {/* Alto */}
+          <line x1="20" y1="34" x2="20" y2="194" />
+          <line x1="14" y1="34" x2="26" y2="34" />
+          <line x1="14" y1="194" x2="26" y2="194" />
+
+          {/* Altura del rostro */}
+          <line x1="150" y1="62" x2="220" y2="62" strokeDasharray="2 2" />
+          <line x1="150" y1="152" x2="220" y2="152" strokeDasharray="2 2" />
+          <line x1="214" y1="62" x2="214" y2="152" />
+        </g>
+
+        {/* Textos */}
+        <g
+          className="fill-muted-foreground stroke-card text-xs"
+          strokeWidth="5"
+          strokeLinejoin="round"
+          paintOrder="stroke"
+          textAnchor="middle"
+        >
+          <text x="120" y="20">
+            {FOTO_MIN_PX} px
+          </text>
+          <text x="20" y="118" transform="rotate(-90 20 114)">
+            {FOTO_MIN_PX} px
+          </text>
+        </g>
+        <text x="222" y="111" className="fill-muted-foreground text-xs">
+          50 – 69 %
+        </text>
       </svg>
-      <figcaption className="text-xs font-medium text-muted-foreground">{etiqueta}</figcaption>
     </figure>
   );
 }
@@ -183,10 +221,8 @@ export function ProfilePhotoPicker({
           }}
           onDragLeave={() => setArrastrando(false)}
           onDrop={handleDrop}
-          className={`flex min-h-72 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-5 text-center transition-colors ${
-            arrastrando
-              ? 'border-primary bg-primary/10'
-              : 'border-primary/30 bg-primary/5 hover:border-primary/60'
+          className={`flex min-h-64 flex-col items-center justify-center gap-4 rounded-lg border border-dashed p-5 text-center transition-colors ${
+            arrastrando ? 'border-primary bg-muted' : 'border-border bg-muted/30'
           }`}
         >
           {imagen ? (
@@ -194,13 +230,10 @@ export function ProfilePhotoPicker({
             <img
               src={imagen}
               alt="Fotografía del estudiante"
-              className="h-44 w-44 rounded-xl object-cover shadow-md ring-4 ring-white"
+              className="size-40 rounded-lg border border-border object-cover"
             />
           ) : (
-            <div className="flex flex-col items-center gap-2">
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <ImagePlus className="h-7 w-7" aria-hidden="true" />
-              </span>
+            <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold text-foreground">Arrastra y suelta aquí tu fotografía</p>
               <p className="text-xs text-muted-foreground">o elige un archivo de tu dispositivo</p>
             </div>
@@ -220,68 +253,48 @@ export function ProfilePhotoPicker({
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button
               type="button"
-              variant={imagen ? 'outline' : 'default'}
               onClick={() => inputRef.current?.click()}
               disabled={disabled || validando}
-              className={`h-11 ${imagen ? BTN_SECUNDARIO : BTN_PRIMARIO}`}
+              className="h-10 px-4"
             >
-              {validando ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Camera className="h-4 w-4" aria-hidden="true" />
-              )}
+              {validando && <Loader2 className="animate-spin" aria-hidden="true" />}
               {imagen ? 'Cambiar fotografía' : 'Elegir fotografía'}
             </Button>
             {file && (
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 onClick={() => {
                   setLocalError(null);
                   onFileChange(null);
                 }}
                 disabled={disabled}
-                className={`h-11 ${BTN_PELIGRO}`}
+                className="h-10 px-4"
               >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Quitar
               </Button>
             )}
           </div>
 
           {file && (
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+            <p className="text-xs text-muted-foreground">
               {file.name} · {Math.max(1, Math.round(file.size / 1024))} KB
             </p>
           )}
         </div>
 
-        {mensajeError && (
-          <p role="alert" className={AVISO_ERROR}>
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>{mensajeError}</span>
-          </p>
-        )}
+        {mensajeError && <Alert>{mensajeError}</Alert>}
       </div>
 
-      <aside
-        aria-labelledby="foto-requisitos"
-        className="rounded-2xl border border-primary/20 bg-primary/5 p-5"
-      >
-        <h3 id="foto-requisitos" className="mb-4 flex items-center gap-2 text-sm font-bold text-primary">
-          <Info className="h-4 w-4" aria-hidden="true" />
+      <aside aria-labelledby="foto-requisitos" className="rounded-lg border border-border p-5">
+        <h3 id="foto-requisitos" className="text-body mb-3 font-semibold text-primary">
           Requisitos de la fotografía
         </h3>
-        <div className="flex justify-center gap-4">
-          <GuiaFoto fondo={AZUL} etiqueta="Fondo azul" />
-          <GuiaFoto fondo={ROJO} etiqueta="Fondo rojo" />
-        </div>
-        <ul className="mt-4 space-y-2.5">
+        <GuiaFoto />
+        <ul className="list-disc space-y-2 pl-4 marker:text-muted-foreground">
           {REQUISITOS.map((r) => (
-            <li key={r.id} className="flex gap-2 text-sm leading-snug text-muted-foreground">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-              <span>{r.contenido}</span>
+            <li key={r.id} className="text-sm text-muted-foreground">
+              {r.contenido}
             </li>
           ))}
         </ul>

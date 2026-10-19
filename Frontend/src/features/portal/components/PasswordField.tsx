@@ -2,30 +2,32 @@
 
 import { useState } from 'react';
 import type { UseFormRegisterReturn } from 'react-hook-form';
-import { Eye, EyeOff, type LucideIcon } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/shared/components/ui/input';
+import { Label } from '@/shared/components/ui/label';
 
 interface PasswordFieldProps {
   id: string;
   label: string;
   autoComplete: string;
   registration: UseFormRegisterReturn;
-  icon?: LucideIcon;
   error?: string;
   hint?: string;
+  /** Contador a la derecha de la etiqueta, por ejemplo "6/12". */
+  counter?: string;
   maxLength?: number;
   disabled?: boolean;
 }
 
-/** Campo de contraseña con ícono a la izquierda y botón para mostrar u ocultar lo escrito. */
+/** Campo de contraseña con botón para mostrar u ocultar lo escrito. */
 export function PasswordField({
   id,
   label,
   autoComplete,
   registration,
-  icon: Icon,
   error,
   hint,
+  counter,
   maxLength,
   disabled,
 }: PasswordFieldProps) {
@@ -34,16 +36,11 @@ export function PasswordField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-semibold text-foreground">
-        {label}
-      </label>
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor={id}>{label}</Label>
+        {counter && <span className="font-mono text-[11px] tracking-tight text-muted-foreground">{counter}</span>}
+      </div>
       <div className="relative">
-        {Icon && (
-          <Icon
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/70"
-            aria-hidden="true"
-          />
-        )}
         <Input
           id={id}
           type={visible ? 'text' : 'password'}
@@ -52,7 +49,7 @@ export function PasswordField({
           disabled={disabled}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
-          className={`h-11 bg-white pr-10 ${Icon ? 'pl-10' : ''}`}
+          className="pr-11 focus-visible:border-input focus-visible:ring-0 aria-invalid:border-input aria-invalid:ring-0 dark:aria-invalid:border-input dark:aria-invalid:ring-0"
           {...registration}
         />
         <button
@@ -60,14 +57,14 @@ export function PasswordField({
           onClick={() => setVisible((v) => !v)}
           disabled={disabled}
           aria-label={visible ? `Ocultar ${label.toLowerCase()}` : `Mostrar ${label.toLowerCase()}`}
-          className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-primary"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none"
         >
           {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
       </div>
       {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && (
-        <p id={errorId} role="alert" className="text-sm text-destructive">
+        <p id={errorId} role="alert" className="text-xs font-medium text-destructive">
           {error}
         </p>
       )}

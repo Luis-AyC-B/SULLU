@@ -3,8 +3,9 @@ import { z } from 'zod';
 /* ---------- Reglas de la fotografía ---------- */
 
 export const FOTO_TIPOS_PERMITIDOS = ['image/jpeg', 'image/png'] as const;
-/** 512 KB, según el formulario de referencia. Confirmar el límite real con Back. */
-export const FOTO_MAX_BYTES = 512 * 1024;
+/** Peso máximo de la fotografía: 2 MB. Confirmar el límite real con Back. */
+export const FOTO_MAX_MB = 2;
+export const FOTO_MAX_BYTES = FOTO_MAX_MB * 1024 * 1024;
 export const FOTO_MAX_KB = FOTO_MAX_BYTES / 1024;
 /** Medida mínima en píxeles de cada lado. La foto además debe ser cuadrada. Confirmar con Back. */
 export const FOTO_MIN_PX = 600;
@@ -15,7 +16,7 @@ export function validarFoto(file: Pick<File, 'type' | 'size'>): string | null {
     return 'La fotografía debe ser JPG o PNG.';
   }
   if (file.size > FOTO_MAX_BYTES) {
-    return `La fotografía no debe superar los ${FOTO_MAX_KB} KB.`;
+    return `La fotografía no debe superar los ${FOTO_MAX_MB} MB.`;
   }
   return null;
 }

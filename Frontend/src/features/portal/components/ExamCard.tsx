@@ -1,4 +1,3 @@
-import { Ban, Check } from 'lucide-react';
 import type { ExamenEstudiante } from '../types/student-exam.types';
 
 function formatFecha(iso: string) {
@@ -10,7 +9,7 @@ export function ExamCard({ examen }: { examen: ExamenEstudiante }) {
   const habilitado = examen.estado === 'Habilitado';
 
   return (
-    <article className="flex flex-col rounded-xl border border-border bg-card p-5">
+    <article className="flex flex-col rounded-xl border border-border bg-card p-5 text-card-foreground">
       <p className="text-sm text-muted-foreground">{examen.carrera}</p>
       <h2 className="mt-1 text-base font-semibold text-foreground">{examen.nombre}</h2>
 
@@ -33,14 +32,13 @@ export function ExamCard({ examen }: { examen: ExamenEstudiante }) {
         </div>
       </dl>
 
-      <div
-        className={`mt-5 flex items-center gap-2 border-t border-border pt-4 text-sm font-medium ${
+      <p
+        className={`mt-5 border-t border-border pt-4 text-sm font-medium ${
           habilitado ? 'text-success' : 'text-destructive'
         }`}
       >
-        {habilitado ? <Check className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
         {examen.estado}
-      </div>
+      </p>
     </article>
   );
 }
