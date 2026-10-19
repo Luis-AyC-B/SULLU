@@ -3,16 +3,19 @@ import { z } from 'zod';
 /* ---------- Reglas de la fotografía ---------- */
 
 export const FOTO_TIPOS_PERMITIDOS = ['image/jpeg', 'image/png'] as const;
-/** 2 MB. Confirmar el límite real con Back. */
-export const FOTO_MAX_BYTES = 2 * 1024 * 1024;
+/** 512 KB, según el formulario de referencia. Confirmar el límite real con Back. */
+export const FOTO_MAX_BYTES = 512 * 1024;
+export const FOTO_MAX_KB = FOTO_MAX_BYTES / 1024;
+/** Medida mínima en píxeles de cada lado. La foto además debe ser cuadrada. Confirmar con Back. */
+export const FOTO_MIN_PX = 600;
 
-/** Devuelve un mensaje de error, o null si la foto es válida. */
+/** Valida formato y peso. Devuelve un mensaje de error, o null si la foto es válida. */
 export function validarFoto(file: Pick<File, 'type' | 'size'>): string | null {
   if (!(FOTO_TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
     return 'La fotografía debe ser JPG o PNG.';
   }
   if (file.size > FOTO_MAX_BYTES) {
-    return 'La fotografía no debe superar los 2 MB.';
+    return `La fotografía no debe superar los ${FOTO_MAX_KB} KB.`;
   }
   return null;
 }
@@ -31,48 +34,66 @@ export const perfilEstudianteSchema = z.object({
 });
 export type PerfilEstudiante = z.infer<typeof perfilEstudianteSchema>;
 
-/* ---------- Datos extra (formulario) ---------- */
+/* ---------- Campos reutilizables ---------- */
 
-export const datosPerfilSchema = z.object({
-  ci: z
-    .string()
-    .trim()
-    .min(1, 'El carnet de identidad es obligatorio')
-    .regex(/^\d{5,10}$/, 'El CI debe tener entre 5 y 10 números'),
-  telefono: z
-    .string()
-    .trim()
-    .min(1, 'El teléfono es obligatorio')
-    .regex(/^[67]\d{7}$/, 'Ingresa un celular de 8 dígitos que empiece con 6 o 7'),
-});
-export type DatosPerfilValues = z.infer<typeof datosPerfilSchema>;
+export const ciSchema = z
+  .string()
+  .trim()
+  .min(1, 'El carnet de identidad es obligatorio')
+  .regex(/^\d{5,10}$/, 'El CI debe tener entre 5 y 10 números');
 
-/* ---------- Cambio de contraseña (formulario) ---------- */
+export const telefonoSchema = z
+  .string()
+  .trim()
+  .min(1, 'El teléfono es obligatorio')
+  .regex(/^[67]\d{7}$/, 'Ingresa un celular de 8 dígitos que empiece con 6 o 7');
 
 export const PASSWORD_MIN = 8;
 /** Coincide con el contador 0/12 del login. Confirmar la regla real con Back. */
 export const PASSWORD_MAX = 12;
 
+export const passwordNuevaSchema = z
+  .string()
+  .min(PASSWORD_MIN, `Debe tener al menos ${PASSWORD_MIN} caracteres`)
+  .max(PASSWORD_MAX, `No debe superar los ${PASSWORD_MAX} caracteres`)
+  .regex(/[A-Za-z]/, 'Debe incluir al menos una letra')
+  .regex(/\d/, 'Debe incluir al menos un número');
+
+const coincide = (v: { passwordNueva: string; confirmar: string }) => v.passwordNueva === v.confirmar;
+const distinta = (v: { passwordNueva: string; passwordActual: string }) => v.passwordNueva !== v.passwordActual;
+const MSG_NO_COINCIDE = { message: 'Las contraseñas no coinciden', path: ['confirmar'] };
+const MSG_IGUAL = { message: 'La nueva contraseña debe ser distinta de la actual', path: ['passwordNueva'] };
+
+/* ---------- Datos extra ---------- */
+
+export const datosPerfilSchema = z.object({ ci: ciSchema, telefono: telefonoSchema });
+export type DatosPerfilValues = z.infer<typeof datosPerfilSchema>;
+
+/* ---------- Cambio de contraseña ---------- */
+
 export const cambioPasswordSchema = z
   .object({
     passwordActual: z.string().min(1, 'Ingresa tu contraseña actual'),
-    passwordNueva: z
-      .string()
-      .min(PASSWORD_MIN, `Debe tener al menos ${PASSWORD_MIN} caracteres`)
-      .max(PASSWORD_MAX, `No debe superar los ${PASSWORD_MAX} caracteres`)
-      .regex(/[A-Za-z]/, 'Debe incluir al menos una letra')
-      .regex(/\d/, 'Debe incluir al menos un número'),
+    passwordNueva: passwordNuevaSchema,
     confirmar: z.string().min(1, 'Confirma tu nueva contraseña'),
   })
-  .refine((v) => v.passwordNueva === v.confirmar, {
-    message: 'Las contraseñas no coinciden',
-    path: ['confirmar'],
-  })
-  .refine((v) => v.passwordNueva !== v.passwordActual, {
-    message: 'La nueva contraseña debe ser distinta de la actual',
-    path: ['passwordNueva'],
-  });
+  .refine(coincide, MSG_NO_COINCIDE)
+  .refine(distinta, MSG_IGUAL);
 export type CambioPasswordValues = z.infer<typeof cambioPasswordSchema>;
+
+/* ---------- Formulario único de configuración (datos + contraseña; la foto se maneja aparte) ---------- */
+
+export const configurarPerfilSchema = z
+  .object({
+    ci: ciSchema,
+    telefono: telefonoSchema,
+    passwordActual: z.string().min(1, 'Ingresa tu contraseña actual'),
+    passwordNueva: passwordNuevaSchema,
+    confirmar: z.string().min(1, 'Confirma tu nueva contraseña'),
+  })
+  .refine(coincide, MSG_NO_COINCIDE)
+  .refine(distinta, MSG_IGUAL);
+export type ConfigurarPerfilValues = z.infer<typeof configurarPerfilSchema>;
 
 /* ---------- Respuestas del back ---------- */
 

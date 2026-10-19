@@ -20,7 +20,10 @@ interface StudentAuthGuardProps {
 export function StudentAuthGuard({ children, requierePerfilCompleto = true }: StudentAuthGuardProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const allowed = !!session?.user?.permisos?.includes(PERMISO_PORTAL);
+  // Mismo criterio que el middleware: el permiso exacto o cualquiera con ese prefijo (portal_estudiante.*).
+  const allowed = !!session?.user?.permisos?.some(
+    (p) => p === PERMISO_PORTAL || p.startsWith(`${PERMISO_PORTAL}.`),
+  );
   const [perfilListo, setPerfilListo] = useState(!requierePerfilCompleto);
 
   useEffect(() => {
