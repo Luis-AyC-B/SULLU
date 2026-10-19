@@ -3,15 +3,18 @@ import { parse } from 'csv-parse/sync';
 import * as iconv from 'iconv-lite';
 
 export interface FilaEstudianteCsv {
+  fila?: number;
   nombre: string;
   apellido: string;
   cod_sis: string;
   ci: string | null;
+  correo: string | null;
 }
 
 export interface FilaRechazada {
   fila: number;
   cod_sis: string | null;
+  correo?: string | null;
   motivo: string;
 }
 
@@ -19,6 +22,20 @@ export interface ResultadoParseoCsv {
   totalFilas: number;
   validas: FilaEstudianteCsv[];
   rechazados: FilaRechazada[];
+}
+
+export const DOMINIOS_ESTUDIANTE: string[] = (
+  process.env.DOMINIOS_ESTUDIANTE ?? '@est.umss.edu'
+)
+  .split(',')
+  .map((d) => d.trim().toLowerCase())
+  .filter(Boolean);
+
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+export function esCorreoInstitucionalValido(correo: string): boolean {
+  const c = correo.toLowerCase();
+  return EMAIL_REGEX.test(c) && DOMINIOS_ESTUDIANTE.some((d) => c.endsWith(d));
 }
 
 const MAPA_HEADERS: Record<string, string> = {
@@ -30,6 +47,10 @@ const MAPA_HEADERS: Record<string, string> = {
   cod_sis: 'cod_sis',
   ci: 'ci',
   cedula: 'ci',
+  correo: 'correo',
+  email: 'correo',
+  'correo institucional': 'correo',
+  'correo electronico': 'correo',
 };
 
 function normalizarHeader(header: string): string {
@@ -78,40 +99,74 @@ export function parsearCsvEstudiantes(buffer: Buffer): ResultadoParseoCsv {
   const rechazados: FilaRechazada[] = [];
   const validas: FilaEstudianteCsv[] = [];
   const codigosVistos = new Set<string>();
+  const correosVistos = new Set<string>();
 
-  filas.forEach((fila, index) => {
-    const numeroFila = index + 2; // +1 por índice base 0, +1 por encabezado
+  for (let index = 0; index < filas.length; index++) {
+    const fila = filas[index];
+    const numeroFila = index + 2;
     const nombre = fila['nombre']?.trim();
     const apellido = fila['apellido']?.trim();
     const cod_sis = fila['cod_sis']?.trim();
     const ci = fila['ci']?.trim() || null;
+    const correo = fila['correo']?.trim().toLowerCase();
 
     const faltantes: string[] = [];
     if (!nombre) faltantes.push('nombre');
     if (!apellido) faltantes.push('apellidos');
     if (!cod_sis) faltantes.push('código');
+    if (!correo) faltantes.push('correo institucional');
 
     if (faltantes.length > 0) {
       rechazados.push({
         fila: numeroFila,
         cod_sis: cod_sis || null,
+        correo: correo || null,
         motivo: `Falta(n) el/los campo(s) obligatorio(s): ${faltantes.join(', ')}`,
       });
-      return;
+      continue;
+    }
+
+    if (!esCorreoInstitucionalValido(correo)) {
+      rechazados.push({
+        fila: numeroFila,
+        cod_sis: cod_sis || null,
+        correo,
+        motivo: `El correo debe pertenecer a un dominio institucional válido (${DOMINIOS_ESTUDIANTE.join(', ')})`,
+      });
+      continue;
     }
 
     if (codigosVistos.has(cod_sis)) {
       rechazados.push({
         fila: numeroFila,
         cod_sis,
-        motivo: 'Código duplicado en el archivo',
+        correo,
+        motivo: 'Código SIS duplicado en el archivo',
       });
-      return;
+      continue;
+    }
+
+    if (correosVistos.has(correo)) {
+      rechazados.push({
+        fila: numeroFila,
+        cod_sis,
+        correo,
+        motivo: 'Correo institucional duplicado en el archivo',
+      });
+      continue;
     }
 
     codigosVistos.add(cod_sis);
-    validas.push({ nombre, apellido, cod_sis, ci });
-  });
+    correosVistos.add(correo);
+    validas.push({
+      fila: numeroFila,
+      nombre,
+      apellido,
+      cod_sis,
+      ci,
+      correo,
+    });
+  }
 
   return { totalFilas: filas.length, validas, rechazados };
 }

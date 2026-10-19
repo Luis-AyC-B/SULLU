@@ -5,16 +5,23 @@ import {
   NotFoundException,
   PayloadTooLargeException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service'; // AJUSTAR si tu ruta es otra
+import { PrismaService } from '../prisma/prisma.service';
 import { QueryEstudiantesExamenDto } from './dto/query-estudiantes-examen.dto';
 import { CreateEstudianteExamenDto } from './dto/create-estudiante-examen.dto';
 import { UpdateEstadoEstudianteDto } from './dto/update-estado-estudiante.dto';
-import { parsearCsvEstudiantes } from '../cargas-estudiantes/cargas-estudiantes.parser';
-import { Prisma } from '@prisma/client';
+import {
+  parsearCsvEstudiantes,
+  esCorreoInstitucionalValido,
+  DOMINIOS_ESTUDIANTE,
+} from '../cargas-estudiantes/cargas-estudiantes.parser';
+import { CargasEstudiantesService } from '../cargas-estudiantes/cargas-estudiantes.service';
 
 @Injectable()
 export class ExamenEstudiantesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cargasEstudiantesService: CargasEstudiantesService,
+  ) {}
 
   // ==========================================
   // Task 7 - GET listar estudiantes por examen
@@ -26,7 +33,6 @@ export class ExamenEstudiantesService {
     if (!examen) {
       throw new NotFoundException('Examen no encontrado');
     }
-    // TODO: validación 403 "responsable del examen o Administrador"
 
     const { q, estado, page, limit } = query;
 
@@ -82,75 +88,55 @@ export class ExamenEstudiantesService {
     if (!examen) {
       throw new NotFoundException('Examen no encontrado');
     }
-    // TODO: validación 403 "responsable del examen o Administrador"
 
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Buscar o crear en el catálogo global por cod_sis
-      let estudiante = await tx.estudiante.findUnique({
-        where: { cod_sis: dto.cod_sis },
-      });
+    const correoLimpio = dto.correo ? dto.correo.trim().toLowerCase() : null;
 
-      let advertencia: string | undefined;
-      let estudiante_reutilizado = false;
+    if (correoLimpio && !esCorreoInstitucionalValido(correoLimpio)) {
+      throw new BadRequestException(
+        `El correo debe pertenecer a un dominio institucional válido (${DOMINIOS_ESTUDIANTE.join(', ')})`,
+      );
+    }
 
-      if (!estudiante) {
-        estudiante = await tx.estudiante.create({
-          data: {
-            cod_sis: dto.cod_sis,
-            nombre: dto.nombre,
-            apellido: dto.apellido,
-            ci: dto.ci,
+    const resultado =
+      await this.cargasEstudiantesService.procesarEstudiantesParaExamen(
+        examenId,
+        [
+          {
+            fila: 1,
+            nombre: dto.nombre.trim(),
+            apellido: dto.apellido.trim(),
+            cod_sis: dto.cod_sis.trim(),
+            ci: dto.ci?.trim() || null,
+            correo: correoLimpio,
           },
-        });
-      } else {
-        estudiante_reutilizado = true;
-        // Si el código existe con otro nombre: se reutiliza SIN modificar
-        const nombreDistinto =
-          estudiante.nombre !== dto.nombre ||
-          estudiante.apellido !== dto.apellido;
-        if (nombreDistinto) {
-          advertencia = `El código ${dto.cod_sis} ya existe registrado como "${estudiante.nombre} ${estudiante.apellido ?? ''}". Se usó el registro existente sin modificarlo.`;
-        }
-      }
+        ],
+        1,
+        [],
+      );
 
-      // 2. Verificar si ya está vinculado a este examen
-      const yaVinculado = await tx.examen_Estudiante.findUnique({
-        where: {
-          estudianteId_examenId: {
-            estudianteId: estudiante.id,
-            examenId,
-          },
-        },
-      });
+    if (resultado.rechazados.length > 0) {
+      throw new BadRequestException(resultado.rechazados[0].motivo);
+    }
 
-      if (yaVinculado) {
-        throw new ConflictException(
-          'El estudiante ya está registrado en este examen',
-        );
-      }
+    const info = resultado.resultadosPorSis.get(dto.cod_sis.trim());
+    if (info?.ya_vinculado) {
+      throw new ConflictException(
+        'El estudiante ya está registrado en este examen',
+      );
+    }
 
-      // 3. Vincular al examen con estado inicial Habilitado
-      const vinculo = await tx.examen_Estudiante.create({
-        data: {
-          estudianteId: estudiante.id,
-          examenId,
-          estado_habilitado: true,
-        },
-      });
-
-      return {
-        estudiante: {
-          estudiante_id: estudiante.id,
-          cod_sis: estudiante.cod_sis,
-          nombre: estudiante.nombre,
-          apellido: estudiante.apellido,
-          ci: estudiante.ci,
-          estado_habilitado: vinculo.estado_habilitado,
-        },
-        estudiante_reutilizado,
-        ...(advertencia && { advertencia }),
-      };
-    });
+    return {
+      estudiante: {
+        estudiante_id: info?.estudianteId,
+        cod_sis: dto.cod_sis,
+        nombre: dto.nombre,
+        apellido: dto.apellido,
+        ci: dto.ci ?? null,
+        estado_habilitado: info?.estado_habilitado ?? true,
+      },
+      estudiante_reutilizado: resultado.resumen.estudiantes_reutilizados > 0,
+      ...(resultado.avisos[0] && { advertencia: resultado.avisos[0].motivo }),
+    };
   }
 
   // ==========================================
@@ -163,7 +149,6 @@ export class ExamenEstudiantesService {
     if (!examen) {
       throw new NotFoundException('Examen no encontrado');
     }
-    // TODO: validación 403 "responsable del examen o Administrador"
 
     if (!archivo) {
       throw new BadRequestException('No se recibió ningún archivo');
@@ -185,84 +170,12 @@ export class ExamenEstudiantesService {
       archivo.buffer,
     );
 
-    let estudiantes_creados = 0;
-    let estudiantes_reutilizados = 0;
-    let vinculados_nuevos = 0;
-    let ya_vinculados = 0;
-
-    if (validas.length > 0) {
-      await this.prisma.$transaction(async (tx) => {
-        for (const fila of validas) {
-          const estudianteExistente = await tx.estudiante.findUnique({
-            where: { cod_sis: fila.cod_sis },
-          });
-
-          const estudiante = await tx.estudiante.upsert({
-            where: { cod_sis: fila.cod_sis },
-            update: {},
-            create: {
-              cod_sis: fila.cod_sis,
-              nombre: fila.nombre,
-              apellido: fila.apellido,
-              ci: fila.ci,
-            },
-          });
-
-          if (estudianteExistente) {
-            estudiantes_reutilizados++;
-          } else {
-            estudiantes_creados++;
-          }
-
-          const vinculoExistente = await tx.examen_Estudiante.findUnique({
-            where: {
-              estudianteId_examenId: {
-                estudianteId: estudiante.id,
-                examenId,
-              },
-            },
-          });
-
-          if (vinculoExistente) {
-            ya_vinculados++;
-            continue; // no pisar estado existente (ej. un Inhabilitado)
-          }
-
-          try {
-            await tx.examen_Estudiante.create({
-              data: {
-                estudianteId: estudiante.id,
-                examenId,
-                estado_habilitado: true,
-              },
-            });
-            vinculados_nuevos++;
-          } catch (err: unknown) {
-            if (
-              err instanceof Prisma.PrismaClientKnownRequestError &&
-              err.code === 'P2002'
-            ) {
-              ya_vinculados++;
-            } else {
-              throw err;
-            }
-          }
-        }
-      });
-    }
-
-    return {
-      resumen: {
-        total_filas: totalFilas,
-        procesadas: validas.length,
-        rechazadas: rechazados.length,
-        estudiantes_creados,
-        estudiantes_reutilizados,
-        vinculados_nuevos,
-        ya_vinculados,
-      },
+    return this.cargasEstudiantesService.procesarEstudiantesParaExamen(
+      examenId,
+      validas,
+      totalFilas,
       rechazados,
-    };
+    );
   }
 
   // ==========================================
@@ -279,7 +192,6 @@ export class ExamenEstudiantesService {
     if (!examen) {
       throw new NotFoundException('Examen no encontrado');
     }
-    // TODO: validación 403 "responsable del examen o Administrador"
 
     const vinculo = await this.prisma.examen_Estudiante.findUnique({
       where: {
@@ -303,7 +215,6 @@ export class ExamenEstudiantesService {
       },
       data: {
         estado_habilitado: dto.estado_habilitado,
-        // Si se habilita, el motivo se borra; si se inhabilita, se guarda el motivo recibido
         motivo_inhabilitacion: dto.estado_habilitado
           ? null
           : dto.motivo_inhabilitacion,
