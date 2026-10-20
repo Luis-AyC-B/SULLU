@@ -1051,6 +1051,71 @@ export class IngresosService {
     });
   }
 
+  async buscarEstudiantesExamen(examenId: number, query?: string) {
+    const examen = await this.prisma.examen.findUnique({
+      where: { id: examenId },
+    });
+
+    if (!examen) {
+      throw new NotFoundException('Examen no encontrado');
+    }
+
+    const q = query?.trim();
+
+    const where: any = {
+      examenId,
+      ...(q && {
+        estudiante: {
+          OR: [
+            { nombre: { contains: q, mode: 'insensitive' as const } },
+            { apellido: { contains: q, mode: 'insensitive' as const } },
+            { cod_sis: { contains: q, mode: 'insensitive' as const } },
+            { ci: { contains: q, mode: 'insensitive' as const } },
+          ],
+        },
+      }),
+    };
+
+    const inscripciones = await this.prisma.examen_Estudiante.findMany({
+      where,
+      include: {
+        estudiante: {
+          include: {
+            ingresos: {
+              where: { examenId },
+              orderBy: { fechaHora: 'desc' },
+              take: 1,
+            },
+          },
+        },
+      },
+      take: 50,
+      orderBy: { estudiante: { apellido: 'asc' } },
+    });
+
+    return inscripciones.map((ee) => {
+      const ultimoIngreso = ee.estudiante.ingresos?.[0];
+      return {
+        id: ee.estudianteId,
+        codSis: ee.estudiante.cod_sis,
+        ci: ee.estudiante.ci || '',
+        nombre: ee.estudiante.nombre,
+        apellido: ee.estudiante.apellido || '',
+        estadoHabilitado: ee.estado_habilitado,
+        motivoInhabilitacion: ee.motivo_inhabilitacion,
+        ambienteAsignado: '',
+        yaIngreso: !!ultimoIngreso,
+        horaIngresoPrevio: ultimoIngreso
+          ? new Date(ultimoIngreso.fechaHora).toLocaleTimeString('es-BO', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : undefined,
+        metodoIngresoPrevio: ultimoIngreso?.metodo as 'QR' | 'MANUAL' | undefined,
+      };
+    });
+  }
+
   // ──────────────────────────────────────────────────────────────────
   // CRUD básico (scaffolding generado)
   // ──────────────────────────────────────────────────────────────────

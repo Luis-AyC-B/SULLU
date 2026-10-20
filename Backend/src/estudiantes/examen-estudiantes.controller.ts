@@ -30,7 +30,7 @@ export class ExamenEstudiantesController {
 
   // Task 7
   @Get()
-  @Permissions('estudiantes.ver')
+  @Permissions('estudiantes.ver', 'control_ingreso.registro_manual')
   findByExamen(
     @Param('examenId', ParseIntPipe) examenId: number,
     @Query() query: QueryEstudiantesExamenDto,
