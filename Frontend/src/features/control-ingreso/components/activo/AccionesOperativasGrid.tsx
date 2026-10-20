@@ -80,21 +80,21 @@ export function AccionesOperativasGrid({
         {/* Tarjeta 1: Escanear QR (Adaptativa por Dispositivo y RBAC) */}
         <div
           className={`rounded-2xl p-6 text-left transition-all border flex flex-col justify-between ${
-            canEscanearQr && canScanQr
+            canEscanearQr
               ? "bg-white border-slate-200/90 hover:border-slate-300 shadow-xs cursor-pointer"
               : "bg-slate-50/70 border-slate-200/80 cursor-default"
           }`}
-          onClick={canEscanearQr && canScanQr ? handleEscanearQr : undefined}
+          onClick={canEscanearQr ? handleEscanearQr : undefined}
         >
           <div>
             <div
               className={`flex h-11 w-11 items-center justify-center rounded-xl mb-4 ${
-                canEscanearQr && canScanQr
+                canEscanearQr
                   ? "bg-blue-50 text-[#002D62]"
                   : "bg-slate-200/60 text-slate-400"
               }`}
             >
-              {canEscanearQr && canScanQr ? (
+              {canEscanearQr ? (
                 <Camera className="h-6 w-6" />
               ) : (
                 <Lock className="h-5 w-5" />
@@ -103,7 +103,7 @@ export function AccionesOperativasGrid({
 
             <h3
               className={`text-lg font-bold mb-1.5 ${
-                canEscanearQr && canScanQr ? "text-slate-900" : "text-slate-700"
+                canEscanearQr ? "text-slate-900" : "text-slate-700"
               }`}
             >
               Escanear QR
@@ -113,12 +113,11 @@ export function AccionesOperativasGrid({
               <p className="text-xs text-slate-500 leading-relaxed mb-4">
                 No dispones del permiso necesario para escanear códigos QR.
               </p>
-            ) : !canScanQr ? (
+            ) : (
               <p className="text-xs text-slate-500 leading-relaxed mb-4">
-                {helperText ||
-                  "No se detectó una cámara disponible en este dispositivo."}
+                Apunta la cámara al código QR del estudiante para registrar su ingreso en tiempo real.
               </p>
-            ) : null}
+            )}
           </div>
 
           <div className="pt-2">
@@ -126,18 +125,15 @@ export function AccionesOperativasGrid({
               <span className="text-xs font-medium text-slate-400 select-none">
                 Permiso no asignado
               </span>
-            ) : canScanQr ? (
+            ) : (
               <button
                 type="button"
                 onClick={handleEscanearQr}
-                className="text-sm font-bold text-[#002D62] hover:underline underline-offset-4 cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-sm font-bold text-[#002D62] hover:underline underline-offset-4 cursor-pointer"
               >
-                Abrir cámara
+                <span>Abrir cámara</span>
+                <ArrowRight className="h-4 w-4" />
               </button>
-            ) : (
-              <span className="text-xs font-medium text-slate-400 select-none">
-                No disponible en este dispositivo
-              </span>
             )}
           </div>
         </div>

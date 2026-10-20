@@ -80,12 +80,13 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         const pathname = req.nextUrl.pathname;
-        // Rutas públicas accesibles sin autenticación previa
+        // Rutas públicas accesibles sin autenticación previa y recursos estáticos
         if (
           pathname.startsWith('/login') ||
           pathname.startsWith('/unauthorized') ||
           pathname.startsWith('/recuperar-password') ||
-          pathname.startsWith('/validar-qr')
+          pathname.startsWith('/validar-qr') ||
+          /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$/.test(pathname)
         ) {
           return true;
         }
@@ -101,6 +102,6 @@ export const config = {
     /*
      * Aplica el middleware a todas las rutas excepto archivos estáticos, api auth e imágenes
      */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

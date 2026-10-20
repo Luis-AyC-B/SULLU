@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -120,5 +121,17 @@ export class IngresosController {
   })
   findByExamen(@Param('examenId', ParseIntPipe) examenId: number) {
     return this.ingresosService.findByExamen(examenId);
+  }
+
+  @Get('examen/:examenId/estudiantes')
+  @Permissions('control_ingreso.registro_manual', 'registro_ingresos.ver')
+  @ApiOperation({
+    summary: 'Buscar estudiantes inscritos en el examen para registro manual o control',
+  })
+  buscarEstudiantesExamen(
+    @Param('examenId', ParseIntPipe) examenId: number,
+    @Query('q') q?: string,
+  ) {
+    return this.ingresosService.buscarEstudiantesExamen(examenId, q);
   }
 }

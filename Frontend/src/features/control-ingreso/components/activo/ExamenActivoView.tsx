@@ -5,7 +5,6 @@ import { ConnectionStatusBadge } from "../shared/ConnectionStatusBadge";
 import { ExamenActivoHeaderCard } from "./ExamenActivoHeaderCard";
 import { AccionesOperativasGrid } from "./AccionesOperativasGrid";
 import { ResumenEnVivoCard } from "./ResumenEnVivoCard";
-import { UltimosIngresosCard } from "./UltimosIngresosCard";
 import { RegistroManualModal } from "../manual/RegistroManualModal";
 import { EscanearQrModal } from "../escanear/EscanearQrModal";
 import { useResumenEnVivo } from "../../hooks/useResumenEnVivo";
@@ -62,13 +61,9 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
           />
         </div>
 
-        {/* Columna Derecha: Resumen en vivo y Últimos ingresos */}
+        {/* Columna Derecha: Resumen en vivo */}
         <div className="w-80 xl:w-96 shrink-0 space-y-5">
           <ResumenEnVivoCard resumen={resumen} isLoading={isLoading} />
-          <UltimosIngresosCard
-            ingresos={resumen?.ultimosIngresos ?? []}
-            isLoading={isLoading}
-          />
         </div>
       </div>
 

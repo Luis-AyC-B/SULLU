@@ -37,38 +37,31 @@ export function useDeviceCapabilities(): DeviceCapabilities {
         if (
           typeof navigator !== "undefined" &&
           navigator.mediaDevices &&
-          typeof navigator.mediaDevices.enumerateDevices === "function"
+          typeof navigator.mediaDevices.getUserMedia === "function"
         ) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const videoDevices = devices.filter(
-            (device) => device.kind === "videoinput"
-          );
+          if (typeof navigator.mediaDevices.enumerateDevices === "function") {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(
+              (device) => device.kind === "videoinput"
+            );
 
-          // Filtrar dispositivos virtuales comunes (OBS Virtual Camera, ManyCam, etc.)
-          const nonVirtualDevices = videoDevices.filter(
-            (device) =>
-              !device.label ||
-              !/obs|virtual|dummy|v4l2loopback|fake|manycam|droidcam|iriun/i.test(
-                device.label
-              )
-          );
-
-          if (isMobile) {
-            // En móviles/tablets se cuenta con cámara integrada
-            hasCamera = nonVirtualDevices.length > 0;
-          } else {
-            // En equipos de escritorio (PC): solo si hay una cámara real etiquetada no virtual
-            hasCamera = videoDevices.some(
-              (d) =>
-                Boolean(d.label) &&
+            // Filtrar dispositivos virtuales comunes si tienen etiqueta explícita
+            const nonVirtualDevices = videoDevices.filter(
+              (device) =>
+                !device.label ||
                 !/obs|virtual|dummy|v4l2loopback|fake|manycam|droidcam|iriun/i.test(
-                  d.label
+                  device.label
                 )
             );
+
+            // Si hay dispositivos de video detectados (o aún sin etiquetas por permisos pendientes), o la API existe
+            hasCamera = videoDevices.length === 0 ? true : nonVirtualDevices.length > 0;
+          } else {
+            hasCamera = true;
           }
         }
       } catch {
-        hasCamera = false;
+        hasCamera = true;
       }
 
       const canScanQr = hasCamera;

@@ -11,6 +11,7 @@ export interface ExamenAsignado {
   ambiente: string; // ej: "Sala 204"
   capacidadAmbiente?: number;
   tipoExamen?: string;
+  docente?: string; // Nombre del docente que creó el examen
 }
 
 export interface UltimoIngresoItem {

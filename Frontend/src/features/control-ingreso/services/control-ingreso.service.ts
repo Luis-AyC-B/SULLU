@@ -40,6 +40,19 @@ export const controlIngresoService = {
     const term = query.trim().toLowerCase();
     if (!term) return [];
 
+    // 1. Intentar endpoint dedicado de control de ingreso: /ingresos/examen/:examenId/estudiantes
+    try {
+      const response = await apiClient.get<EstudianteBusquedaItem[]>(
+        `/ingresos/examen/${examenId}/estudiantes?q=${encodeURIComponent(term)}`
+      );
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+    } catch {
+      // Continuar con fallback
+    }
+
+    // 2. Fallback a endpoint general de examen: /examenes/:examenId/estudiantes
     try {
       const response = await apiClient.get<{
         total?: number;
