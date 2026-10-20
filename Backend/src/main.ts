@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
+import * as express from 'express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -10,6 +12,7 @@ import { ExcludePasswordInterceptor } from './common/interceptors/exclude-passwo
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ExcludePasswordInterceptor());
   app.useGlobalPipes(
@@ -55,6 +58,6 @@ async function bootstrap() {
     },
     credentials: true,
   });
-  await app.listen(process.env.PORT ?? 4001);
+  await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }
 void bootstrap();

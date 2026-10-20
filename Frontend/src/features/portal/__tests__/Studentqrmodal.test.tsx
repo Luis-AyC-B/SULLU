@@ -4,10 +4,14 @@ import { StudentQrModal } from '../components/StudentQrModal';
 import { getMiQr } from '../api/student-exam.service';
 
 jest.mock('../api/student-exam.service', () => ({ getMiQr: jest.fn() }));
-jest.mock('qrcode.react', () => ({
-  QRCodeSVG: ({ value }: { value: string }) =>
-    jest.requireActual<typeof import('react')>('react').createElement('svg', { 'data-testid': 'qr', 'data-value': value }),
-}));
+jest.mock('qrcode.react', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return {
+    QRCodeCanvas: React.forwardRef<HTMLCanvasElement, { value: string }>(function QRCodeCanvasMock({ value }, ref) {
+      return React.createElement('canvas', { ref, 'data-testid': 'qr', 'data-value': value });
+    }),
+  };
+});
 
 const getMiQrMock = getMiQr as jest.Mock;
 
@@ -21,6 +25,7 @@ const QR = {
 describe('IT-PE-03: StudentQrModal + getMiQr', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   it('1. al abrir pide el QR y muestra nombre, SIS, CI y la leyenda de código personal', async () => {
@@ -80,7 +85,31 @@ describe('IT-PE-03: StudentQrModal + getMiQr', () => {
     expect(getMiQrMock).toHaveBeenCalledTimes(2);
   });
 
-  it('6. con el modal cerrado no solicita el QR ni renderiza contenido', () => {
+  it('6. "Descargar QR" baja el QR como imagen PNG con el SIS en el nombre del archivo', async () => {
+    getMiQrMock.mockResolvedValue(QR);
+    jest.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AAAA');
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const user = userEvent.setup();
+    render(<StudentQrModal open onClose={jest.fn()} />);
+    await screen.findByTestId('qr');
+
+    await user.click(screen.getByRole('button', { name: /Descargar QR/ }));
+
+    const descargado = clickSpy.mock.contexts[0] as HTMLAnchorElement;
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(descargado.download).toBe('QR-201900123.png');
+    expect(descargado.href).toContain('data:image/png');
+  });
+
+  it('7. mientras carga o si falla no se ofrece descargar el QR', async () => {
+    getMiQrMock.mockRejectedValue(new Error('NETWORK_ERROR'));
+    render(<StudentQrModal open onClose={jest.fn()} />);
+
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: /Descargar QR/ })).not.toBeInTheDocument();
+  });
+
+  it('8. con el modal cerrado no solicita el QR ni renderiza contenido', () => {
     render(<StudentQrModal open={false} onClose={jest.fn()} />);
 
     expect(getMiQrMock).not.toHaveBeenCalled();

@@ -6,6 +6,9 @@ import {
   studentQrPayloadSchema,
   type ExamenEstudiante,
   type StudentQrPayload,
+  type StudentProfile,
+  type FotoEstudianteItem,
+  type SubirFotoResponse,
 } from '../types/student-exam.types';
 
 /* ---------- Mocks (mientras el backend no esté listo) ---------- */
@@ -53,7 +56,20 @@ const MOCK_QR: StudentQrPayload = {
   token: 'mock.eyJzaXMiOiIyMDE5MDAxMjMifQ.firma-simulada',
 };
 
-const wait = (ms = 500) => new Promise((r) => setTimeout(r, ms));
+const MOCK_PERFIL: StudentProfile = {
+  id: 1,
+  cod_sis: '201900123',
+  ci: '8123456',
+  nombre: 'Ana',
+  apellido: 'Rojas Mamani',
+  correo: '201900123@est.umss.edu.bo',
+  telefono: '71234567',
+  fotoUrl: null,
+  perfilCompleto: false,
+  debeCambiarPassword: false,
+};
+
+const wait = (ms = 400) => new Promise((r) => setTimeout(r, ms));
 
 async function getMockToken(): Promise<string | null> {
   const session = await getSession();
@@ -63,7 +79,7 @@ async function getMockToken(): Promise<string | null> {
 
 /* ---------- Endpoints ---------- */
 
-/** GET /estudiantes/me/examenes — el backend ya devuelve solo los del estudiante autenticado */
+/** GET /estudiantes/me/examenes — lista de exámenes habilitados para el estudiante */
 export async function getMisExamenes(): Promise<ExamenEstudiante[]> {
   const mockToken = await getMockToken();
   if (mockToken) {
@@ -77,7 +93,7 @@ export async function getMisExamenes(): Promise<ExamenEstudiante[]> {
   return examenesEstudianteSchema.parse(data);
 }
 
-/** GET /estudiantes/me/qr */
+/** GET /estudiantes/me/qr — genera o consulta el QR personal vigente */
 export async function getMiQr(): Promise<StudentQrPayload> {
   const mockToken = await getMockToken();
   if (mockToken) {
@@ -93,4 +109,89 @@ export async function getMiQr(): Promise<StudentQrPayload> {
 
   const { data } = await apiClient.get('/estudiantes/me/qr');
   return studentQrPayloadSchema.parse(data);
+}
+
+/** GET /estudiantes/me/perfil — obtiene datos completos del estudiante autenticado */
+export async function getMiPerfil(): Promise<StudentProfile> {
+  const mockToken = await getMockToken();
+  if (mockToken) {
+    await wait(250);
+    return MOCK_PERFIL;
+  }
+
+  const { data } = await apiClient.get<StudentProfile>('/estudiantes/me/perfil');
+  return data;
+}
+
+/** PATCH /estudiantes/me/perfil — actualiza teléfono */
+export async function actualizarMiPerfil(dto: { telefono?: string }): Promise<StudentProfile> {
+  const mockToken = await getMockToken();
+  if (mockToken) {
+    await wait(300);
+    return { ...MOCK_PERFIL, telefono: dto.telefono || MOCK_PERFIL.telefono };
+  }
+
+  const { data } = await apiClient.patch<StudentProfile>('/estudiantes/me/perfil', dto);
+  return data;
+}
+
+/** POST /estudiantes/me/foto — sube o captura foto de perfil */
+export async function subirMiFoto(archivo: File | Blob): Promise<SubirFotoResponse> {
+  const mockToken = await getMockToken();
+  if (mockToken) {
+    await wait(500);
+    return {
+      message: 'Foto procesada correctamente (simulación)',
+      fotoUrl: '/uploads/estudiantes/foto-simulada.jpg',
+      estado: 'ACTIVA',
+      perfilCompleto: true,
+    };
+  }
+
+  const formData = new FormData();
+  formData.append('foto', archivo, 'perfil.jpg');
+
+  const { data } = await apiClient.post<SubirFotoResponse>('/estudiantes/me/foto', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+/** GET /estudiantes/me/fotos — obtiene el historial de fotos subidas */
+export async function getHistorialFotos(): Promise<FotoEstudianteItem[]> {
+  const mockToken = await getMockToken();
+  if (mockToken) {
+    await wait(250);
+    return [
+      {
+        id: 1,
+        archivo: '/uploads/estudiantes/foto-1.jpg',
+        estado: 'ACTIVA',
+        similitud: 1.0,
+        creadaEn: new Date().toISOString(),
+      },
+    ];
+  }
+
+  const { data } = await apiClient.get<FotoEstudianteItem[]>('/estudiantes/me/fotos');
+  return data;
+}
+
+/** PATCH /estudiantes/me/password — actualiza contraseña inicial o voluntaria */
+export async function cambiarMiPassword(dto: {
+  passwordActual: string;
+  passwordNueva: string;
+  confirmarPassword: string;
+}): Promise<{ message: string; debeCambiarPassword: boolean }> {
+  const mockToken = await getMockToken();
+  if (mockToken) {
+    await wait(300);
+    return { message: 'Contraseña actualizada (simulación)', debeCambiarPassword: false };
+  }
+
+  const { data } = await apiClient.patch<{ message: string; debeCambiarPassword: boolean }>(
+    '/estudiantes/me/password',
+    dto,
+  );
+  return data;
 }

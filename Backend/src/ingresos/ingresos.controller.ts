@@ -17,6 +17,8 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { RegistrarIngresoManualDto } from './dto/registrar-ingreso-manual.dto';
 import { SincronizarIngresosDto } from './dto/sincronizar-ingresos.dto';
@@ -25,12 +27,13 @@ import { IngresosService } from './ingresos.service';
 
 @ApiTags('ingresos')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('ingresos')
 export class IngresosController {
   constructor(private readonly ingresosService: IngresosService) {}
 
   @Post('manual')
+  @Permissions('control_ingreso.registro_manual')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Registrar ingreso manual por Código SIS o CI (HU8)',
@@ -53,6 +56,7 @@ export class IngresosController {
   }
 
   @Post('qr')
+  @Permissions('control_ingreso.escanear_qr')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Registrar ingreso mediante código QR (HU9)',
@@ -79,6 +83,7 @@ export class IngresosController {
   }
 
   @Post('sincronizar')
+  @Permissions('control_ingreso.escanear_qr')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Sincronizar ingresos capturados en modo offline en lote',
@@ -96,6 +101,7 @@ export class IngresosController {
   }
 
   @Post()
+  @Permissions('control_ingreso.registro_manual')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Registrar ingreso manual (alias)',
@@ -108,6 +114,7 @@ export class IngresosController {
   }
 
   @Get('examen/:examenId')
+  @Permissions('registro_ingresos.ver')
   @ApiOperation({
     summary: 'Listar ingresos de un examen',
   })

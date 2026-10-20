@@ -4,8 +4,8 @@ import { StudentExamsView } from '../components/StudentExamsView';
 import { getMisExamenes, getMiQr } from '../api/student-exam.service';
 import type { ExamenEstudiante } from '../types/student-exam.types';
 
-jest.mock('@/shared/components/layout/header', () => ({
-  Header: () => jest.requireActual<typeof import('react')>('react').createElement('header', { 'data-testid': 'header' }),
+jest.mock('qrcode.react', () => ({
+  QRCodeCanvas: () => null,
 }));
 jest.mock('../api/student-exam.service', () => ({
   getMisExamenes: jest.fn(),

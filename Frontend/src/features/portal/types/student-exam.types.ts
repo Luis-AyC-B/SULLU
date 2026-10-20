@@ -1,35 +1,5 @@
 import { z } from 'zod';
 
-/* ---------- Login (SIS + CI) ---------- */
-
-export const studentLoginSchema = z.object({
-  sis: z
-    .string()
-    .trim()
-    .min(1, 'El código SIS es obligatorio')
-    .regex(/^\d+$/, 'El código SIS solo debe contener números')
-    .max(20),
-  ci: z.string().trim().min(1, 'El CI es obligatorio').max(20),
-});
-
-export type StudentLoginValues = z.infer<typeof studentLoginSchema>;
-
-export type StudentAuthErrorCode =
-  | 'INVALID_CREDENTIALS'
-  | 'ACCOUNT_LOCKED'
-  | 'SERVER_ERROR';
-
-/** Respuesta esperada de POST /auth/estudiante/login */
-export const studentLoginResponseSchema = z.object({
-  access_token: z.string(),
-  estudiante: z.object({
-    id: z.union([z.string(), z.number()]),
-    nombre: z.string(),
-  }),
-});
-
-export type StudentLoginResponse = z.infer<typeof studentLoginResponseSchema>;
-
 /* ---------- Exámenes habilitados ---------- */
 
 export const estadoExamenSchema = z.enum(['Habilitado', 'Inhabilitado']);
@@ -64,11 +34,49 @@ export const studentQrPayloadSchema = z.object({
   sis: z.string(),
   ci: z.string(),
   token: z.string(),
+  qrUrl: z.string().optional(),
 });
 
 export type StudentQrPayload = z.infer<typeof studentQrPayloadSchema>;
 
+/* ---------- Perfil del Estudiante ---------- */
+
+export interface StudentProfile {
+  id: number;
+  cod_sis: string;
+  ci: string;
+  nombre: string;
+  apellido: string;
+  correo: string;
+  telefono: string;
+  fotoUrl: string | null;
+  perfilCompleto: boolean;
+  debeCambiarPassword: boolean;
+}
+
+/* ---------- Historial de Fotos ---------- */
+
+export type EstadoFoto = 'ACTIVA' | 'PENDIENTE' | 'REEMPLAZADA' | 'RECHAZADA';
+
+export interface FotoEstudianteItem {
+  id: number;
+  archivo: string;
+  estado: EstadoFoto;
+  similitud: number | null;
+  creadaEn?: string;
+  creadoEn?: string;
+}
+
+export interface SubirFotoResponse {
+  message: string;
+  fotoUrl?: string;
+  fotoActualUrl?: string;
+  fotoPendienteUrl?: string;
+  estado: EstadoFoto;
+  perfilCompleto?: boolean;
+}
+
 /* ---------- Mocks ---------- */
 
 /** Prefijo del accessToken que emite el fallback de desarrollo (sin backend). */
-export const MOCK_TOKEN_PREFIX = 'mock-jwt-student';
+export const MOCK_TOKEN_PREFIX = 'mock-jwt-token-estudiante';
