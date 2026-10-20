@@ -25,7 +25,7 @@ export const authOptions: NextAuthOptions = {
             password: credentials?.password,
           };
 
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
           const res = await fetch(`${apiUrl}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

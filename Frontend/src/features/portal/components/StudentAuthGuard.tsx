@@ -9,7 +9,10 @@ const PERMISO_PORTAL = 'portal_estudiante';
 export function StudentAuthGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const allowed = !!session?.user?.permisos?.includes(PERMISO_PORTAL);
+  const user = session?.user as { rol?: string; permisos?: string[] } | undefined;
+  const allowed =
+    user?.rol === 'Estudiante' ||
+    !!user?.permisos?.includes(PERMISO_PORTAL);
 
   useEffect(() => {
     if (status === 'unauthenticated') {

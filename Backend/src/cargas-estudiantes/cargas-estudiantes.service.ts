@@ -299,6 +299,7 @@ export class CargasEstudiantesService {
                     apellido: filaOriginal.apellido,
                     correo: filaOriginal.correo,
                     password: passwordHash!,
+                    debeCambiarPassword: true,
                     roles: { create: [{ rolId: rolEstudiante.id }] },
                   },
                 });
@@ -340,6 +341,7 @@ export class CargasEstudiantesService {
                     apellido: filaOriginal.apellido,
                     correo: filaOriginal.correo,
                     password: passwordHash!,
+                    debeCambiarPassword: true,
                     roles: { create: [{ rolId: rolEstudiante.id }] },
                   },
                 });

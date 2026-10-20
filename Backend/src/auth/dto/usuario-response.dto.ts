@@ -13,4 +13,13 @@ export class UsuarioResponseDto {
 
   @ApiProperty({ example: ['roles.crear', 'roles.ver'] })
   permisos!: string[];
+
+  @ApiProperty({ example: 'Docente', required: false })
+  rol?: string;
+
+  @ApiProperty({ example: false, required: false })
+  debeCambiarPassword?: boolean;
+
+  @ApiProperty({ example: false, required: false })
+  perfilCompleto?: boolean;
 }

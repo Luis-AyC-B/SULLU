@@ -34,9 +34,47 @@ export const studentQrPayloadSchema = z.object({
   sis: z.string(),
   ci: z.string(),
   token: z.string(),
+  qrUrl: z.string().optional(),
 });
 
 export type StudentQrPayload = z.infer<typeof studentQrPayloadSchema>;
+
+/* ---------- Perfil del Estudiante ---------- */
+
+export interface StudentProfile {
+  id: number;
+  cod_sis: string;
+  ci: string;
+  nombre: string;
+  apellido: string;
+  correo: string;
+  telefono: string;
+  fotoUrl: string | null;
+  perfilCompleto: boolean;
+  debeCambiarPassword: boolean;
+}
+
+/* ---------- Historial de Fotos ---------- */
+
+export type EstadoFoto = 'ACTIVA' | 'PENDIENTE' | 'REEMPLAZADA' | 'RECHAZADA';
+
+export interface FotoEstudianteItem {
+  id: number;
+  archivo: string;
+  estado: EstadoFoto;
+  similitud: number | null;
+  creadaEn?: string;
+  creadoEn?: string;
+}
+
+export interface SubirFotoResponse {
+  message: string;
+  fotoUrl?: string;
+  fotoActualUrl?: string;
+  fotoPendienteUrl?: string;
+  estado: EstadoFoto;
+  perfilCompleto?: boolean;
+}
 
 /* ---------- Mocks ---------- */
 

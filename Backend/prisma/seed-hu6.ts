@@ -22,28 +22,103 @@ async function asegurarHorario(nombre: string, ini: string, fin: string) {
   });
 }
 
-async function asegurarEstudiante(
-  cod_sis: string,
-  ci: string,
-  nombre: string,
-  apellido: string,
-  rolId: number,
-) {
-  const existente = await prisma.estudiante.findUnique({ where: { cod_sis } });
-  if (existente) return existente;
+async function asegurarEstudianteConCuenta(params: {
+  cod_sis: string;
+  ci: string;
+  nombre: string;
+  apellido: string;
+  correo: string;
+  passwordPlano: string;
+  debeCambiarPassword: boolean;
+  perfilCompleto: boolean;
+  telefono?: string;
+  fotoUrl?: string;
+  rolId: number;
+}) {
+  const passwordHash = await bcrypt.hash(params.passwordPlano, 10);
 
-  const usuario = await prisma.usuario.create({
-    data: {
-      nombre,
-      apellido,
-      correo: null, // los estudiantes no necesitan correo
-      password: await bcrypt.hash(ci, 10), // el hash del CI, nunca el CI
-      roles: { create: [{ rolId }] },
+  const estExistente = await prisma.estudiante.findUnique({
+    where: { cod_sis: params.cod_sis },
+  });
+
+  let usuario: any = null;
+  if (estExistente?.usuarioId) {
+    usuario = await prisma.usuario.update({
+      where: { id: estExistente.usuarioId },
+      data: {
+        nombre: params.nombre,
+        apellido: params.apellido,
+        correo: params.correo,
+        password: passwordHash,
+        debeCambiarPassword: params.debeCambiarPassword,
+      },
+    });
+  } else {
+    usuario = await prisma.usuario.findFirst({
+      where: { correo: params.correo },
+    });
+    if (!usuario) {
+      usuario = await prisma.usuario.create({
+        data: {
+          nombre: params.nombre,
+          apellido: params.apellido,
+          correo: params.correo,
+          password: passwordHash,
+          debeCambiarPassword: params.debeCambiarPassword,
+          roles: { create: [{ rolId: params.rolId }] },
+        },
+      });
+    } else {
+      usuario = await prisma.usuario.update({
+        where: { id: usuario.id },
+        data: {
+          nombre: params.nombre,
+          apellido: params.apellido,
+          password: passwordHash,
+          debeCambiarPassword: params.debeCambiarPassword,
+        },
+      });
+    }
+  }
+
+  const tieneRol = await prisma.usuario_Rol.findUnique({
+    where: {
+      usuarioId_rolId: {
+        usuarioId: usuario.id,
+        rolId: params.rolId,
+      },
     },
   });
-  return prisma.estudiante.create({
-    data: { cod_sis, nombre, apellido, ci, usuarioId: usuario.id },
+  if (!tieneRol) {
+    await prisma.usuario_Rol.create({
+      data: { usuarioId: usuario.id, rolId: params.rolId },
+    });
+  }
+
+  const est = await prisma.estudiante.upsert({
+    where: { cod_sis: params.cod_sis },
+    update: {
+      nombre: params.nombre,
+      apellido: params.apellido,
+      ci: params.ci,
+      usuarioId: usuario.id,
+      perfilCompleto: params.perfilCompleto,
+      telefono: params.telefono ?? null,
+      fotoUrl: params.fotoUrl ?? null,
+    },
+    create: {
+      cod_sis: params.cod_sis,
+      nombre: params.nombre,
+      apellido: params.apellido,
+      ci: params.ci,
+      usuarioId: usuario.id,
+      perfilCompleto: params.perfilCompleto,
+      telefono: params.telefono ?? null,
+      fotoUrl: params.fotoUrl ?? null,
+    },
   });
+
+  return est;
 }
 
 async function asegurarAmbiente(nombre: string, facultadId: number) {
@@ -160,7 +235,7 @@ async function habilitar(
 }
 
 async function main() {
-  console.log('\n🌱 Seed HU6 (aditivo)...\n');
+  console.log('\n🌱 Seed HU6 (aditivo con login unificado)...\n');
 
   // 1. Rol Estudiante
   const rolEstudiante = await prisma.rol.upsert({
@@ -168,7 +243,7 @@ async function main() {
     update: {},
     create: {
       nombre: 'Estudiante',
-      descripcion: 'Estudiante habilitado en exámenes (login con SIS + CI)',
+      descripcion: 'Estudiante con acceso al portal (login único con correo institucional @est.umss.edu)',
     },
   });
 
@@ -177,28 +252,46 @@ async function main() {
   const h1400 = await asegurarHorario('HU6 14:00-16:00', '14:00', '16:00');
   const h0800 = await asegurarHorario('HU6 08:00-10:00', '08:00', '10:00');
 
-  // 3. Estudiantes de prueba
-  const ana = await asegurarEstudiante(
-    '201900123',
-    '8123456',
-    'Ana',
-    'Rojas Mamani',
-    rolEstudiante.id,
-  );
-  await asegurarEstudiante(
-    '201900124',
-    '9234567',
-    'Luis',
-    'Quispe Vargas',
-    rolEstudiante.id,
-  );
-  const marta = await asegurarEstudiante(
-    '201900125',
-    '7345678',
-    'Marta',
-    'Flores Rojas',
-    rolEstudiante.id,
-  );
+  // 3. Estudiantes de prueba para HU6
+  const ana = await asegurarEstudianteConCuenta({
+    cod_sis: '201900123',
+    ci: '8123456',
+    nombre: 'Ana',
+    apellido: 'Rojas Mamani',
+    correo: '201900123@est.umss.edu.bo',
+    passwordPlano: '8123456',
+    debeCambiarPassword: false,
+    perfilCompleto: true,
+    telefono: '71234567',
+    fotoUrl: '/uploads/estudiantes/ana.jpg',
+    rolId: rolEstudiante.id,
+  });
+
+  await asegurarEstudianteConCuenta({
+    cod_sis: '201900124',
+    ci: '9234567',
+    nombre: 'Luis',
+    apellido: 'Quispe Vargas',
+    correo: '201900124@est.umss.edu.bo',
+    passwordPlano: '9234567',
+    debeCambiarPassword: true,
+    perfilCompleto: false,
+    rolId: rolEstudiante.id,
+  });
+
+  const marta = await asegurarEstudianteConCuenta({
+    cod_sis: '201900125',
+    ci: '7345678',
+    nombre: 'Marta',
+    apellido: 'Flores Rojas',
+    correo: '201900125@est.umss.edu.bo',
+    passwordPlano: '7345678',
+    debeCambiarPassword: false,
+    perfilCompleto: true,
+    telefono: '73456789',
+    fotoUrl: '/uploads/estudiantes/marta.jpg',
+    rolId: rolEstudiante.id,
+  });
 
   // 4. Docente responsable de los exámenes de prueba
   const docente = await prisma.usuario.upsert({
@@ -212,7 +305,7 @@ async function main() {
     },
   });
 
-  // 5. Facultades y ambientes (mismo nombre que usa el seed principal)
+  // 5. Facultades y ambientes
   const fcyt = await prisma.facultad.upsert({
     where: { nombre: 'Facultad de Ciencias y Tecnología (FCyT)' },
     update: {},
@@ -280,10 +373,10 @@ async function main() {
   await habilitar(marta.id, exCalc.id, false);
   // Luis: sin ninguna habilitación (lista vacía)
 
-  console.log('✅ Seed HU6 completo');
-  console.log('   Ana   201900123 / 8123456 → 3 exámenes habilitados');
-  console.log('   Luis  201900124 / 9234567 → sin exámenes');
-  console.log('   Marta 201900125 / 7345678 → inhabilitada en Cálculo II');
+  console.log('✅ Seed HU6 completo:');
+  console.log('   Ana   (201900123@est.umss.edu.bo / 8123456) → 3 exámenes habilitados, debeCambiarPassword: false');
+  console.log('   Luis  (201900124@est.umss.edu.bo / 9234567) → sin exámenes, debeCambiarPassword: true');
+  console.log('   Marta (201900125@est.umss.edu.bo / 7345678) → inhabilitada en Cálculo II, debeCambiarPassword: false');
 }
 
 main()

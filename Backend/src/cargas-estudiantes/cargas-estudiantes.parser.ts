@@ -25,7 +25,7 @@ export interface ResultadoParseoCsv {
 }
 
 export const DOMINIOS_ESTUDIANTE: string[] = (
-  process.env.DOMINIOS_ESTUDIANTE ?? '@est.umss.edu'
+  process.env.DOMINIOS_ESTUDIANTE ?? '@est.umss.edu.bo,@est.umss.edu'
 )
   .split(',')
   .map((d) => d.trim().toLowerCase())

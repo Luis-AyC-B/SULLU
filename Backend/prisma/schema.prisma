@@ -26,6 +26,7 @@ model Usuario {
   telefono  String?
   sessionId String?   @map("session_id")
   deletedAt DateTime? @map("deleted_at") @db.Timestamp()
+  debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
 
   roles              Usuario_Rol[]
   alcances           Usuario_Alcance[]
@@ -327,6 +328,9 @@ model Estudiante {
   ci       String?
   cargaId  Int?    @map("carga_id")
   usuarioId Int?   @unique @map("usuario_id") // Sprint 2: FK 1:1 con Usuario — permite login por SIS+CI
+  perfilCompleto Boolean @default(false) @map("perfil_completo")
+  fotoUrl  String? @map("foto_url")
+  telefono String?
 
   carga     CargaEstudiantes?   @relation(fields: [cargaId], references: [id])
   usuario   Usuario?            @relation("UsuarioEstudiante", fields: [usuarioId], references: [id])
@@ -334,9 +338,26 @@ model Estudiante {
   codigosQr CodigoQr[]
   ingresos  Ingreso[]
   incidencias IncidenciaIngreso[] // HU12: incidencias asociadas al estudiante
+  fotos     FotoEstudiante[]
 
   @@map("estudiantes")
 }
+
+model FotoEstudiante {
+  id           Int      @id @default(autoincrement())
+  estudianteId Int      @map("estudiante_id")
+  archivo      String   // nombre generado por el servidor
+  hashSha256   String   @map("hash_sha256")
+  estado       String   @default("ACTIVA") // ACTIVA | REEMPLAZADA | RECHAZADA | PENDIENTE
+  similitud    Float?   // puntaje de la comparación (sprint 3)
+  creadaEn     DateTime @default(now()) @map("creada_en")
+
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+
+  @@index([estudianteId, estado])
+  @@map("fotos_estudiante")
+}
+
 
 model Examen_Estudiante {
   estudianteId          Int     @map("id_estudiante")

@@ -683,7 +683,11 @@ export class IngresosService {
       throw new BadRequestException('El examen ya ha finalizado');
     }
 
-    const tokenLimpio = dto.token.trim();
+    let tokenLimpio = dto.token.trim();
+    if (tokenLimpio.includes('token=')) {
+      const match = tokenLimpio.match(/[?&]token=([^&]+)/);
+      if (match) tokenLimpio = decodeURIComponent(match[1]);
+    }
 
     const qrRegistro = await this.prisma.codigoQr.findUnique({
       where: { token: tokenLimpio },
@@ -819,6 +823,11 @@ export class IngresosService {
           },
         },
       },
+    });
+
+    // Deshabilitar el código QR tras ser consumido exitosamente
+    await this.prisma.codigoQr.deleteMany({
+      where: { token: tokenLimpio },
     });
 
     return {

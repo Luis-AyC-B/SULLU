@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -31,10 +32,15 @@ export class AuthController {
   })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos' })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
-  async login(@Body() loginDto: LoginDto): Promise<LoginResponseDto> {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+  ): Promise<LoginResponseDto> {
+    const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
     const usuario = await this.authService.validateUser(
       loginDto.email,
       loginDto.password,
+      ip,
     );
     return this.authService.login(usuario);
   }
