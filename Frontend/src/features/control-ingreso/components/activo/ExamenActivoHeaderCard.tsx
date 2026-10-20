@@ -23,11 +23,18 @@ export function ExamenActivoHeaderCard({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 shrink-0">
               <ClipboardCheck className="h-5 w-5 text-white" />
             </div>
-            <div className="flex items-center gap-2 min-w-0">
-              <h2 className="text-base font-bold truncate text-white">
-                {examen.asignatura}
-              </h2>
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <h2 className="text-base font-bold truncate text-white">
+                  {examen.asignatura}
+                </h2>
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+              </div>
+              {examen.docente && (
+                <p className="text-xs text-white/80 truncate">
+                  Docente: {examen.docente}
+                </p>
+              )}
             </div>
           </div>
 
@@ -67,6 +74,11 @@ export function ExamenActivoHeaderCard({
                   {isEnCurso ? "En curso" : "Próximo"}
                 </span>
               </div>
+              {examen.docente && (
+                <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5">
+                  Docente: {examen.docente}
+                </p>
+              )}
             </div>
           </div>
 
