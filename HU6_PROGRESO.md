@@ -36,7 +36,12 @@
   - Hook Sprint 3: Interfaz `ValidadorFoto` con `ValidadorFotoStubService` que aprueba por defecto dejando lista la extensión biométrica.
   - Paso 2 (Datos personales): Actualización atómica de CI y teléfono celular boliviano (8 dígitos). No permite vaciar el CI si ya existía.
   - Paso 3 (Nueva contraseña): Validación de 8-12 caracteres con letras y números; no permite que sea igual al actual ni al CI.
-  - Al completar: transacción atómica que pone `debeConfigurarPerfil = false`, incrementa `qrVersion`, regenera `sessionId` y registra en auditoría. Respuestas por clave incorrecta devuelven HTTP 400 (nunca 401 para evitar deslogueo).
+  - Al completar: transacción atómica que pone `debeConfigurarPerfil = false`, incrementa `qrVersion`, preserva la sesión activa sin deslogueos indeseados y registra en auditoría. Respuestas por clave incorrecta devuelven HTTP 400 (nunca 401 para evitar deslogueo).
+  - **Fix /portal/perfil (403 en cambiar-password y sessionId)**:
+    - Corrección en `EstudianteJwtGuard`: la lista blanca de rutas exentas durante configuración de perfil incluía `/password` pero no hacía match con `cambiar-password` (`-password` en lugar de `/password`). Se amplió la lista blanca para cubrir explícitamente `cambiar-password` y `password`.
+    - Generación y asignación de `sessionId` único para estudiantes en el login general (`AuthService.login()`) y `EstudianteAuthService`, garantizando control de sesión única activa.
+    - Mensajes de error reales del backend (400 y 403) ahora se propagan y visualizan directamente en la UI del formulario de configuración de perfil en lugar del genérico "Ocurrió un error inesperado".
+    - Respeto estricto a privacidad: cero logging de headers `authorization`.
 - [x] **Fase 5: "Mis Exámenes" Conectado** (Completada & Commiteada `da8e2ad`)
   - Endpoint `GET /estudiantes/me/examenes` filtrando por el estudiante autenticado.
   - Soporte para estados Habilitado / Inhabilitado según la asignación docente (HU6 Escenario Positivo 4: inhabilitados no pueden generar QR).
@@ -59,9 +64,10 @@
 
 ## Estado de Tests
 - `Backend/src/cargas-estudiantes/cargas-estudiantes.spec.ts`: 6/6 tests pasando (100%).
-- `Backend/src/portal-estudiante/portal-estudiante.spec.ts`: 10/10 tests pasando (100%).
+- `Backend/src/portal-estudiante/portal-estudiante.spec.ts`: 11/11 tests pasando (100%, incluye test de flujo cambiar-password con debeConfigurarPerfil=true).
 - `Frontend/src/features/portal/__tests__`: 24/24 tests pasando (100%, 4 test suites).
 - Frontend Jest Suite completa: 10 suites pasando, 71 tests pasando, 0 fallando (100%).
 - Backend Typecheck (`tsc --noEmit`): 0 errores.
 - Frontend Typecheck (`tsc --noEmit`): 0 errores.
 - ESLint (Husky / lint-staged): 0 errores.
+

@@ -177,9 +177,10 @@ export class EstudianteJwtGuard implements CanActivate {
       const rutaAlt = typeof req.url === 'string' ? req.url : '';
       const url = (rutaOriginal || rutaAlt).toLowerCase();
       const esRutaExenta =
-        url.includes('/password') ||
-        url.includes('/perfil') ||
-        url.includes('/foto');
+        url.includes('cambiar-password') ||
+        url.includes('password') ||
+        url.includes('perfil') ||
+        url.includes('foto');
 
       if (!esRutaExenta) {
         throw new HttpException(
