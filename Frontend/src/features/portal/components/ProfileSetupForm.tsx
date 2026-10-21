@@ -128,9 +128,7 @@ export function ProfileSetupForm({ perfil, onCompleted }: ProfileSetupFormProps)
       } else if (err instanceof PerfilError && err.code === 'FOTO_INVALIDA') {
         setFotoError(mensajePerfilError(err));
       } else {
-        const msg = mensajePerfilError(err);
-        setSubmitError(msg);
-        toast.error(msg);
+        setSubmitError(mensajePerfilError(err));
       }
       return;
     }

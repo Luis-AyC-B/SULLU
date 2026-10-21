@@ -289,7 +289,7 @@ export class EstudianteMeService {
     }
 
     const passwordHash = await bcrypt.hash(dto.passwordNueva, 10);
-    const nuevoSessionId = usuario.sessionId || crypto.randomUUID();
+    const nuevoSessionId = crypto.randomUUID();
 
     await this.prisma.$transaction(async (tx) => {
       await tx.usuario.update({

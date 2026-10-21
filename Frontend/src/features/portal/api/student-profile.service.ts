@@ -27,58 +27,25 @@ import {
 /** Error del perfil con un código que la UI sabe traducir a un mensaje. */
 export class PerfilError extends Error {
   readonly code: PerfilErrorCode;
-  readonly serverMessage?: string;
-  constructor(code: PerfilErrorCode, serverMessage?: string) {
-    super(serverMessage || code);
+  constructor(code: PerfilErrorCode) {
+    super(code);
     this.name = 'PerfilError';
     this.code = code;
-    this.serverMessage = serverMessage;
   }
 }
 
 type Contexto = 'perfil' | 'foto' | 'password';
-
-function extraerMensajeServidor(error: unknown): string | undefined {
-  if (isAxiosError(error) && error.response?.data) {
-    const data = error.response.data as { message?: string | string[]; error?: string; mensaje?: string };
-    if (Array.isArray(data.message) && data.message.length > 0) {
-      return data.message.join('. ');
-    }
-    if (typeof data.message === 'string' && data.message.trim().length > 0) {
-      return data.message.trim();
-    }
-    if (typeof data.mensaje === 'string' && data.mensaje.trim().length > 0) {
-      return data.mensaje.trim();
-    }
-    if (typeof data.error === 'string' && data.error.trim().length > 0) {
-      return data.error.trim();
-    }
-  }
-  return undefined;
-}
 
 function traducirError(error: unknown, contexto: Contexto): PerfilError {
   if (error instanceof PerfilError) return error;
   if (isAxiosError(error)) {
     if (!error.response) return new PerfilError('NETWORK_ERROR');
     const status = error.response.status;
-    const serverMessage = extraerMensajeServidor(error);
-    if (contexto === 'password') {
-      if (status === 400 || status === 422) {
-        if (serverMessage && !serverMessage.toLowerCase().includes('actual')) {
-          return new PerfilError('SERVER_ERROR', serverMessage);
-        }
-        return new PerfilError('PASSWORD_ACTUAL_INCORRECTA', serverMessage);
-      }
-      if (status === 403) {
-        return new PerfilError('SERVER_ERROR', serverMessage || 'No tienes permiso para cambiar contraseña en este momento.');
-      }
+    if (contexto === 'password' && (status === 400 || status === 422)) {
+      return new PerfilError('PASSWORD_ACTUAL_INCORRECTA');
     }
     if (contexto === 'foto' && [400, 413, 415, 422].includes(status)) {
-      return new PerfilError('FOTO_INVALIDA', serverMessage);
-    }
-    if (status === 400 || status === 403 || status === 422) {
-      return new PerfilError('SERVER_ERROR', serverMessage);
+      return new PerfilError('FOTO_INVALIDA');
     }
   }
   return new PerfilError('SERVER_ERROR');

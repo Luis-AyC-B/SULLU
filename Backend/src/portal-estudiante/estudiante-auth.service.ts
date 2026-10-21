@@ -53,17 +53,10 @@ export class EstudianteAuthService {
 
     this.fallos.delete(sis);
 
-    const sessionId = (await import('crypto')).randomUUID();
-    await this.prisma.usuario.update({
-      where: { id: estudiante.usuario.id },
-      data: { sessionId },
-    });
-
     const payload = {
       sub: estudiante.usuario.id,
       usuarioId: estudiante.usuario.id,
       estudianteId: estudiante.id,
-      sessionId,
       tipo: 'estudiante',
     };
     const access_token = this.jwt.sign(payload, {

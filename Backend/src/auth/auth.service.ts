@@ -15,28 +15,6 @@ import { randomUUID } from 'crypto';
 const MAX_INTENTOS = 5;
 const BLOQUEO_MS = 15 * 60 * 1000; // 15 minutos
 
-interface UsuarioLoginData {
-  id: number;
-  nombre?: string | null;
-  correo: string | null;
-  debeCambiarPassword?: boolean | null;
-  roles?: Array<{
-    rol?: {
-      nombre?: string;
-      permisos?: Array<{
-        permiso?: {
-          clave?: string;
-        };
-      }>;
-    };
-  }>;
-  estudiante?: {
-    id: number;
-    cod_sis?: string;
-    perfilCompleto?: boolean;
-  } | null;
-}
-
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -143,18 +121,17 @@ export class AuthService {
         },
       });
     } catch (auditErr: unknown) {
-      const msg =
-        auditErr instanceof Error ? auditErr.message : String(auditErr);
+      const msg = auditErr instanceof Error ? auditErr.message : String(auditErr);
       this.logger.error(`Error auditando fallo de login: ${msg}`);
     }
   }
 
-  async login(usuario: UsuarioLoginData) {
+  async login(usuario: any) {
     const permisosUsuario: string[] = [];
     if (usuario.roles && Array.isArray(usuario.roles)) {
-      usuario.roles.forEach((ur) => {
+      usuario.roles.forEach((ur: any) => {
         if (ur.rol && ur.rol.permisos && Array.isArray(ur.rol.permisos)) {
-          ur.rol.permisos.forEach((rp) => {
+          ur.rol.permisos.forEach((rp: any) => {
             if (rp.permiso && rp.permiso.clave) {
               permisosUsuario.push(rp.permiso.clave);
             }
@@ -164,10 +141,7 @@ export class AuthService {
     }
 
     // Fallback de seguridad para el administrador principal si viniera vacío
-    if (
-      permisosUsuario.length === 0 &&
-      usuario.correo === 'admin@exacontrol.com'
-    ) {
+    if (permisosUsuario.length === 0 && usuario.correo === 'admin@exacontrol.com') {
       permisosUsuario.push(
         'usuarios.ver',
         'usuarios.crear',
@@ -190,20 +164,23 @@ export class AuthService {
     // Extraer rol principal
     const rolNombre = usuario.roles?.[0]?.rol?.nombre || '';
     const esEstudiante = usuario.roles?.some(
-      (r) => r.rol?.nombre === 'Estudiante',
+      (r: any) => r.rol?.nombre === 'Estudiante',
     );
 
     if (esEstudiante && !permisosUsuario.includes('portal_estudiante')) {
       permisosUsuario.push('portal_estudiante');
     }
 
-    // Generar sessionId único para todos los usuarios (incluidos estudiantes)
-    // para garantizar sesión única activa y control de concurrencia
-    const sessionId = randomUUID();
-    await this.prisma.usuario.update({
-      where: { id: usuario.id },
-      data: { sessionId },
-    });
+    let sessionId: string | null = null;
+
+    // Los estudiantes quedan formalmente exentos de la sesión única (sessionId)
+    if (!esEstudiante) {
+      sessionId = randomUUID();
+      await this.prisma.usuario.update({
+        where: { id: usuario.id },
+        data: { sessionId },
+      });
+    }
 
     const payload = {
       sub: usuario.id,

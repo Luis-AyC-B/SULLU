@@ -10,9 +10,6 @@ const MENSAJES: Record<PerfilErrorCode, string> = {
 
 /** Convierte cualquier error del perfil en un mensaje listo para mostrar. */
 export function mensajePerfilError(error: unknown): string {
-  if (error instanceof PerfilError && error.serverMessage) {
-    return error.serverMessage;
-  }
   const code: PerfilErrorCode = error instanceof PerfilError ? error.code : 'SERVER_ERROR';
   return MENSAJES[code];
 }
