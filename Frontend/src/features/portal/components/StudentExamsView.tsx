@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Camera, QrCode, User, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Camera, QrCode, User, CheckCircle2, AlertCircle, WifiOff } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { PageContainer } from '@/shared/components/layout/PageContainer';
 import { useStudentExams } from '../hooks/useStudentExams';
@@ -13,7 +13,8 @@ import { getMiPerfil } from '../api/student-exam.service';
 import type { StudentProfile } from '../types/student-exam.types';
 
 export function StudentExamsView() {
-  const { examenes, isLoading, hasError, retry } = useStudentExams();
+  const { examenes, isLoading, hasError, isOffline, fechaGuardado, retry } =
+    useStudentExams();
   const [qrOpen, setQrOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [perfil, setPerfil] = useState<StudentProfile | null>(null);
@@ -48,6 +49,19 @@ export function StudentExamsView() {
       subtitle="Exámenes en los que estás habilitado para rendir evaluación"
     >
       <div className="flex flex-col gap-6">
+        {/* Banner de aviso offline si no hay conexión */}
+        {isOffline && fechaGuardado && (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-xs font-medium text-amber-900 shadow-2xs"
+          >
+            <WifiOff className="h-4 w-4 shrink-0 text-amber-700" />
+            <span>
+              Estás sin conexión, mostrando datos guardados el {fechaGuardado}.
+            </span>
+          </div>
+        )}
+
         {/* Banner de Perfil y Acciones Rápidas */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs">
           <div className="flex items-center gap-3.5">
@@ -61,7 +75,7 @@ export function StudentExamsView() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={fotoUrl}
-                  alt={perfil?.nombre || 'Foto'}
+                  alt={perfil?.nombre || 'Foto de perfil'}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -69,27 +83,30 @@ export function StudentExamsView() {
                   <User className="h-7 w-7" />
                 </div>
               )}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity hover:opacity-100">
+                <Camera className="h-4 w-4 text-white" />
+              </div>
             </button>
 
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-foreground sm:text-lg">
-                  {perfil ? `${perfil.nombre} ${perfil.apellido}` : 'Estudiante'}
+                <h3 className="text-base font-bold text-foreground">
+                  {perfil ? `${perfil.nombre} ${perfil.apellido || ''}`.trim() : 'Estudiante'}
                 </h3>
                 {perfil?.perfilCompleto ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
                     <CheckCircle2 className="h-3 w-3" />
                     Perfil Completo
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
                     <AlertCircle className="h-3 w-3" />
-                    Foto pendiente
+                    Incompleto
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                SIS: <span className="font-semibold text-foreground">{perfil?.cod_sis || '—'}</span> · CI: <span className="font-semibold text-foreground">{perfil?.ci || '—'}</span>
+              <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                SIS: {perfil?.cod_sis || '—'} · CI: {perfil?.ci || 'Sin registrar'}
               </p>
             </div>
           </div>
@@ -97,16 +114,17 @@ export function StudentExamsView() {
           <div className="flex items-center gap-2.5 self-end md:self-center">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => setProfileOpen(true)}
-              className="gap-2 text-xs sm:text-sm h-10"
+              className="gap-2 text-xs"
             >
-              <Camera className="h-4 w-4 text-primary" />
-              Mi foto y perfil
+              <User className="h-4 w-4" />
+              Editar perfil
             </Button>
-
             <Button
+              size="sm"
               onClick={() => setQrOpen(true)}
-              className="gap-2 text-xs sm:text-sm h-10 font-semibold"
+              className="gap-2 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
             >
               <QrCode className="h-4 w-4" />
               Generar QR

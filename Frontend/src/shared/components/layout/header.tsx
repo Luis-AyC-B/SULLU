@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { limpiarCacheOfflineEstudiante } from "@/features/portal/lib/offline-portal";
 import { User, LogOut } from "lucide-react";
 
 /**
@@ -106,6 +107,7 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
 
   const handleLogout = () => {
     setIsMenuOpen(false);
+    limpiarCacheOfflineEstudiante();
     signOut({ callbackUrl: "/login" });
   };
 

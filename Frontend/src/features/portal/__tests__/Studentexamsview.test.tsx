@@ -24,6 +24,7 @@ const EXAMENES: ExamenEstudiante[] = [
 
 describe('IT-PE-02: StudentExamsView + useStudentExams + ExamCard', () => {
   beforeEach(() => {
+    localStorage.clear();
     jest.clearAllMocks();
   });
 
@@ -82,5 +83,20 @@ describe('IT-PE-02: StudentExamsView + useStudentExams + ExamCard', () => {
 
     expect(await screen.findByText('CÓDIGO QR · ESTUDIANTE')).toBeInTheDocument();
     await waitFor(() => expect(getMiQrMock).toHaveBeenCalledTimes(1));
+  });
+
+  it('6. sin conexión pero con exámenes en caché: muestra los exámenes guardados y el aviso offline', async () => {
+    localStorage.setItem(
+      'exacontrol_offline_examenes',
+      JSON.stringify({ data: EXAMENES, cachedAt: '2026-10-21T08:00:00.000Z' }),
+    );
+    getMisExamenesMock.mockRejectedValue(new Error('NETWORK_ERROR'));
+    render(<StudentExamsView />);
+
+    const tarjetas = await screen.findAllByRole('article');
+    expect(tarjetas).toHaveLength(3);
+    expect(
+      screen.getByText(/Estás sin conexión, mostrando datos guardados/),
+    ).toBeInTheDocument();
   });
 });
