@@ -7,6 +7,7 @@ const redirectsPorModulo: [string, string][] = [
   ['roles', '/roles'],
   ['examenes', '/examenes'],
   ['estudiantes', '/estudiantes'],
+  ['reportes', '/reportes'],
   ['ambientes', '/ambientes'],
   ['control_ingreso', '/control-ingreso'],
   ['registro_ingresos', '/ingresos'],

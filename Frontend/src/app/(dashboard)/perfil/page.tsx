@@ -11,10 +11,14 @@ export default function PerfilPage() {
   const nombre = session?.user?.name || 'Prof. Luis Medina';
   const email = session?.user?.email || 'usuario@umss.edu';
 
+  // El middleware envía a un usuario con sesión que entra a /login a su primer módulo según sus permisos.
+  // No se usa '/' porque hoy redirige a una ruta fija ('/examenes' o '/login').
+  const rutaInicio = '/login';
+
   return (
     <div className="mx-auto max-w-2xl py-8 px-4">
       <div className="mb-6 flex items-center justify-between">
-        <Link href="/usuarios" className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
+        <Link href={rutaInicio} className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />
           Volver al panel principal
         </Link>
@@ -65,7 +69,7 @@ export default function PerfilPage() {
 
         <div className="mt-8 pt-4 border-t border-border flex justify-end">
           <Button variant="outline" asChild size="sm">
-            <Link href="/usuarios">Regresar</Link>
+            <Link href={rutaInicio}>Regresar</Link>
           </Button>
         </div>
       </div>
