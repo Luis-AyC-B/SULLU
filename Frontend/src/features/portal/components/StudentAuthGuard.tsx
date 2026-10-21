@@ -23,7 +23,7 @@ export function StudentAuthGuard({ children, requierePerfilCompleto = true }: St
 const allowed =
     session?.user?.rol === 'Estudiante' ||
     !!session?.user?.permisos?.some(
-      (p) => p === PERMISO_PORTAL || p.startsWith(${PERMISO_PORTAL}.),
+      (p) => p === PERMISO_PORTAL || p.startsWith(`${PERMISO_PORTAL}.`),
     );
   const [perfilListo, setPerfilListo] = useState(!requierePerfilCompleto);
 

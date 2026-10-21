@@ -5,6 +5,7 @@ declare module "next-auth" {
     user: {
       accessToken?: string;
       rolId?: string;
+      rol?: string;
       permisos?: string[];
     } & DefaultSession["user"];
   }
@@ -12,6 +13,7 @@ declare module "next-auth" {
   interface User {
     accessToken?: string;
     rolId?: string;
+    rol?: string;
     permisos?: string[];
   }
 }

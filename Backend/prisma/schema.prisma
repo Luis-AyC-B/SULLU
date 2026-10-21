@@ -27,6 +27,7 @@ model Usuario {
   sessionId String?   @map("session_id")
   deletedAt DateTime? @map("deleted_at") @db.Timestamp()
   debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
+  debeConfigurarPerfil Boolean @default(true) @map("debe_configurar_perfil")
 
   roles              Usuario_Rol[]
   alcances           Usuario_Alcance[]
@@ -330,6 +331,7 @@ model Estudiante {
   usuarioId Int?   @unique @map("usuario_id") // Sprint 2: FK 1:1 con Usuario — permite login por SIS+CI
   perfilCompleto Boolean @default(false) @map("perfil_completo")
   fotoUrl  String? @map("foto_url")
+  qrVersion Int     @default(1) @map("qr_version")
   telefono String?
 
   carga     CargaEstudiantes?   @relation(fields: [cargaId], references: [id])
