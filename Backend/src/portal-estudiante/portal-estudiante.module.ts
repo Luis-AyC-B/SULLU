@@ -9,6 +9,8 @@ import { EstudianteMeController } from './estudiante-me.controller';
 import { EstudianteMeService } from './estudiante-me.service';
 import { EstudianteAdminController } from './estudiante-admin.controller';
 import { QrTokenService } from './qr-token.service';
+import { VALIDADOR_FOTO_TOKEN } from './validador-foto/validador-foto.interface';
+import { ValidadorFotoStubService } from './validador-foto/validador-foto-stub.service';
 
 @Module({
   imports: [PrismaModule, JwtModule.register({}), ComparadorFacialModule],
@@ -22,7 +24,16 @@ import { QrTokenService } from './qr-token.service';
     EstudianteJwtGuard,
     EstudianteMeService,
     QrTokenService,
+    {
+      provide: VALIDADOR_FOTO_TOKEN,
+      useClass: ValidadorFotoStubService,
+    },
   ],
-  exports: [QrTokenService, EstudianteMeService, ComparadorFacialModule],
+  exports: [
+    QrTokenService,
+    EstudianteMeService,
+    ComparadorFacialModule,
+    VALIDADOR_FOTO_TOKEN,
+  ],
 })
 export class PortalEstudianteModule {}

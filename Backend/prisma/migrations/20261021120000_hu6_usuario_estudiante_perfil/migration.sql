@@ -3,3 +3,4 @@ ALTER TABLE "usuarios" ADD COLUMN IF NOT EXISTS "debe_configurar_perfil" BOOLEAN
 
 -- AlterTable
 ALTER TABLE "estudiantes" ADD COLUMN IF NOT EXISTS "qr_version" INTEGER NOT NULL DEFAULT 1;
+

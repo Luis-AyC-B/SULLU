@@ -36,13 +36,14 @@ interface DatosValidacion {
   mensaje: string;
   nombre?: string;
   sis?: string;
+  carrera?: string;
   fotoUrl?: string | null;
   examenes?: ExamenAsignado[];
 }
 
-function ContenidoValidarQr() {
+export function ContenidoValidarQr({ tokenOverride }: { tokenOverride?: string }) {
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+  const token = tokenOverride || searchParams.get('token');
   const { data: session } = useSession();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -263,6 +264,12 @@ function ContenidoValidarQr() {
                 <span>SIS:</span>
                 <span className="text-primary font-bold">{datos.sis}</span>
               </div>
+
+              {datos.carrera && (
+                <p className="mt-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {datos.carrera}
+                </p>
+              )}
 
               {/* Exámenes asignados / habilitados */}
               {datos.examenes && datos.examenes.length > 0 && (
