@@ -42,11 +42,8 @@ import { ColaboradoresModule } from './colaboradores/colaboradores.module';
     RegistroIngresosModule,
     EstudiantesModule,
     AmbientesModule,
-<<<<<<< HEAD
     ReservasModule,
-=======
     IncidenciasModule,
->>>>>>> e54a043 (feat(hu12): backend incidencias de ingreso (listar y registrar) y seed)
     ExamenesModule,
     CodigosQrModule,
     PortalEstudianteModule,

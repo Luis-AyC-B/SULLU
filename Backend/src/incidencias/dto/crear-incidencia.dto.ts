@@ -10,6 +10,9 @@ import {
 
 export enum MotivoIncidencia {
   NO_HABILITADO = 'NO_HABILITADO',
+  DOBLE_MARCACION = 'DOBLE_MARCACION',
+  QR_CADUCADO = 'QR_CADUCADO',
+  NO_ENCONTRADO = 'NO_ENCONTRADO',
 }
 
 export class CrearIncidenciaDto {
@@ -20,6 +23,7 @@ export class CrearIncidenciaDto {
   codigoSis!: string;
 
   @Transform(({ value }) =>
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     value === undefined || value === null ? value : String(value),
   )
   @IsString()
@@ -30,6 +34,7 @@ export class CrearIncidenciaDto {
   motivo!: MotivoIncidencia;
 
   @IsOptional()
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(500, { message: 'Máximo 500 caracteres' })
