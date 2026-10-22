@@ -81,7 +81,12 @@
   - Implementación visual de los 3 estados de rechazo sin datos personales: "Este código venció" (reloj en gris/ámbar), "Este código fue revocado" (alerta) y "Código no válido" (cruz roja), con indicaciones claras para el estudiante.
   - Conexión pública en `/qr/v/[token]/page.tsx` y excepciones en `middleware.ts` para escaneo libre sin sesión.
   - Soporte de simulación para desarrollo mediante query params `?mock=vencido|revocado|invalido|valido`.
-- [ ] **Bloque 5: Caché offline con purga de QRs de examen vencidos**
+- [x] **Bloque 5: Caché offline con purga de QRs de examen vencidos**
+  - Almacenamiento seguro offline para QRs por examen en `CACHED_EXAM_QRS_KEY` (`exacontrol_offline_exam_qrs`).
+  - Purga automática `purgarQrsExamenVencidos()` ejecutada al abrir/cargar la vista: compara contra la hora del dispositivo para ocultar y eliminar del almacenamiento local los QRs de evaluaciones ya vencidas.
+  - Actualización atómica en caché de exámenes: si el QR venció, se marca como `estadoQr: 'FINALIZADO'` y se limpia `qrGenerado: false` y `qrUrl: null`.
+  - Preservación crítica del QR personal: `CACHED_QR_KEY` nunca es purgado por expiración de examen, únicamente al cerrar sesión mediante `limpiarCacheOfflineEstudiante()`.
+  - Integración reactiva en el hook `useStudentExams` y sincronización inmediata al generar o actualizar QRs.
 - [ ] **Bloque 6: Tests restantes, build sin mock, revisión final**
 ---
 

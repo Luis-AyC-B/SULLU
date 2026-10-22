@@ -26,6 +26,7 @@ import { formatearFechaCorta } from '../lib/formato-fechas';
 export function StudentExamsView() {
   const {
     examenes,
+    verificacionFotoActiva,
     isLoading,
     hasError,
     isOffline,
@@ -46,9 +47,6 @@ export function StudentExamsView() {
     process.env.NEXT_PUBLIC_API_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     'http://localhost:3001';
-
-  const verificacionFotoActiva =
-    process.env.NEXT_PUBLIC_VERIFICACION_FACIAL_ENABLED !== 'false';
 
   const cargarPerfil = useCallback(async () => {
     try {
