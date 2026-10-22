@@ -87,7 +87,34 @@
   - Actualización atómica en caché de exámenes: si el QR venció, se marca como `estadoQr: 'FINALIZADO'` y se limpia `qrGenerado: false` y `qrUrl: null`.
   - Preservación crítica del QR personal: `CACHED_QR_KEY` nunca es purgado por expiración de examen, únicamente al cerrar sesión mediante `limpiarCacheOfflineEstudiante()`.
   - Integración reactiva en el hook `useStudentExams` y sincronización inmediata al generar o actualizar QRs.
-- [ ] **Bloque 6: Tests restantes, build sin mock, revisión final**
+- [x] **Bloque 6: Tests restantes, build sin mock, revisión final**
+  - Suite de pruebas de frontend 100% en verde: 16 test suites pasando, 106 tests pasando (0 fallos).
+  - TypeScript typecheck estricto (`tsc --noEmit`) con 0 errores en Frontend y Backend.
+  - Verificación de producción: compilación exitosa con Next.js Turbopack (`next build --turbopack`).
+  - Auditoría de bundles en `.next/static`: `MockExamQrService` y `MockScenarioSelector` no se filtran en producción (árbol sacudido por importación dinámica).
+  - Preservación estricta de aislamiento de ramas y componentes: sin dependencias directas en la carpeta `validar-qr`.
+
+---
+
+## Contrato de API para QR por Examen (Frontend & Backend)
+
+### 1. Endpoints
+- `GET /estudiantes/me/examenes`: Retorna la lista de evaluaciones habilitadas para el estudiante autenticado, con estados de disponibilidad de QR (`NO_DISPONIBLE_AUN`, `DISPONIBLE`, `GENERADO`, `FINALIZADO`, `INHABILITADO`).
+- `POST /estudiantes/me/examenes/:id/qr`: Genera el código QR específico para el examen indicado. Acepta opcionalmente un campo multipart `selfie` para validación facial contra la foto activa del perfil.
+- `GET /qr/validar?token=...`: Endpoint público para lectura de credencial digital desde dispositivos móviles. Retorna el estado (`VALIDO`, `EXPIRADO`, `REVOCADO`, `INVALIDO`), datos del estudiante (sin CI ni datos de contacto) y detalles de la evaluación.
+
+### 2. Códigos de Estado y Respuestas de Error
+- `HTTP 200 OK`: Operación exitosa (consulta de exámenes o validación pública).
+- `HTTP 201 Created`: QR por examen generado exitosamente. Retorna `{ qrUrl, vigenteHasta, token }`.
+- `HTTP 400 Bad Request`: Parámetros inválidos, archivo corrupto o no compatible.
+- `HTTP 401 Unauthorized`: Sesión de estudiante expirada o inválida.
+- `HTTP 403 Forbidden`: `PERFIL_INCOMPLETO`, `EXAMEN_NO_HABILITADO` o manipulación de IDs (Anti-IDOR).
+- `HTTP 404 Not Found`: Examen no encontrado o no asignado.
+- `HTTP 429 Too Many Requests`: `VERIFICACION_INTENTOS_AGOTADOS` (máximo 3 intentos de verificación facial) o límite de escaneos públicos por IP (30 req/min).
+
+### 3. Variables de Entorno Nuevas (Frontend)
+- `NEXT_PUBLIC_USE_MOCKS`: Activa el modo simulado de 10 escenarios para desarrollo local (`true` o `false`, por defecto `false`).
+- `NEXT_PUBLIC_VERIFICACION_FACIAL_ENABLED`: Permite activar/desactivar la exigencia de selfie en el modal de generación de QR (`true` o `false`, por defecto `true`).
 ---
 
 ## Migraciones Aplicadas
@@ -96,8 +123,9 @@
 ## Estado de Tests
 - `Backend/src/cargas-estudiantes/cargas-estudiantes.spec.ts`: 6/6 tests pasando (100%).
 - `Backend/src/portal-estudiante/portal-estudiante.spec.ts`: 10/10 tests pasando (100%).
-- `Frontend/src/features/portal/__tests__`: 24/24 tests pasando (100%, 4 test suites).
-- Frontend Jest Suite completa: 10 suites pasando, 71 tests pasando, 0 fallando (100%).
+- `Frontend/src/features/portal/__tests__`: 39/39 tests pasando (100%, 6 test suites específicas de portal).
+- Frontend Jest Suite completa: 16 suites pasando, 106 tests pasando, 0 fallando (100%).
 - Backend Typecheck (`tsc --noEmit`): 0 errores.
 - Frontend Typecheck (`tsc --noEmit`): 0 errores.
+- Frontend Build (`next build --turbopack`): 22/22 páginas estáticas generadas exitosamente.
 - ESLint (Husky / lint-staged): 0 errores.

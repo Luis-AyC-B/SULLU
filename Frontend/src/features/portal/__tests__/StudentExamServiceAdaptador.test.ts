@@ -82,3 +82,4 @@ describe('Conexión del Adaptador a student-exam.service.ts', () => {
     expect(examenes[0].estado).toBe('Habilitado');
   });
 });
+

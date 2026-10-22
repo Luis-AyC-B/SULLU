@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event';
 import { PublicExamQrView } from '../components/PublicExamQrView';
 import * as examQrServiceModule from '../api/exam-qr.service';
 import type { ResultadoValidacionQr } from '../types/qr-examen';
-import type { IExamQrService } from '../api/exam-qr.service';
 
 jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),

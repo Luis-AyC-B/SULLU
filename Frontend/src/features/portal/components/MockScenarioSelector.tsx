@@ -105,3 +105,4 @@ export function MockScenarioSelector({ onScenarioChange }: MockScenarioSelectorP
     </aside>
   );
 }
+

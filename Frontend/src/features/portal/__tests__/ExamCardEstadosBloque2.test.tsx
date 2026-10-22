@@ -150,3 +150,4 @@ describe('Bloque 2: ExamCard y sus 5 estados con borde superior', () => {
     ).toBeInTheDocument();
   });
 });
+

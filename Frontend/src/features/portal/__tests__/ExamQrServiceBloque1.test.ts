@@ -185,3 +185,4 @@ describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
     });
   });
 });
+

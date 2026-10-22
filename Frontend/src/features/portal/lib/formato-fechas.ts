@@ -49,3 +49,4 @@ export function formatearFechaYHora(isoString: string): string {
     return isoString;
   }
 }
+

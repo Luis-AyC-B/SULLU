@@ -375,3 +375,4 @@ export function PublicExamQrView({ token }: PublicExamQrViewProps) {
     </div>
   );
 }
+

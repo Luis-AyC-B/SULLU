@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
-  AlertCircle,
   Calendar,
   Camera,
   Check,
@@ -19,8 +18,6 @@ import {
   Shield,
   Smile,
   Sun,
-  User,
-  X,
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
@@ -73,7 +70,6 @@ export function ExamQrModal({
   const [camaraError, setCamaraError] = useState<string | null>(null);
 
   // Estado del QR y verificación
-  const [generandoQr, setGenerandoQr] = useState(false);
   const [resultadoQr, setResultadoQr] = useState<RespuestaGenerarQrExamen | null>(null);
   const [intentosRestantes, setIntentosRestantes] = useState<number>(3);
   const [errorVerificacion, setErrorVerificacion] = useState<string | null>(null);
@@ -232,7 +228,6 @@ export function ExamQrModal({
   const ejecutarGeneracionQr = async (blobFoto?: Blob) => {
     if (!examen) return;
 
-    setGenerandoQr(true);
     setPaso('COMPARANDO');
 
     try {
@@ -241,6 +236,13 @@ export function ExamQrModal({
 
       setResultadoQr(res);
       setPaso('RESULTADO_EXITO');
+
+      // Guardar QR del examen en almacenamiento offline
+      guardarQrExamenOffline(examen.id, {
+        qrUrl: res.qrUrl,
+        vigenteHasta: res.vigenteHasta,
+        token: res.token,
+      });
 
       // Notificar actualización al contenedor padre
       onExamenActualizado?.(examen.id, {
@@ -254,10 +256,8 @@ export function ExamQrModal({
       // Transición automática al paso final tras breve feedback
       setTimeout(() => {
         setPaso('TU_QR');
-        setGenerandoQr(false);
       }, 700);
     } catch (err: unknown) {
-      setGenerandoQr(false);
 
       if (err instanceof ExamQrError) {
         setErrorVerificacion(err.message);

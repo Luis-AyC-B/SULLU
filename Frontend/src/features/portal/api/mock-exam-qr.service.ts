@@ -173,7 +173,7 @@ export class MockExamQrService {
 
   async generarQrExamen(
     examenId: number | string,
-    selfie?: Blob | File,
+    _selfie?: Blob | File,
   ): Promise<RespuestaGenerarQrExamen> {
     await new Promise((r) => setTimeout(r, 450));
 
