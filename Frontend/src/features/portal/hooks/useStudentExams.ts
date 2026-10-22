@@ -6,7 +6,8 @@ import {
   guardarExamenesOffline,
   obtenerExamenesOffline,
 } from '../lib/offline-portal';
-import type { ExamenEstudiante } from '../types/student-exam.types';
+import type { Examen } from '../types/qr-examen';
+import { adaptarRespuestaExamenes } from '../lib/adaptador-examenes';
 
 function formatearFecha(iso: string): string {
   try {
@@ -21,7 +22,8 @@ function formatearFecha(iso: string): string {
 }
 
 export function useStudentExams() {
-  const [examenes, setExamenes] = useState<ExamenEstudiante[]>([]);
+  const [examenes, setExamenes] = useState<Examen[]>([]);
+  const [verificacionFotoActiva, setVerificacionFotoActiva] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -32,15 +34,17 @@ export function useStudentExams() {
     setHasError(false);
     try {
       const data = await getMisExamenes();
-      setExamenes(data);
+      const adaptado = adaptarRespuestaExamenes(data);
+      setExamenes(adaptado.examenes);
+      setVerificacionFotoActiva(adaptado.verificacionFotoActiva);
       setIsOffline(false);
       setFechaGuardado(null);
-      guardarExamenesOffline(data);
+      guardarExamenesOffline(adaptado.examenes);
     } catch {
-      // Fallback offline
       const cached = obtenerExamenesOffline();
-      if (cached && cached.data) {
-        setExamenes(cached.data);
+      if (cached && cached.data && Array.isArray(cached.data)) {
+        const adaptado = adaptarRespuestaExamenes(cached.data);
+        setExamenes(adaptado.examenes);
         setIsOffline(true);
         setFechaGuardado(formatearFecha(cached.cachedAt));
         setHasError(false);
@@ -56,5 +60,20 @@ export function useStudentExams() {
     load();
   }, [load]);
 
-  return { examenes, isLoading, hasError, isOffline, fechaGuardado, retry: load };
+  const actualizarExamen = useCallback((id: number, cambios: Partial<Examen>) => {
+    setExamenes((prev) =>
+      prev.map((ex) => (ex.id === id ? { ...ex, ...cambios } : ex)),
+    );
+  }, []);
+
+  return {
+    examenes,
+    verificacionFotoActiva,
+    isLoading,
+    hasError,
+    isOffline,
+    fechaGuardado,
+    retry: load,
+    actualizarExamen,
+  };
 }

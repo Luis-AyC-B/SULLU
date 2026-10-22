@@ -63,7 +63,11 @@
   - Adaptador de formato legado (`adaptador-examenes.ts`) para compatibilidad retroactiva sin romper el backend actual.
   - Servicio simulado (`mock-exam-qr.service.ts`) con 10 escenarios y selector flotante de desarrollo (`MockScenarioSelector.tsx`).
   - Capa de servicio (`exam-qr.service.ts`) con importación dinámica de mocks fuera de producción.
-- [ ] **Bloque 2: Rediseño "Mis exámenes" (2 columnas, tarjeta con 5 estados y borde superior)**
+- [x] **Bloque 2: Rediseño "Mis exámenes" (2 columnas, tarjeta con 5 estados y borde superior)**
+  - Tarjeta ExamCard con borde superior coloreado (border-t-4) y badges para los 5 estados.
+  - División en dos secciones: "Próximas evaluaciones" y "Evaluaciones finalizadas".
+  - Cuadrícula responsive de 2 columnas en escritorio y 1 en móvil con tarjetas de igual altura.
+  - Botón de perfil renombrado a "Mi QR personal" con preservación total de su funcionalidad.
 - [ ] **Bloque 3: Modal de 4 pasos con captura de cámara frontal y fallback**
 - [ ] **Bloque 4: Vista pública `/qr/v/[token]` con los 3 motivos de rechazo**
 - [ ] **Bloque 5: Caché offline con purga de QRs de examen vencidos**

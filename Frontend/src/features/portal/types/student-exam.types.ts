@@ -53,6 +53,7 @@ export interface StudentProfile {
   apellido: string;
   correo: string;
   telefono: string;
+  carrera?: string;
   fotoUrl: string | null;
   perfilCompleto: boolean;
   debeCambiarPassword: boolean;

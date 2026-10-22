@@ -1,4 +1,5 @@
 import type { ExamenEstudiante, StudentQrPayload } from '../types/student-exam.types';
+import type { Examen } from '../types/qr-examen';
 
 const STORAGE_PREFIX = 'exacontrol_offline_';
 export const CACHED_EXAMENES_KEY = `${STORAGE_PREFIX}examenes`;
@@ -9,10 +10,10 @@ export interface CachedData<T> {
   cachedAt: string; // ISO string
 }
 
-export function guardarExamenesOffline(examenes: ExamenEstudiante[]): void {
+export function guardarExamenesOffline(examenes: (Examen | ExamenEstudiante)[]): void {
   if (typeof window === 'undefined') return;
   try {
-    const payload: CachedData<ExamenEstudiante[]> = {
+    const payload: CachedData<(Examen | ExamenEstudiante)[]> = {
       data: examenes,
       cachedAt: new Date().toISOString(),
     };
@@ -20,7 +21,7 @@ export function guardarExamenesOffline(examenes: ExamenEstudiante[]): void {
   } catch {}
 }
 
-export function obtenerExamenesOffline(): CachedData<ExamenEstudiante[]> | null {
+export function obtenerExamenesOffline(): CachedData<(Examen | ExamenEstudiante)[]> | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(CACHED_EXAMENES_KEY);
