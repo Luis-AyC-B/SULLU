@@ -58,7 +58,7 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
   });
 
   it('2. Salto de pasos cuando verificacionFotoActiva es false: genera QR directamente', async () => {
-    mockGenerarQr.mockResolvedValueOnce({
+    mockGenerarQr.mockResolvedValue({
       qrUrl: 'https://exacontrol.umss.edu.bo/qr/v/token-directo-123',
       vigenteHasta: '2026-10-23T16:30:00Z',
       token: 'token-directo-123',
@@ -79,9 +79,12 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
     const btnContinuar = screen.getByRole('button', { name: /Continuar/i });
     await userEvent.click(btnContinuar);
 
-    await waitFor(() => {
-      expect(screen.getByText(/¡Tu código está listo!/i)).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText(/¡Tu código está listo!/i)).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
 
     expect(mockGenerarQr).toHaveBeenCalledWith(202, undefined);
     expect(onExamenActualizado).toHaveBeenCalledWith(

@@ -34,6 +34,7 @@ import {
   formatearFechaYHora,
   formatearHora,
 } from '../lib/formato-fechas';
+import { guardarQrExamenOffline } from '../lib/offline-portal';
 
 export interface ExamQrModalProps {
   open: boolean;

@@ -43,8 +43,8 @@ export function ExamCard({
   onGenerarQr,
   onVerQr,
 }: ExamCardProps) {
-  // Manejo de compatibilidad con formato legado
-  if (!esExamenNuevo(examen) || examen.esLegado) {
+  // Solo se usa la vista mínima de respaldo si el objeto no tiene estadoQr
+  if (!esExamenNuevo(examen)) {
     const habilitado =
       'estado' in examen
         ? examen.estado === 'Habilitado'
@@ -115,7 +115,9 @@ export function ExamCard({
     }
   })();
 
-  const fechaFormateada = formatearFechaCorta(examen.fechaInicio);
+  const rawFecha = ('fecha' in examen && (examen as { fecha?: string }).fecha) || (examen.fechaInicio ? examen.fechaInicio.slice(0, 10) : '');
+  const fechaTexto = rawFecha ? formatearFechaLegada(rawFecha) : '';
+  const fechaFormateada = fechaTexto || formatearFechaCorta(examen.fechaInicio);
   const horarioFormateado = `${formatearHora(examen.fechaInicio)} – ${formatearHora(examen.fechaFin)}`;
   const horaFinTexto = formatearHora(examen.fechaFin);
   const disponibleDesdeTexto = formatearFechaYHora(examen.qrDisponibleDesde);

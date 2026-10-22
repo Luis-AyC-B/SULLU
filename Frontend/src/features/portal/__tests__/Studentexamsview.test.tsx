@@ -79,7 +79,7 @@ describe('IT-PE-02: StudentExamsView + useStudentExams + ExamCard', () => {
     render(<StudentExamsView />);
     await screen.findAllByRole('article');
 
-    await user.click(screen.getByRole('button', { name: /Generar QR/ }));
+    await user.click(screen.getByRole('button', { name: /Mi QR personal/i }));
 
     expect(await screen.findByText('CÓDIGO QR · ESTUDIANTE')).toBeInTheDocument();
     await waitFor(() => expect(getMiQrMock).toHaveBeenCalledTimes(1));
