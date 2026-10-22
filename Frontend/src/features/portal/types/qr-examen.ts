@@ -46,6 +46,37 @@ export interface RespuestaGenerarQrExamen {
   token?: string;
 }
 
+export type MotivoRechazoQr = 'VENCIDO' | 'REVOCADO' | 'INVALIDO';
+
+export interface ExamenDetalleValidacion {
+  id?: number;
+  nombre: string;
+  materia?: string;
+  grupo?: string;
+  ambiente: string;
+  fecha: string;
+  horaInicio?: string;
+  horaFin?: string;
+  docente?: string;
+  tipoEvaluacion?: string;
+  estado?: string;
+}
+
+export interface ResultadoValidacionQr {
+  esValido: boolean;
+  motivoRechazo?: MotivoRechazoQr;
+  mensaje?: string;
+  estudiante?: {
+    nombre: string;
+    sis: string;
+    carrera?: string;
+    fotoUrl?: string | null;
+  };
+  examen?: ExamenDetalleValidacion;
+  examenes?: ExamenDetalleValidacion[];
+  vigenteHasta?: string;
+}
+
 export const CODIGOS_ERROR_QR_EXAMEN = {
   QR_AUN_NO_DISPONIBLE: 'QR_AUN_NO_DISPONIBLE',
   QR_EXAMEN_FINALIZADO: 'QR_EXAMEN_FINALIZADO',
@@ -91,3 +122,4 @@ export class ExamQrError extends Error {
     this.status = params.status;
   }
 }
+

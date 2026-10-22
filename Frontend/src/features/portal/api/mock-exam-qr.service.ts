@@ -4,6 +4,7 @@ import {
   type Examen,
   type RespuestaExamenes,
   type RespuestaGenerarQrExamen,
+  type ResultadoValidacionQr,
 } from '../types/qr-examen';
 
 export type EscenarioMock =
@@ -228,4 +229,57 @@ export class MockExamQrService {
       token,
     };
   }
+
+  async validarTokenQr(token: string): Promise<ResultadoValidacionQr> {
+    await new Promise((r) => setTimeout(r, 200));
+    const t = token.toLowerCase();
+
+    if (t.includes('vencido') || t.includes('expirado')) {
+      return {
+        esValido: false,
+        motivoRechazo: 'VENCIDO',
+        mensaje: 'El código QR ha expirado porque el examen ya finalizó o superó el tiempo límite de vigencia.',
+      };
+    }
+
+    if (t.includes('revocado')) {
+      return {
+        esValido: false,
+        motivoRechazo: 'REVOCADO',
+        mensaje: 'Este código QR fue invalidado porque se generó uno nuevo o cambiaron las credenciales de seguridad del estudiante.',
+      };
+    }
+
+    if (t.includes('invalido') || t.includes('inval') || t.includes('corrupto')) {
+      return {
+        esValido: false,
+        motivoRechazo: 'INVALIDO',
+        mensaje: 'El código QR no corresponde a un examen registrado o la firma digital no es válida.',
+      };
+    }
+
+    return {
+      esValido: true,
+      estudiante: {
+        nombre: 'JUAN PÉREZ ROJAS',
+        sis: '202001234',
+        carrera: 'Ingeniería de Sistemas',
+        fotoUrl: null,
+      },
+      examen: {
+        id: 101,
+        nombre: 'Primer Parcial - Cálculo II',
+        materia: 'Cálculo II',
+        grupo: 'Grupo 1',
+        ambiente: 'Edif. Nuevo - Aula 691B',
+        fecha: new Date().toISOString(),
+        horaInicio: '08:15',
+        horaFin: '10:15',
+        docente: 'Ing. Carlos Mendoza',
+        tipoEvaluacion: 'Presencial con verificación biométrica',
+      },
+      vigenteHasta: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+    };
+  }
 }
+

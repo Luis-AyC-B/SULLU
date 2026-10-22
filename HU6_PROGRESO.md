@@ -74,7 +74,13 @@
   - Detección en vivo de expiración del QR: difumina el código QR, muestra aviso de vencimiento y deshabilita la descarga en PNG.
   - Descarga del QR en PNG en alta resolución incluyendo sello institucional, nombre del estudiante, materia y fecha.
   - Detención segura de tracks de medios (cámara) y revocación de URLs blob al cerrar o desmontar.
-- [ ] **Bloque 4: Vista pública `/qr/v/[token]` con los 3 motivos de rechazo**
+- [x] **Bloque 4: Vista pública `/qr/v/[token]` con los 3 motivos de rechazo**
+  - Componente accesible `PublicExamQrView` con cabecera institucional UMSS `#0B1B3D` y desacoplado totalmente de `validar-qr`.
+  - Presentación de credencial digital válida con sello verde "QR VÁLIDO", datos del estudiante (nombre, SIS, carrera) y de la evaluación (materia, ambiente, fecha, horario).
+  - Verificación estricta de privacidad: nunca expone CI, teléfono ni correo electrónico.
+  - Implementación visual de los 3 estados de rechazo sin datos personales: "Este código venció" (reloj en gris/ámbar), "Este código fue revocado" (alerta) y "Código no válido" (cruz roja), con indicaciones claras para el estudiante.
+  - Conexión pública en `/qr/v/[token]/page.tsx` y excepciones en `middleware.ts` para escaneo libre sin sesión.
+  - Soporte de simulación para desarrollo mediante query params `?mock=vencido|revocado|invalido|valido`.
 - [ ] **Bloque 5: Caché offline con purga de QRs de examen vencidos**
 - [ ] **Bloque 6: Tests restantes, build sin mock, revisión final**
 ---
