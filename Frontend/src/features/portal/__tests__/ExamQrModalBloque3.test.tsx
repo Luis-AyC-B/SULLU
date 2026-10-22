@@ -38,11 +38,12 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
     });
   });
 
-  it('1. Paso 1: muestra detalle del examen, aviso de privacidad y chip de disponibilidad', () => {
+  it('1. Paso 1 con biometría: muestra detalle del examen, aviso de privacidad y chip de disponibilidad', () => {
     render(
       <ExamQrModal
         open={true}
         examen={mockExamen}
+        verificacionFotoActiva={true}
         onClose={jest.fn()}
       />,
     );
@@ -57,7 +58,7 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
     expect(screen.getByRole('button', { name: /Continuar/i })).toBeInTheDocument();
   });
 
-  it('2. Salto de pasos cuando verificacionFotoActiva es false: genera QR directamente', async () => {
+  it('2. Flujo con un clic (sin biometría por defecto): genera QR inmediatamente sin pedir selfie ni avisos de verificación', async () => {
     mockGenerarQr.mockResolvedValue({
       qrUrl: 'https://exacontrol.umss.edu.bo/qr/v/token-directo-123',
       vigenteHasta: '2026-10-23T16:30:00Z',
@@ -70,14 +71,10 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
       <ExamQrModal
         open={true}
         examen={mockExamen}
-        verificacionFotoActiva={false}
         onClose={jest.fn()}
         onExamenActualizado={onExamenActualizado}
       />,
     );
-
-    const btnContinuar = screen.getByRole('button', { name: /Continuar/i });
-    await userEvent.click(btnContinuar);
 
     await waitFor(
       () => {
@@ -87,16 +84,13 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
     );
 
     expect(mockGenerarQr).toHaveBeenCalledWith(202, undefined);
-    expect(onExamenActualizado).toHaveBeenCalledWith(
-      202,
-      expect.objectContaining({
-        estadoQr: 'GENERADO',
-        qrGenerado: true,
-      }),
-    );
+    expect(screen.queryByText(/Por seguridad, verificaremos tu identidad/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Vigente hasta/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Descargar PNG/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cerrar/i })).toBeInTheDocument();
   });
 
-  it('3. Verificación fallida: muestra contador de intentos y caja de verificación manual', async () => {
+  it('3. Verificación fallida del servidor: muestra contador de intentos y caja de verificación manual', async () => {
     mockGenerarQr.mockRejectedValueOnce(
       new ExamQrError({
         codigo: CODIGOS_ERROR_QR_EXAMEN.VERIFICACION_FALLIDA,
@@ -109,12 +103,9 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
       <ExamQrModal
         open={true}
         examen={mockExamen}
-        verificacionFotoActiva={false} // Para disparar la generación directamente
         onClose={jest.fn()}
       />,
     );
-
-    await userEvent.click(screen.getByRole('button', { name: /Continuar/i }));
 
     await waitFor(() => {
       expect(
@@ -129,7 +120,7 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
     expect(screen.getByRole('button', { name: /Intentar de nuevo/i })).toBeEnabled();
   });
 
-  it('4. Intentos agotados: desactiva el botón de reintento', async () => {
+  it('4. Intentos agotados por verificación: desactiva el botón de reintento', async () => {
     mockGenerarQr.mockRejectedValueOnce(
       new ExamQrError({
         codigo: CODIGOS_ERROR_QR_EXAMEN.VERIFICACION_INTENTOS_AGOTADOS,
@@ -143,12 +134,9 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
       <ExamQrModal
         open={true}
         examen={mockExamen}
-        verificacionFotoActiva={false}
         onClose={jest.fn()}
       />,
     );
-
-    await userEvent.click(screen.getByRole('button', { name: /Continuar/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Intento 3 de 3/i)).toBeInTheDocument();
@@ -158,7 +146,57 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
     expect(btnReintentar).toBeDisabled();
   });
 
-  it('5. Expiración en vivo del QR: difumina el QR con capa gris, avisa y quita botón Descargar', async () => {
+  it('5. Fallo de red: NO muestra verificación fallida ni consume intentos, muestra Reintentar', async () => {
+    mockGenerarQr.mockRejectedValueOnce(
+      new ExamQrError({
+        codigo: CODIGOS_ERROR_QR_EXAMEN.ERROR_RED,
+        mensaje: 'Error de conexión con el servidor',
+      }),
+    );
+
+    render(
+      <ExamQrModal
+        open={true}
+        examen={mockExamen}
+        onClose={jest.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: /No pudimos conectarnos con el servidor/i }),
+      ).toBeInTheDocument();
+    });
+
+    // NO debe mostrar "No pudimos verificar tu identidad"
+    expect(
+      screen.queryByText(/No pudimos verificar tu identidad/i),
+    ).not.toBeInTheDocument();
+
+    // NO debe consumir intentos ni mostrar "Intento X de 3"
+    expect(screen.queryByText(/Intento \d de 3/i)).not.toBeInTheDocument();
+
+    // Debe mostrar botón "Reintentar"
+    const btnReintentar = screen.getByRole('button', { name: /Reintentar/i });
+    expect(btnReintentar).toBeInTheDocument();
+    expect(btnReintentar).toBeEnabled();
+
+    // Al pulsar Reintentar, vuelve a intentar la llamada al servicio
+    mockGenerarQr.mockResolvedValueOnce({
+      qrUrl: 'https://exacontrol.umss.edu.bo/qr/v/token-reintentado',
+      vigenteHasta: '2026-10-23T16:30:00Z',
+      token: 'token-reintentado',
+    });
+
+    await userEvent.click(btnReintentar);
+
+    await waitFor(() => {
+      expect(screen.getByText(/¡Tu código está listo!/i)).toBeInTheDocument();
+    });
+    expect(mockGenerarQr).toHaveBeenCalledTimes(2);
+  });
+
+  it('6. Expiración en vivo del QR: difumina el QR con capa gris, avisa y quita botón Descargar', async () => {
     // QR con expiración a los 200 ms
     const vencePronto = new Date(Date.now() + 200).toISOString();
     const examenConQr: Examen = {
@@ -201,7 +239,7 @@ describe('Bloque 3: ExamQrModal (Pasos, Cámara, Verificación, Expiración en v
     );
   });
 
-  it('6. Respaldo de cámara: detiene los tracks de la cámara al desmontar o cerrar', () => {
+  it('7. Respaldo de cámara: detiene los tracks de la cámara al desmontar o cerrar', () => {
     const mockTrackStop = jest.fn();
     const mockStream = {
       getTracks: () => [{ stop: mockTrackStop }],

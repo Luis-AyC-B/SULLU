@@ -13,11 +13,13 @@ import {
   HelpCircle,
   Loader2,
   MapPin,
+  QrCode,
   RefreshCw,
   RotateCcw,
   Shield,
   Smile,
   Sun,
+  WifiOff,
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
@@ -52,7 +54,7 @@ type PasoModal = 'DETALLE' | 'CAMARA' | 'REVISAR' | 'COMPARANDO' | 'RESULTADO_EX
 export function ExamQrModal({
   open,
   examen,
-  verificacionFotoActiva = true,
+  verificacionFotoActiva = false,
   fotoPerfilUrl,
   estudianteNombre = 'Estudiante',
   estudianteSis = '—',
@@ -75,6 +77,7 @@ export function ExamQrModal({
   const [intentosRestantes, setIntentosRestantes] = useState<number>(3);
   const [errorVerificacion, setErrorVerificacion] = useState<string | null>(null);
   const [intentosAgotados, setIntentosAgotados] = useState(false);
+  const [esErrorRed, setEsErrorRed] = useState(false);
 
   // Expiración en vivo del QR
   const [qrVencidoEnVivo, setQrVencidoEnVivo] = useState(false);
@@ -101,6 +104,79 @@ export function ExamQrModal({
     setSelfieBlob(null);
   }, [selfieUrl]);
 
+  // Ejecutar llamada a generar QR
+  const ejecutarGeneracionQr = useCallback(async (blobFoto?: Blob) => {
+    if (!examen) return;
+
+    setPaso('COMPARANDO');
+
+    try {
+      setEsErrorRed(false);
+      const service = await getExamQrService();
+      const res = await service.generarQrExamen(examen.id, blobFoto || selfieBlob || undefined);
+
+      setResultadoQr(res);
+
+      // Guardar QR del examen en almacenamiento offline
+      guardarQrExamenOffline(examen.id, {
+        qrUrl: res.qrUrl,
+        vigenteHasta: res.vigenteHasta,
+        token: res.token,
+      });
+
+      // Notificar actualización al contenedor padre
+      onExamenActualizado?.(examen.id, {
+        estadoQr: 'GENERADO',
+        qrGenerado: true,
+        qrUrl: res.qrUrl,
+        qrVigenteHasta: res.vigenteHasta,
+        token: res.token,
+      });
+
+      if (verificacionFotoActiva) {
+        setPaso('RESULTADO_EXITO');
+        setTimeout(() => {
+          setPaso('TU_QR');
+        }, 700);
+      } else {
+        setPaso('TU_QR');
+      }
+    } catch (err: unknown) {
+      if (err instanceof ExamQrError) {
+        if (err.codigo === CODIGOS_ERROR_QR_EXAMEN.VERIFICACION_FALLIDA) {
+          setEsErrorRed(false);
+          setErrorVerificacion(err.message || 'La foto no coincide con tu perfil.');
+          if (typeof err.intentosRestantes === 'number') {
+            setIntentosRestantes(err.intentosRestantes);
+            if (err.intentosRestantes <= 0) {
+              setIntentosAgotados(true);
+            }
+          }
+        } else if (err.codigo === CODIGOS_ERROR_QR_EXAMEN.VERIFICACION_INTENTOS_AGOTADOS) {
+          setEsErrorRed(false);
+          setErrorVerificacion(err.message);
+          setIntentosAgotados(true);
+          setIntentosRestantes(0);
+        } else if (
+          err.codigo === CODIGOS_ERROR_QR_EXAMEN.ERROR_RED ||
+          (typeof err.status === 'number' && err.status >= 500)
+        ) {
+          setEsErrorRed(true);
+          setErrorVerificacion('No pudimos conectarnos con el servidor. Revisa tu conexión a internet.');
+        } else {
+          setEsErrorRed(false);
+          setErrorVerificacion(err.message);
+        }
+      } else {
+        // Fallo de red o conexión
+        setEsErrorRed(true);
+        setErrorVerificacion('No pudimos conectarnos con el servidor. Revisa tu conexión a internet.');
+      }
+
+      setPaso('RESULTADO_FALLO');
+    }
+  }, [examen, selfieBlob, onExamenActualizado, verificacionFotoActiva]);
+
   // Reset del modal al abrir/cerrar
   useEffect(() => {
     if (open && examen) {
@@ -108,6 +184,7 @@ export function ExamQrModal({
       setErrorVerificacion(null);
       setIntentosAgotados(false);
       setIntentosRestantes(3);
+      setEsErrorRed(false);
 
       // Si el examen ya tiene QR generado y está vigente, mostrar directamente Paso 4 (Tu QR)
       if (examen.estadoQr === 'GENERADO' && examen.qrUrl) {
@@ -117,6 +194,10 @@ export function ExamQrModal({
           token: examen.token || undefined,
         });
         setPaso('TU_QR');
+      } else if (!verificacionFotoActiva) {
+        // Flujo con un clic: genera QR directamente sin pedir selfie
+        setResultadoQr(null);
+        ejecutarGeneracionQr();
       } else {
         setPaso('DETALLE');
         setResultadoQr(null);
@@ -125,7 +206,7 @@ export function ExamQrModal({
       detenerCamara();
       limpiarSelfieUrl();
     }
-  }, [open, examen, detenerCamara, limpiarSelfieUrl]);
+  }, [open, examen, verificacionFotoActiva, detenerCamara, limpiarSelfieUrl, ejecutarGeneracionQr]);
 
   // Iniciar cámara con respaldo
   const iniciarCamara = useCallback(async () => {
@@ -223,57 +304,6 @@ export function ExamQrModal({
     setSelfieBlob(file);
     setSelfieUrl(URL.createObjectURL(file));
     setPaso('REVISAR');
-  };
-
-  // Ejecutar llamada a generar QR
-  const ejecutarGeneracionQr = async (blobFoto?: Blob) => {
-    if (!examen) return;
-
-    setPaso('COMPARANDO');
-
-    try {
-      const service = await getExamQrService();
-      const res = await service.generarQrExamen(examen.id, blobFoto || selfieBlob || undefined);
-
-      setResultadoQr(res);
-      setPaso('RESULTADO_EXITO');
-
-      // Guardar QR del examen en almacenamiento offline
-      guardarQrExamenOffline(examen.id, {
-        qrUrl: res.qrUrl,
-        vigenteHasta: res.vigenteHasta,
-        token: res.token,
-      });
-
-      // Notificar actualización al contenedor padre
-      onExamenActualizado?.(examen.id, {
-        estadoQr: 'GENERADO',
-        qrGenerado: true,
-        qrUrl: res.qrUrl,
-        qrVigenteHasta: res.vigenteHasta,
-        token: res.token,
-      });
-
-      // Transición automática al paso final tras breve feedback
-      setTimeout(() => {
-        setPaso('TU_QR');
-      }, 700);
-    } catch (err: unknown) {
-
-      if (err instanceof ExamQrError) {
-        setErrorVerificacion(err.message);
-        if (typeof err.intentosRestantes === 'number') {
-          setIntentosRestantes(err.intentosRestantes);
-          if (err.intentosRestantes <= 0 || err.codigo === CODIGOS_ERROR_QR_EXAMEN.VERIFICACION_INTENTOS_AGOTADOS) {
-            setIntentosAgotados(true);
-          }
-        }
-      } else {
-        setErrorVerificacion('No pudimos verificar tu identidad. Intenta de nuevo.');
-      }
-
-      setPaso('RESULTADO_FALLO');
-    }
   };
 
   // Temporizador para detectar expiración en vivo en Paso 4
@@ -400,61 +430,69 @@ export function ExamQrModal({
           Generar código QR del examen {examen.nombre}
         </DialogTitle>
 
-        {/* Indicador de Pasos Accesible */}
+        {/* Indicador del Modal */}
         <div className="border-b border-border bg-muted/40 px-6 py-3.5">
-          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-            <span>
-              {verificacionFotoActiva
-                ? paso === 'DETALLE'
-                  ? 'Paso 1 de 4'
-                  : paso === 'CAMARA' || paso === 'REVISAR' || paso === 'COMPARANDO'
-                  ? 'Paso 2 de 4'
-                  : paso === 'RESULTADO_EXITO' || paso === 'RESULTADO_FALLO'
-                  ? 'Paso 3 de 4'
-                  : 'Paso 4 de 4'
-                : paso === 'DETALLE'
-                ? 'Paso 1 de 2'
-                : 'Paso 2 de 2'}
-            </span>
-            <span className="uppercase tracking-wider text-primary text-[11px]">
-              {paso === 'DETALLE'
-                ? 'Examen'
-                : paso === 'CAMARA' || paso === 'REVISAR' || paso === 'COMPARANDO'
-                ? 'Verificación'
-                : paso === 'RESULTADO_EXITO' || paso === 'RESULTADO_FALLO'
-                ? 'Resultado'
-                : 'Tu QR'}
-            </span>
-          </div>
-
-          {/* Barra de progreso visual */}
-          <div className="mt-2.5 flex items-center justify-between gap-1.5">
-            {['Examen', 'Verificación', 'Resultado', 'Tu QR']
-              .filter((nombre) => verificacionFotoActiva || nombre === 'Examen' || nombre === 'Tu QR')
-              .map((etiqueta, idx) => {
-                const pasoActualIndex =
-                  paso === 'DETALLE'
-                    ? 0
+          {verificacionFotoActiva ? (
+            <>
+              <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+                <span>
+                  {paso === 'DETALLE'
+                    ? 'Paso 1 de 4'
                     : paso === 'CAMARA' || paso === 'REVISAR' || paso === 'COMPARANDO'
-                    ? 1
+                    ? 'Paso 2 de 4'
                     : paso === 'RESULTADO_EXITO' || paso === 'RESULTADO_FALLO'
-                    ? 2
-                    : 3;
-                const activo = idx <= pasoActualIndex;
-                return (
-                  <div key={etiqueta} className="flex-1 flex flex-col gap-1 items-center">
-                    <div
-                      className={`h-1.5 w-full rounded-full transition-colors ${
-                        activo ? 'bg-primary' : 'bg-muted-foreground/20'
-                      }`}
-                    />
-                    <span className="text-[10px] text-muted-foreground hidden sm:block">
-                      {etiqueta}
-                    </span>
-                  </div>
-                );
-              })}
-          </div>
+                    ? 'Paso 3 de 4'
+                    : 'Paso 4 de 4'}
+                </span>
+                <span className="uppercase tracking-wider text-primary text-[11px]">
+                  {paso === 'DETALLE'
+                    ? 'Examen'
+                    : paso === 'CAMARA' || paso === 'REVISAR' || paso === 'COMPARANDO'
+                    ? 'Verificación'
+                    : paso === 'RESULTADO_EXITO' || paso === 'RESULTADO_FALLO'
+                    ? 'Resultado'
+                    : 'Tu QR'}
+                </span>
+              </div>
+
+              {/* Barra de progreso visual */}
+              <div className="mt-2.5 flex items-center justify-between gap-1.5">
+                {['Examen', 'Verificación', 'Resultado', 'Tu QR'].map((etiqueta, idx) => {
+                  const pasoActualIndex =
+                    paso === 'DETALLE'
+                      ? 0
+                      : paso === 'CAMARA' || paso === 'REVISAR' || paso === 'COMPARANDO'
+                      ? 1
+                      : paso === 'RESULTADO_EXITO' || paso === 'RESULTADO_FALLO'
+                      ? 2
+                      : 3;
+                  const activo = idx <= pasoActualIndex;
+                  return (
+                    <div key={etiqueta} className="flex-1 flex flex-col gap-1 items-center">
+                      <div
+                        className={`h-1.5 w-full rounded-full transition-colors ${
+                          activo ? 'bg-primary' : 'bg-muted-foreground/20'
+                        }`}
+                      />
+                      <span className="text-[10px] text-muted-foreground hidden sm:block">
+                        {etiqueta}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <QrCode className="h-4 w-4 text-primary" />
+                <span>Código QR del examen</span>
+              </span>
+              <span className="uppercase tracking-wider text-primary text-[11px] font-bold">
+                ExaControl UMSS
+              </span>
+            </div>
+          )}
         </div>
 
         {/* CONTENIDO SEGÚN EL PASO */}
@@ -515,15 +553,17 @@ export function ExamQrModal({
                 </div>
               </div>
 
-              {/* Aviso azul de privacidad */}
-              <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/80 p-3.5 text-xs text-blue-900">
-                <Shield className="h-5 w-5 shrink-0 text-blue-700 mt-0.5" />
-                <div>
-                  <strong className="font-semibold">Verificación de identidad:</strong> Por
-                  seguridad, verificaremos tu identidad antes de generar tu QR. La foto no se
-                  guarda después de verificar.
+              {/* Aviso azul de privacidad solo si la verificación facial está activa */}
+              {verificacionFotoActiva && (
+                <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/80 p-3.5 text-xs text-blue-900">
+                  <Shield className="h-5 w-5 shrink-0 text-blue-700 mt-0.5" />
+                  <div>
+                    <strong className="font-semibold">Verificación de identidad:</strong> Por
+                    seguridad, verificaremos tu identidad antes de generar tu QR. La foto no se
+                    guarda después de verificar.
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Chip de disponibilidad */}
               <div className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-muted-foreground bg-muted/50 border border-border px-3 py-1 rounded-full">
@@ -711,20 +751,24 @@ export function ExamQrModal({
             </div>
           )}
 
-          {/* PASO 2.C: COMPARANDO CON FOTO DE PERFIL */}
+          {/* PASO 2.C: COMPARANDO CON FOTO DE PERFIL / GENERANDO */}
           {paso === 'COMPARANDO' && (
             <div className="flex flex-col items-center justify-center py-8 text-center gap-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
               <div>
                 <h3 className="text-base font-bold text-foreground">
-                  Comparando con tu foto de perfil…
+                  {verificacionFotoActiva
+                    ? 'Comparando con tu foto de perfil…'
+                    : 'Generando tu código QR…'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Esto tomará solo unos segundos.
+                  {verificacionFotoActiva
+                    ? 'Esto tomará solo unos segundos.'
+                    : 'Conectando con el servidor…'}
                 </p>
               </div>
 
-              {fotoPerfilUrl && (
+              {verificacionFotoActiva && fotoPerfilUrl && (
                 <div className="mt-2 flex flex-col items-center">
                   <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-primary/20 shadow-xs">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -742,7 +786,7 @@ export function ExamQrModal({
             </div>
           )}
 
-          {/* PASO 3.A: RESULTADO EXITOSO */}
+          {/* PASO 3.A: RESULTADO EXITOSO (BIOMETRÍA) */}
           {paso === 'RESULTADO_EXITO' && (
             <div className="flex flex-col items-center justify-center py-8 text-center gap-3">
               <CheckCircle2 className="h-16 w-16 text-emerald-600 animate-in zoom-in-75 duration-300" />
@@ -756,48 +800,74 @@ export function ExamQrModal({
           {/* PASO 3.B: RESULTADO FALLIDO */}
           {paso === 'RESULTADO_FALLO' && (
             <div className="flex flex-col items-center text-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                <XCircle className="h-10 w-10" />
+              <div
+                className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                  esErrorRed ? 'bg-amber-100 text-amber-700' : 'bg-destructive/10 text-destructive'
+                }`}
+              >
+                {esErrorRed ? (
+                  <WifiOff className="h-10 w-10 text-amber-700" />
+                ) : (
+                  <XCircle className="h-10 w-10" />
+                )}
               </div>
 
               <div>
                 <h3 className="text-lg font-bold text-foreground">
-                  No pudimos verificar tu identidad
+                  {esErrorRed
+                    ? 'No pudimos conectarnos con el servidor'
+                    : 'No pudimos verificar tu identidad'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {errorVerificacion || 'No se generó tu QR del examen.'}
+                  {errorVerificacion ||
+                    (esErrorRed
+                      ? 'Revisa tu conexión a internet e intenta de nuevo.'
+                      : 'No se generó tu QR del examen.')}
                 </p>
               </div>
 
-              <div className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive">
-                Intento {intentoActual} de 3
-              </div>
+              {/* Los intentos solo se muestran y bajan si es fallo de verificación biométrica */}
+              {!esErrorRed && (
+                <div className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive">
+                  Intento {intentoActual} de 3
+                </div>
+              )}
 
               {/* Botón de reintento */}
               <Button
                 type="button"
-                disabled={intentosAgotados}
+                disabled={!esErrorRed && intentosAgotados}
                 onClick={() => {
-                  limpiarSelfieUrl();
-                  setPaso('CAMARA');
-                  iniciarCamara();
+                  if (esErrorRed) {
+                    if (verificacionFotoActiva && selfieBlob) {
+                      ejecutarGeneracionQr(selfieBlob);
+                    } else {
+                      ejecutarGeneracionQr();
+                    }
+                  } else {
+                    limpiarSelfieUrl();
+                    setPaso('CAMARA');
+                    iniciarCamara();
+                  }
                 }}
                 className="w-full min-h-[44px] gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold"
               >
                 <RefreshCw className="h-4 w-4" />
-                Intentar de nuevo
+                {esErrorRed ? 'Reintentar' : 'Intentar de nuevo'}
               </Button>
 
-              {/* Caja de ayuda para verificación manual */}
-              <div className="w-full rounded-xl border border-border bg-muted/30 p-3.5 text-left text-xs">
-                <div className="flex items-start gap-2 text-foreground font-semibold">
-                  <HelpCircle className="h-4 w-4 shrink-0 text-primary mt-0.5" />
-                  <span>¿Sigues teniendo problemas?</span>
+              {/* Caja de ayuda para verificación manual solo si fue fallo de verificación */}
+              {!esErrorRed && (
+                <div className="w-full rounded-xl border border-border bg-muted/30 p-3.5 text-left text-xs">
+                  <div className="flex items-start gap-2 text-foreground font-semibold">
+                    <HelpCircle className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                    <span>¿Sigues teniendo problemas?</span>
+                  </div>
+                  <p className="text-muted-foreground mt-1 ml-6">
+                    Acércate al personal de control para una verificación manual de tu identidad.
+                  </p>
                 </div>
-                <p className="text-muted-foreground mt-1 ml-6">
-                  Acércate al personal de control para una verificación manual de tu identidad.
-                </p>
-              </div>
+              )}
 
               <Button
                 type="button"
@@ -866,7 +936,7 @@ export function ExamQrModal({
               ) : (
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-300 px-3.5 py-1 text-xs font-semibold text-emerald-800">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
-                  <span>Válido hasta {formatearFechaYHora(resultadoQr.vigenteHasta)}</span>
+                  <span>Vigente hasta {formatearFechaYHora(resultadoQr.vigenteHasta)}</span>
                 </div>
               )}
 

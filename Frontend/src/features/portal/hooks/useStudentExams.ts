@@ -23,7 +23,7 @@ function formatearFecha(iso: string): string {
 
 export function useStudentExams() {
   const [examenes, setExamenes] = useState<Examen[]>([]);
-  const [verificacionFotoActiva, setVerificacionFotoActiva] = useState(true);
+  const [verificacionFotoActiva, setVerificacionFotoActiva] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
