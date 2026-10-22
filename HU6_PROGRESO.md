@@ -52,6 +52,22 @@
   - Soporte offline mediante `localStorage` con clave temporal `exacontrol_offline_*`. Si falla la conexión, muestra los exámenes y QR guardados con advertencia visual "Estás sin conexión, mostrando datos guardados el [fecha]".
   - Purga automática y segura del almacenamiento sensible (`limpiarCacheOfflineEstudiante()`) al cerrar sesión voluntariamente o por expiración (401).
 
+
+---
+
+## HU6 Ampliación: QR por Examen con Verificación Facial (Frontend)
+
+- **Regla de negocio:** Se mantienen DOS QR independientes: el QR personal (permanente mientras no cambie credenciales) y el QR por examen (único por evaluación, disponible 24h antes y válido hasta el fin del examen). La comparación facial es responsabilidad del backend.
+- [x] **Bloque 1: Contrato de tipos, adaptador de compatibilidad y servicios real/mock**
+  - Contrato TypeScript centralizado en `Frontend/src/features/portal/types/qr-examen.ts`.
+  - Adaptador de formato legado (`adaptador-examenes.ts`) para compatibilidad retroactiva sin romper el backend actual.
+  - Servicio simulado (`mock-exam-qr.service.ts`) con 10 escenarios y selector flotante de desarrollo (`MockScenarioSelector.tsx`).
+  - Capa de servicio (`exam-qr.service.ts`) con importación dinámica de mocks fuera de producción.
+- [ ] **Bloque 2: Rediseño "Mis exámenes" (2 columnas, tarjeta con 5 estados y borde superior)**
+- [ ] **Bloque 3: Modal de 4 pasos con captura de cámara frontal y fallback**
+- [ ] **Bloque 4: Vista pública `/qr/v/[token]` con los 3 motivos de rechazo**
+- [ ] **Bloque 5: Caché offline con purga de QRs de examen vencidos**
+- [ ] **Bloque 6: Tests restantes, build sin mock, revisión final**
 ---
 
 ## Migraciones Aplicadas
