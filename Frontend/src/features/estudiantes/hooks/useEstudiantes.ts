@@ -208,33 +208,38 @@ export function useEstudiantes(examenId: number | null) {
         const respBackend = await estudianteService.cargaMasiva(examenId, file);
 
         if (respBackend?.resumen) {
+          const creados = respBackend.resumen.creados ?? respBackend.resumen.vinculados_nuevos;
+          const omitidos = respBackend.resumen.omitidos ?? respBackend.resumen.ya_vinculados;
+          const conError = respBackend.resumen.rechazadas;
+
           setResultadoCarga({
             totalLeidos: respBackend.resumen.total_filas,
-            insertadosOReutilizados: respBackend.resumen.vinculados_nuevos,
-            rechazados: respBackend.resumen.rechazadas,
+            insertadosOReutilizados: creados,
+            creados,
+            omitidos,
+            rechazados: conError,
+            pendientesCi: respBackend.resumen.pendientes_ci ?? 0,
             filasRechazadas: respBackend.rechazados.map((r) => ({
               fila: r.fila,
               cod_sis: r.cod_sis || undefined,
               motivo: r.motivo,
             })),
+            detalleFilas: respBackend.detalleFilas,
           });
 
           await fetchEstudiantes();
 
-          if (respBackend.resumen.rechazadas > 0 && respBackend.resumen.vinculados_nuevos > 0) {
+          if (conError > 0 && creados > 0) {
             toast.warning(
-              `Se vincularon ${respBackend.resumen.vinculados_nuevos} estudiantes. ${respBackend.resumen.rechazadas} fila(s) fueron rechazadas.`
+              `Importación: ${creados} creados, ${omitidos} omitidos, ${conError} con error.`
             );
-          } else if (
-            respBackend.resumen.rechazadas > 0 &&
-            respBackend.resumen.vinculados_nuevos === 0
-          ) {
+          } else if (conError > 0 && creados === 0) {
             toast.error(
-              `No se pudo vincular ninguna fila. ${respBackend.resumen.rechazadas} rechazada(s).`
+              `No se pudo vincular ninguna fila. ${conError} rechazada(s).`
             );
           } else {
             toast.success(
-              `Se vincularon ${respBackend.resumen.vinculados_nuevos} estudiantes exitosamente.`
+              `Importación exitosa: ${creados} creados, ${omitidos} omitidos.`
             );
           }
         }

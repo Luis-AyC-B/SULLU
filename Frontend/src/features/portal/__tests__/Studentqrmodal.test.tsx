@@ -24,6 +24,7 @@ const QR = {
 
 describe('IT-PE-03: StudentQrModal + getMiQr', () => {
   beforeEach(() => {
+    localStorage.clear();
     jest.clearAllMocks();
     jest.restoreAllMocks();
   });
@@ -114,5 +115,19 @@ describe('IT-PE-03: StudentQrModal + getMiQr', () => {
 
     expect(getMiQrMock).not.toHaveBeenCalled();
     expect(screen.queryByText('CÓDIGO QR · ESTUDIANTE')).not.toBeInTheDocument();
+  });
+
+  it('9. sin conexión pero con QR en caché: muestra el QR offline con aviso controlado', async () => {
+    localStorage.setItem(
+      'exacontrol_offline_qr',
+      JSON.stringify({ data: QR, cachedAt: new Date().toISOString() }),
+    );
+    getMiQrMock.mockRejectedValue(new Error('NETWORK_ERROR'));
+    render(<StudentQrModal open onClose={jest.fn()} />);
+
+    expect(await screen.findByText('Ana Rojas Mamani')).toBeInTheDocument();
+    expect(
+      screen.getByText(/sin conexión, mostrando credencial QR guardada/i),
+    ).toBeInTheDocument();
   });
 });

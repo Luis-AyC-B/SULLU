@@ -1,5 +1,5 @@
 // ==========================================================
-// Tipos del módulo de Estudiantes (HU-1: Registrar estudiantes por examen)
+// Tipos del módulo de Estudiantes (HU-1 / HU-6)
 // ==========================================================
 
 export type EstadoExamenEnum = "PROGRAMADO" | "EN_CURSO" | "FINALIZADO" | "CANCELADO";
@@ -24,6 +24,7 @@ export interface EstudianteExamen {
   nombre: string;
   apellido: string;
   ci?: string | null;
+  correo?: string | null;
   estado_habilitado: boolean;
   motivo_inhabilitacion?: string | null;
 }
@@ -35,6 +36,7 @@ export interface CreateEstudianteManualInput {
   apellido: string;
   cod_sis: string;
   ci?: string;
+  correo?: string;
 }
 
 export interface FilaRechazada {
@@ -44,9 +46,25 @@ export interface FilaRechazada {
   nombre?: string;
 }
 
+export interface FilaResultadoDetalle {
+  fila?: number;
+  cod_sis: string;
+  nombre: string;
+  apellido: string;
+  ci: string | null;
+  correo: string;
+  estado: 'CREADO' | 'OMITIDO' | 'ERROR';
+  motivo?: string;
+  ciPendiente?: boolean;
+}
+
 export interface ResultadoCargaEstudiantes {
   totalLeidos: number;
   insertadosOReutilizados: number;
+  creados?: number;
+  omitidos?: number;
   rechazados: number;
+  pendientesCi?: number;
   filasRechazadas: FilaRechazada[];
+  detalleFilas?: FilaResultadoDetalle[];
 }
