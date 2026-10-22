@@ -89,9 +89,18 @@ export function StudentExamsView() {
     return { proximas: prox, finalizadas: fin };
   }, [examenes]);
 
-  const fechaHoyTexto = useMemo(() => {
-    return formatearFechaCorta(new Date().toISOString());
+  const [minutosActualizado, setMinutosActualizado] = useState(1);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setMinutosActualizado((m) => m + 1);
+    }, 60000);
+    return () => clearInterval(timer);
   }, []);
+
+  const textoActualizado = useMemo(() => {
+    return `Actualizado hace ${minutosActualizado} min`;
+  }, [minutosActualizado]);
 
   const handleGenerarQrExamen = (examen: Examen) => {
     setExamenSeleccionado(examen);
@@ -119,7 +128,7 @@ export function StudentExamsView() {
           </p>
         </div>
         <div className="text-xs font-medium text-muted-foreground self-start sm:self-end">
-          Actualizado {fechaHoyTexto}
+          {textoActualizado}
         </div>
       </div>
 
@@ -166,8 +175,7 @@ export function StudentExamsView() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-foreground">
-                  {perfil ? `${perfil.nombre} ${perfil.apellido || ''}`.trim() : 'Estudiante'}
-                </h2>
+{perfil ? perfil.nombre : 'Estudiante'}                </h2>
                 {perfil?.perfilCompleto ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
                     <CheckCircle2 className="h-3 w-3" />
@@ -250,12 +258,12 @@ export function StudentExamsView() {
 
           {!isLoading && !hasError && examenes.length > 0 && (
             <>
-              {/* Sección: Próximas Evaluaciones */}
+              {/* Sección: Próximos y recientes */}
               <div>
                 <div className="mb-3.5 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
-                      Próximas evaluaciones
+                      Próximos y recientes
                     </h3>
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                       {proximas.length} {proximas.length === 1 ? 'examen' : 'exámenes'}
@@ -263,22 +271,13 @@ export function StudentExamsView() {
                   </div>
 
                   <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    Los códigos QR son personales
+                    Los códigos se habilitan 24 horas antes.
                   </span>
                 </div>
 
                 {proximas.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-xs text-muted-foreground">
-                    <p className="mb-3">No tienes evaluaciones próximas.</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setQrPersonalOpen(true)}
-                      className="gap-2 text-xs"
-                    >
-                      <QrCode className="h-4 w-4" />
-                      Mi QR personal
-                    </Button>
+                    <p>No tienes evaluaciones próximas.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">

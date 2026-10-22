@@ -120,7 +120,7 @@ export function ExamCard({
       data-estado-qr={estado}
       className={`flex h-full flex-col justify-between rounded-xl border border-border bg-card p-5 text-card-foreground shadow-xs transition-shadow hover:shadow-md ${bordeColor}`}
     >
-      <div>
+      <div className="flex-1 flex flex-col">
         {/* Fila superior: Carrera a la izquierda, Chip de estado a la derecha */}
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -205,8 +205,8 @@ export function ExamCard({
         </div>
       </div>
 
-      {/* Separador y Pie con botones según el estado */}
-      <div className="mt-5 border-t border-border pt-4">
+      {/* Separador y Pie con botones siempre al fondo */}
+      <div className="mt-auto border-t border-border pt-4">
         {estado === 'NO_DISPONIBLE_AUN' && (
           <div className="flex flex-col gap-1.5">
             <Button
@@ -214,14 +214,12 @@ export function ExamCard({
               disabled
               variant="outline"
               size="sm"
+              aria-label="Generar QR del examen: El QR se habilita 24 horas antes del examen"
               className="w-full sm:w-auto self-start text-xs font-medium text-muted-foreground cursor-not-allowed bg-muted/50 border-muted"
             >
-              <QrCode className="h-4 w-4 mr-1.5 opacity-60" />
-              Generar QR del examen
-            </Button>
-            <p className="text-[11px] text-muted-foreground">
+              <Clock className="h-4 w-4 mr-1.5 opacity-60" />
               El QR se habilita 24 horas antes del examen
-            </p>
+            </Button>
           </div>
         )}
 
@@ -251,7 +249,7 @@ export function ExamCard({
 
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground self-start sm:self-center">
               <Clock className="h-3 w-3" />
-              QR disponible hasta las {horaFinTexto}
+              QR disponible hasta las {formatearHora(examen.qrVigenteHasta || examen.fechaFin)}
             </span>
           </div>
         )}

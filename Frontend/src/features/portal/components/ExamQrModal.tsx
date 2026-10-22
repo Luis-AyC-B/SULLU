@@ -83,6 +83,9 @@ export function ExamQrModal({
   const [qrVencidoEnVivo, setQrVencidoEnVivo] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Evita que la generación se dispare más de una vez por apertura del modal
+  const generacionIniciada = useRef(false);
+
   // Detener cámara de forma segura
   const detenerCamara = useCallback(() => {
     if (streamRef.current) {
@@ -177,36 +180,47 @@ export function ExamQrModal({
     }
   }, [examen, selfieBlob, onExamenActualizado, verificacionFotoActiva]);
 
-  // Reset del modal al abrir/cerrar
-  useEffect(() => {
-    if (open && examen) {
-      setQrVencidoEnVivo(false);
-      setErrorVerificacion(null);
-      setIntentosAgotados(false);
-      setIntentosRestantes(3);
-      setEsErrorRed(false);
+  // Reset del modal: solo al abrir/cerrar o al cambiar de examen
+  const examenId = examen?.id ?? null;
+  const examenYaGenerado = examen?.estadoQr === 'GENERADO' && !!examen?.qrUrl;
 
-      // Si el examen ya tiene QR generado y está vigente, mostrar directamente Paso 4 (Tu QR)
-      if (examen.estadoQr === 'GENERADO' && examen.qrUrl) {
-        setResultadoQr({
-          qrUrl: examen.qrUrl,
-          vigenteHasta: examen.qrVigenteHasta,
-          token: examen.token || undefined,
-        });
-        setPaso('TU_QR');
-      } else if (!verificacionFotoActiva) {
-        // Flujo con un clic: genera QR directamente sin pedir selfie
-        setResultadoQr(null);
-        ejecutarGeneracionQr();
-      } else {
-        setPaso('DETALLE');
-        setResultadoQr(null);
-      }
-    } else {
+  useEffect(() => {
+    if (!open || examenId === null) {
+      generacionIniciada.current = false;
       detenerCamara();
       limpiarSelfieUrl();
+      return;
     }
-  }, [open, examen, verificacionFotoActiva, detenerCamara, limpiarSelfieUrl, ejecutarGeneracionQr]);
+
+    if (generacionIniciada.current) return; // una sola vez por apertura
+    generacionIniciada.current = true;
+
+    setQrVencidoEnVivo(false);
+    setErrorVerificacion(null);
+    setIntentosAgotados(false);
+    setIntentosRestantes(3);
+    setEsErrorRed(false);
+
+    if (examen && examenYaGenerado && examen.qrUrl) {
+      // Si el examen ya tiene QR generado y está vigente, mostrar directamente Paso 4 (Tu QR)
+      setResultadoQr({
+        qrUrl: examen.qrUrl,
+        vigenteHasta: examen.qrVigenteHasta,
+        token: examen.token || undefined,
+      });
+      setPaso('TU_QR');
+    } else if (!verificacionFotoActiva) {
+      // Flujo con un clic: genera QR directamente sin pedir selfie
+      setResultadoQr(null);
+      void ejecutarGeneracionQr();
+    } else {
+      setPaso('DETALLE');
+      setResultadoQr(null);
+    }
+    // El efecto debe depender solo de open y examenId a propósito:
+    // incluir examen/ejecutarGeneracionQr provocaba un bucle de generación.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, examenId]);
 
   // Iniciar cámara con respaldo
   const iniciarCamara = useCallback(async () => {
@@ -973,4 +987,3 @@ export function ExamQrModal({
     </Dialog>
   );
 }
-
