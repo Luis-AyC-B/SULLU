@@ -1,6 +1,5 @@
 "use client";
 
-import { Ban, CheckCircle2 } from "lucide-react";
 import { TableRow, TableCell } from "@/shared/components/ui/table";
 import { EstudianteExamen } from "../types/estudiante.types";
 
@@ -18,6 +17,8 @@ export function EstudianteTableRow({
   onHabilitarClick,
 }: EstudianteTableRowProps) {
   const isHabilitado = estudiante.estado_habilitado;
+  const correoInstitucional =
+    estudiante.correo || `${estudiante.cod_sis.toLowerCase()}@est.umss.edu.bo`;
 
   return (
     <TableRow className="hover:bg-slate-50/75 transition-colors border-b border-slate-100">
@@ -32,6 +33,9 @@ export function EstudianteTableRow({
               CI: {estudiante.ci}
             </span>
           )}
+          <span className="text-[11px] text-slate-500 font-mono">
+            {correoInstitucional}
+          </span>
         </div>
       </TableCell>
 
@@ -59,43 +63,30 @@ export function EstudianteTableRow({
         )}
       </TableCell>
 
-      {/* Columna: MOTIVO */}
-      <TableCell className="py-3.5 text-xs">
-        {estudiante.motivo_inhabilitacion ? (
-          <span className="text-[#D92D20] font-medium">
-            {estudiante.motivo_inhabilitacion}
-          </span>
-        ) : (
-          <span className="text-rose-400 font-medium">—</span>
-        )}
-      </TableCell>
-
-      {/* Columna: INHABILITAR (Acción protegida por permiso estudiantes.habilitar) */}
-      {canHabilitar && (
-        <TableCell className="py-3.5 pr-5 text-right">
-          {isHabilitado ? (
+      {/* Columna: ACCIÓN */}
+      <TableCell className="py-3.5 text-right pr-5">
+        {canHabilitar ? (
+          isHabilitado ? (
             <button
               type="button"
               onClick={() => onInhabilitarClick(estudiante)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
-              title={`Inhabilitar a ${estudiante.nombre} ${estudiante.apellido}`}
-              aria-label={`Inhabilitar a ${estudiante.nombre} ${estudiante.apellido}`}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
             >
-              <Ban className="h-4 w-4" />
+              Inhabilitar
             </button>
           ) : (
             <button
               type="button"
               onClick={() => onHabilitarClick(estudiante)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 transition-colors cursor-pointer"
-              title={`Habilitar a ${estudiante.nombre} ${estudiante.apellido}`}
-              aria-label={`Habilitar a ${estudiante.nombre} ${estudiante.apellido}`}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-[#027A48] hover:bg-emerald-50 transition-colors cursor-pointer"
             >
-              <CheckCircle2 className="h-4 w-4" />
+              Habilitar
             </button>
-          )}
-        </TableCell>
-      )}
+          )
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        )}
+      </TableCell>
     </TableRow>
   );
 }

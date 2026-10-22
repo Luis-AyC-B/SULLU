@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Search, GraduationCap } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 
 interface LoginPublicNavbarProps {
@@ -87,20 +87,6 @@ export function LoginPublicNavbar({ onOpenLogin }: LoginPublicNavbarProps) {
               className="h-9 w-44 xl:w-56 rounded-full border border-slate-200 bg-slate-50/80 pl-9 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#003770] transition-all"
             />
           </div>
-
-          {/* Botón ¿eres estudiante? */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden sm:inline-flex text-xs text-slate-700 hover:text-[#003770] hover:bg-slate-100/80 gap-1.5 font-medium"
-            onClick={() => {
-              const el = document.getElementById('noticias');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <GraduationCap className="h-4 w-4 text-[#D98300]" />
-            ¿eres estudiante?
-          </Button>
 
           {/* Botón Iniciar sesión (Abre el Modal de Login) */}
           <Button

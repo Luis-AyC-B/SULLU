@@ -1,25 +1,70 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Camera, Lock, Search, AlertTriangle, ArrowRight } from "lucide-react";
 import { useDeviceCapabilities } from "../../hooks/useDeviceCapabilities";
 import { toast } from "sonner";
 
-export function AccionesOperativasGrid() {
+interface AccionesOperativasGridProps {
+  onAbrirRegistroManual?: () => void;
+  onAbrirScanner?: () => void;
+}
+
+export function AccionesOperativasGrid({
+  onAbrirRegistroManual,
+  onAbrirScanner,
+}: AccionesOperativasGridProps = {}) {
   const router = useRouter();
+  const { data: session } = useSession();
   const { canScanQr, helperText } = useDeviceCapabilities();
 
+  const permisos = (session?.user?.permisos as string[]) || [];
+
+  const canEscanearQr =
+    permisos.length === 0 || // Desarrollo / fallback inicial
+    permisos.some(
+      (p) =>
+        p === "control_ingreso.escanear_qr" ||
+        p === "control_ingreso" ||
+        p === "usuarios.crear"
+    );
+
+  const canRegistroManual =
+    permisos.length === 0 || // Desarrollo / fallback inicial
+    permisos.some(
+      (p) =>
+        p === "control_ingreso.registro_manual" ||
+        p === "control_ingreso" ||
+        p === "usuarios.crear"
+    );
+
   const handleEscanearQr = () => {
+    if (!canEscanearQr) {
+      toast.error("No tienes permiso para escanear códigos QR");
+      return;
+    }
     if (!canScanQr) {
       toast.info(helperText);
       return;
     }
-    // HU9: Módulo de escáner QR
+    if (onAbrirScanner) {
+      onAbrirScanner();
+      return;
+    }
     router.push("/control-ingreso/escanear");
   };
 
   const handleRegistroManual = () => {
-    // HU8: Búsqueda y registro manual de estudiante
+    if (!canRegistroManual) {
+      toast.error("No tienes permiso para registrar ingresos manuales");
+      return;
+    }
+    if (onAbrirRegistroManual) {
+      onAbrirRegistroManual();
+      return;
+    }
+    // Fallback a ruta
     router.push("/control-ingreso/manual");
   };
 
@@ -32,24 +77,24 @@ export function AccionesOperativasGrid() {
     <div className="flex flex-col gap-4 w-full">
       {/* Grid de 2 Tarjetas Principales: Escanear QR y Registro Manual */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Tarjeta 1: Escanear QR (Adaptativa por Dispositivo) */}
+        {/* Tarjeta 1: Escanear QR (Adaptativa por Dispositivo y RBAC) */}
         <div
           className={`rounded-2xl p-6 text-left transition-all border flex flex-col justify-between ${
-            canScanQr
+            canEscanearQr
               ? "bg-white border-slate-200/90 hover:border-slate-300 shadow-xs cursor-pointer"
               : "bg-slate-50/70 border-slate-200/80 cursor-default"
           }`}
-          onClick={canScanQr ? handleEscanearQr : undefined}
+          onClick={canEscanearQr ? handleEscanearQr : undefined}
         >
           <div>
             <div
               className={`flex h-11 w-11 items-center justify-center rounded-xl mb-4 ${
-                canScanQr
+                canEscanearQr
                   ? "bg-blue-50 text-[#002D62]"
                   : "bg-slate-200/60 text-slate-400"
               }`}
             >
-              {canScanQr ? (
+              {canEscanearQr ? (
                 <Camera className="h-6 w-6" />
               ) : (
                 <Lock className="h-5 w-5" />
@@ -58,66 +103,95 @@ export function AccionesOperativasGrid() {
 
             <h3
               className={`text-lg font-bold mb-1.5 ${
-                canScanQr ? "text-slate-900" : "text-slate-700"
+                canEscanearQr ? "text-slate-900" : "text-slate-700"
               }`}
             >
               Escanear QR
             </h3>
 
-            {!canScanQr && (
+            {!canEscanearQr ? (
               <p className="text-xs text-slate-500 leading-relaxed mb-4">
-                El escaneo QR requiere la cámara. Ingresa desde un dispositivo
-                móvil.
+                No dispones del permiso necesario para escanear códigos QR.
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                Apunta la cámara al código QR del estudiante para registrar su ingreso en tiempo real.
               </p>
             )}
           </div>
 
           <div className="pt-2">
-            {canScanQr ? (
+            {!canEscanearQr ? (
+              <span className="text-xs font-medium text-slate-400 select-none">
+                Permiso no asignado
+              </span>
+            ) : (
               <button
                 type="button"
                 onClick={handleEscanearQr}
-                className="text-sm font-bold text-[#002D62] hover:underline underline-offset-4 cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-sm font-bold text-[#002D62] hover:underline underline-offset-4 cursor-pointer"
               >
-                Abrir cámara
+                <span>Abrir cámara</span>
+                <ArrowRight className="h-4 w-4" />
               </button>
-            ) : (
-              <span className="text-xs font-medium text-slate-400 select-none">
-                No disponible en este dispositivo
-              </span>
             )}
           </div>
         </div>
 
-        {/* Tarjeta 2: Registrar ingreso manual */}
+        {/* Tarjeta 2: Registrar ingreso manual (RBAC) */}
         <div
-          onClick={handleRegistroManual}
-          className="rounded-2xl bg-white border border-slate-200/90 hover:border-slate-300 p-6 text-left shadow-xs transition-all flex flex-col justify-between cursor-pointer"
+          onClick={canRegistroManual ? handleRegistroManual : undefined}
+          className={`rounded-2xl p-6 text-left transition-all border flex flex-col justify-between ${
+            canRegistroManual
+              ? "bg-white border-slate-200/90 hover:border-slate-300 shadow-xs cursor-pointer"
+              : "bg-slate-50/70 border-slate-200/80 cursor-default"
+          }`}
         >
           <div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-[#002D62] mb-4">
-              <Search className="h-6 w-6" />
+            <div
+              className={`flex h-11 w-11 items-center justify-center rounded-xl mb-4 ${
+                canRegistroManual
+                  ? "bg-blue-50 text-[#002D62]"
+                  : "bg-slate-200/60 text-slate-400"
+              }`}
+            >
+              {canRegistroManual ? (
+                <Search className="h-6 w-6" />
+              ) : (
+                <Lock className="h-5 w-5" />
+              )}
             </div>
 
-            <h3 className="text-lg font-bold text-slate-900 mb-1.5">
+            <h3
+              className={`text-lg font-bold mb-1.5 ${
+                canRegistroManual ? "text-slate-900" : "text-slate-700"
+              }`}
+            >
               Registrar ingreso manual
             </h3>
 
             <p className="hidden md:block text-xs text-slate-500 leading-relaxed mb-4">
-              Busca por código SIS, CI o nombre y verifica los datos antes de
-              registrar.
+              {canRegistroManual
+                ? "Busca por código SIS, CI o nombre y verifica los datos antes de registrar."
+                : "No dispones del permiso necesario para registrar ingresos manualmente."}
             </p>
           </div>
 
           <div className="pt-2">
-            <button
-              type="button"
-              onClick={handleRegistroManual}
-              className="inline-flex items-center gap-1.5 text-sm font-bold text-[#002D62] hover:underline underline-offset-4 cursor-pointer"
-            >
-              <span>Buscar estudiante</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
+            {canRegistroManual ? (
+              <button
+                type="button"
+                onClick={handleRegistroManual}
+                className="inline-flex items-center gap-1.5 text-sm font-bold text-[#002D62] hover:underline underline-offset-4 cursor-pointer"
+              >
+                <span>Buscar estudiante</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <span className="text-xs font-medium text-slate-400 select-none">
+                Permiso no asignado
+              </span>
+            )}
           </div>
         </div>
       </div>

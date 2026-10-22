@@ -25,6 +25,11 @@ export function DesktopAccionesPanel({
             <p className="font-bold text-slate-900 text-sm">
               {selectedExam.asignatura}
             </p>
+            {selectedExam.docente && (
+              <p className="text-xs font-medium text-slate-500 mt-0.5">
+                Docente: {selectedExam.docente}
+              </p>
+            )}
             <p className="text-xs text-slate-600 mt-1">
               {selectedExam.ambiente} · {selectedExam.horario}
             </p>

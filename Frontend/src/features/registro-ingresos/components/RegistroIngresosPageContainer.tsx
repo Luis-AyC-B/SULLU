@@ -1,5 +1,6 @@
-import { ModuloEnConstruccion } from "@/shared/components/ModuloEnConstruccion";
+// src/features/registro-ingresos/components/RegistroIngresosPageContainer.tsx
+import { ControlIngresosPageContainer } from "./ControlIngresosPageContainer";
 
 export function RegistroIngresosPageContainer() {
-  return <ModuloEnConstruccion titulo="Registro de ingresos" hus="HU11" />;
+  return <ControlIngresosPageContainer />;
 }

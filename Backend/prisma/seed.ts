@@ -917,6 +917,8 @@ async function main() {
       },
     },
   });
+  // controlUser1: usuario legacy de Personal de control para registros de ingreso
+  // Los colaboradores de HU13 ahora son Estudiantes con cod_sis
   const controlUser1 = await prisma.usuario.create({
     data: {
       nombre: 'Juan',
@@ -926,16 +928,6 @@ async function main() {
       roles: { create: [{ rolId: rolControl.id }] },
     },
   });
-  const controlUser2 = await prisma.usuario.create({
-    data: {
-      nombre: 'Maria',
-      apellido: 'Lopez Quispe',
-      correo: 'm.lopez@umss.edu.bo',
-      password: passwordHash,
-      roles: { create: [{ rolId: rolControl.id }] },
-    },
-  });
-  void controlUser2;
   console.log('OK: Usuarios del sistema creados.\n');
 
   // 2.6 HorarioFijo (malla horaria institucional UMSS)
@@ -1198,14 +1190,14 @@ async function main() {
   void docAna;
   void docRamiro;
 
-  // Examen 1 - PROGRAMADO (hoy) - Vladimir - BD1
-  // NOTA: el estado EN_CURSO lo calcula el sistema segun hora actual vs HorarioFijo
+  // Examen 1 - PROGRAMADO (mañana) - Vladimir - BD1
+  // Fecha: mañana para que siempre esté disponible para asignar/quitar colaboradores
   const reserva1 = await prisma.reservaAmbiente.create({
     data: {
       ambienteId: ambFCyT[0],
       docenteId: docVlad,
       horarioFijoId: horarioFijoMap['Periodo 2'],
-      fecha: ahora,
+      fecha: manana,
       estado: 'RESERVADO',
     },
   });
@@ -1245,19 +1237,6 @@ async function main() {
         estudianteId: estudianteMap[cod],
         examenId: examen1.id,
         estado_habilitado: true,
-      },
-    });
-  }
-  // Simular ingresos para los primeros 6 (examen de hoy)
-  for (const cod of sistStudents.slice(0, 6)) {
-    await prisma.ingreso.create({
-      data: {
-        estudianteId: estudianteMap[cod],
-        examenId: examen1.id,
-        fechaHora: ahora,
-        metodo: 'QR',
-        registradoPor: controlUser1.id,
-        esOffline: false,
       },
     });
   }
@@ -1616,58 +1595,195 @@ async function main() {
   }
   console.log('OK: Examenes y reservas creados.\n');
 
-  // 2.11 DocenteColaborador
-  console.log('Creando relaciones colaborador...');
-  await prisma.docenteColaborador.create({
-    data: {
-      docenteId: docVlad,
-      colaboradorId: controlUser1.id,
-      estadoSolicitud: 'APROBADO',
-      aprobadoPor: adminUser.id,
-      correoSolicitado: 'j.perez@umss.edu.bo',
-      fechaSolicitud: new Date(ahora.getTime() - 7 * 24 * 60 * 60 * 1000),
-      fechaRespuesta: new Date(ahora.getTime() - 6 * 24 * 60 * 60 * 1000),
-    },
+  // 2.11 DocenteColaborador — HU13
+  // Colaboradores son Estudiantes registrados identificados por cod_sis.
+  // Al APROBAR se agrega rol Personal de control (rolControl.id=3) sin quitar Estudiante.
+  console.log('Creando relaciones colaborador (HU13)...');
+
+  // Helper: obtener usuarioId de un estudiante por cod_sis
+  const getEstUserId = async (codSis: string): Promise<number> => {
+    const est = await prisma.estudiante.findUnique({
+      where: { cod_sis: codSis },
+      select: { usuario: { select: { id: true } } },
+    });
+    if (!est?.usuario?.id) throw new Error(`Estudiante ${codSis} no tiene usuarioId`);
+    return est.usuario.id;
+  };
+
+  // ── Nómina de VLADIMIR ────────────────────────────────────────────────────
+
+  // APROBADO 1: Luciana Pedraza (202001001)
+  const vlad_col1_userId = await getEstUserId('202001001');
+  await prisma.usuario_Rol.upsert({
+    where: { usuarioId_rolId: { usuarioId: vlad_col1_userId, rolId: rolControl.id } },
+    create: { usuarioId: vlad_col1_userId, rolId: rolControl.id },
+    update: {},
   });
   await prisma.docenteColaborador.create({
     data: {
       docenteId: docVlad,
-      colaboradorId: controlUser2.id,
+      colaboradorId: vlad_col1_userId,
+      estadoSolicitud: 'APROBADO',
+      aprobadoPor: adminUser.id,
+      fechaSolicitud: new Date(ahora.getTime() - 14 * 24 * 60 * 60 * 1000),
+      fechaRespuesta: new Date(ahora.getTime() - 13 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  // APROBADO 2: Fernando Aguilar (202001002)
+  const vlad_col2_userId = await getEstUserId('202001002');
+  await prisma.usuario_Rol.upsert({
+    where: { usuarioId_rolId: { usuarioId: vlad_col2_userId, rolId: rolControl.id } },
+    create: { usuarioId: vlad_col2_userId, rolId: rolControl.id },
+    update: {},
+  });
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docVlad,
+      colaboradorId: vlad_col2_userId,
+      estadoSolicitud: 'APROBADO',
+      aprobadoPor: adminUser.id,
+      fechaSolicitud: new Date(ahora.getTime() - 10 * 24 * 60 * 60 * 1000),
+      fechaRespuesta: new Date(ahora.getTime() - 9 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  // PENDIENTE: Daniela Cruz (202001003)
+  const vlad_col3_userId = await getEstUserId('202001003');
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docVlad,
+      colaboradorId: vlad_col3_userId,
       estadoSolicitud: 'PENDIENTE',
-      correoSolicitado: 'm.lopez@umss.edu.bo',
+      fechaSolicitud: new Date(ahora.getTime() - 2 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  // RECHAZADO: Andres Lima (202001004)
+  const vlad_col4_userId = await getEstUserId('202001004');
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docVlad,
+      colaboradorId: vlad_col4_userId,
+      estadoSolicitud: 'RECHAZADO',
+      aprobadoPor: adminUser.id,
+      fechaSolicitud: new Date(ahora.getTime() - 8 * 24 * 60 * 60 * 1000),
+      fechaRespuesta: new Date(ahora.getTime() - 7 * 24 * 60 * 60 * 1000),
+    },
+  });
+  void vlad_col3_userId;
+  void vlad_col4_userId;
+
+  // INACTIVO: Camila Flores (202001005) — aprobada, luego dada de baja
+  const vlad_col5_userId = await getEstUserId('202001005');
+  await prisma.usuario_Rol.upsert({
+    where: { usuarioId_rolId: { usuarioId: vlad_col5_userId, rolId: rolControl.id } },
+    create: { usuarioId: vlad_col5_userId, rolId: rolControl.id },
+    update: {},
+  });
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docVlad,
+      colaboradorId: vlad_col5_userId,
+      estadoSolicitud: 'INACTIVO',
+      aprobadoPor: adminUser.id,
+      fechaSolicitud: new Date(ahora.getTime() - 20 * 24 * 60 * 60 * 1000),
+      fechaRespuesta: new Date(ahora.getTime() - 19 * 24 * 60 * 60 * 1000),
+    },
+  });
+  void vlad_col5_userId;
+
+  // PENDIENTE 2: Sebastian Vargas (202101010)
+  const vlad_col6_userId = await getEstUserId('202101010');
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docVlad,
+      colaboradorId: vlad_col6_userId,
+      estadoSolicitud: 'PENDIENTE',
       fechaSolicitud: new Date(),
     },
+  });
+  void vlad_col6_userId;
+
+  // ── Nómina de MIRIAM ──────────────────────────────────────────────────────
+
+  // APROBADO: Natalia Quispe (202101011)
+  const miriam_col1_userId = await getEstUserId('202101011');
+  await prisma.usuario_Rol.upsert({
+    where: { usuarioId_rolId: { usuarioId: miriam_col1_userId, rolId: rolControl.id } },
+    create: { usuarioId: miriam_col1_userId, rolId: rolControl.id },
+    update: {},
   });
   await prisma.docenteColaborador.create({
     data: {
       docenteId: docMiriam,
-      colaboradorId: controlUser1.id,
+      colaboradorId: miriam_col1_userId,
       estadoSolicitud: 'APROBADO',
       aprobadoPor: adminUser.id,
-      correoSolicitado: 'j.perez@umss.edu.bo',
       fechaSolicitud: new Date(ahora.getTime() - 5 * 24 * 60 * 60 * 1000),
       fechaRespuesta: new Date(ahora.getTime() - 4 * 24 * 60 * 60 * 1000),
     },
   });
+  void miriam_col1_userId;
 
-  // 2.12 ExamenControlador
+  // PENDIENTE: Josue Medina (202101012)
+  const miriam_col2_userId = await getEstUserId('202101012');
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docMiriam,
+      colaboradorId: miriam_col2_userId,
+      estadoSolicitud: 'PENDIENTE',
+      fechaSolicitud: new Date(ahora.getTime() - 1 * 24 * 60 * 60 * 1000),
+    },
+  });
+  void miriam_col2_userId;
+
+  // ── Nómina de EDGAR ───────────────────────────────────────────────────────
+
+  // APROBADO: Javier Mendoza (202001050)
+  const edgar_col1_userId = await getEstUserId('202001050');
+  await prisma.usuario_Rol.upsert({
+    where: { usuarioId_rolId: { usuarioId: edgar_col1_userId, rolId: rolControl.id } },
+    create: { usuarioId: edgar_col1_userId, rolId: rolControl.id },
+    update: {},
+  });
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docEdgar,
+      colaboradorId: edgar_col1_userId,
+      estadoSolicitud: 'APROBADO',
+      aprobadoPor: adminUser.id,
+      fechaSolicitud: new Date(ahora.getTime() - 6 * 24 * 60 * 60 * 1000),
+      fechaRespuesta: new Date(ahora.getTime() - 5 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  // 2.12 ExamenControlador — asignar colaboradores APROBADOS a exámenes
   await prisma.examenControlador.create({
     data: {
       examenId: examen1.id,
-      colaboradorId: controlUser1.id,
+      colaboradorId: vlad_col1_userId, // Luciana Pedraza — examen BD1 de Vladimir
       asignadoPor: docVlad,
       rolAsignacion: 'Control principal',
     },
   });
   await prisma.examenControlador.create({
     data: {
-      examenId: examen3.id,
-      colaboradorId: controlUser1.id,
-      asignadoPor: docEdgar,
+      examenId: examen1.id,
+      colaboradorId: vlad_col2_userId, // Fernando Aguilar — mismo examen BD1
+      asignadoPor: docVlad,
       rolAsignacion: 'Apoyo de ingreso',
     },
   });
-  console.log('OK: Relaciones colaborador creadas.\n');
+  await prisma.examenControlador.create({
+    data: {
+      examenId: examen3.id,
+      colaboradorId: edgar_col1_userId, // Javier Mendoza — examen de Edgar
+      asignadoPor: docEdgar,
+      rolAsignacion: 'Control principal',
+    },
+  });
+  console.log('OK: Relaciones colaborador (HU13) creadas.\n');
 
   // 2.13 Codigos QR de prueba
   console.log('Creando codigos QR de prueba...');

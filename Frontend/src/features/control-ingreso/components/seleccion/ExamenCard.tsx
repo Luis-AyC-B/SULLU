@@ -60,9 +60,15 @@ export function ExamenCard({ examen, isSelected, onSelect }: ExamenCardProps) {
       </div>
 
       {/* Nombre de la asignatura */}
-      <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-3 tracking-tight">
+      <h3 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
         {examen.asignatura}
       </h3>
+      {examen.docente && (
+        <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5 mb-3">
+          Docente: {examen.docente}
+        </p>
+      )}
+      {!examen.docente && <div className="mb-3" />}
 
       {/* Fila inferior: Fecha, Horario y Ambiente */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs md:text-sm text-slate-600">

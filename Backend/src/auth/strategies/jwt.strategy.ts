@@ -9,7 +9,9 @@ export interface JwtPayload {
   nombre: string;
   email: string;
   permisos: string[];
-  sessionId?: string; // <-- Nuevo campo para single session
+  rol?: string;
+  sessionId?: string | null;
+  estudianteId?: number;
 }
 
 export interface AuthenticatedUser {
@@ -17,6 +19,8 @@ export interface AuthenticatedUser {
   nombre: string;
   email: string;
   permisos: string[];
+  rol?: string;
+  debeCambiarPassword?: boolean;
 }
 
 @Injectable()
@@ -32,23 +36,45 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: payload.sub },
+      include: {
+        roles: {
+          include: {
+            rol: true,
+          },
+        },
+      },
     });
 
-    // Si el usuario no existe, o si el sessionId del token no coincide con el de la BD, rechazar
+    if (!usuario || usuario.deletedAt !== null) {
+      throw new UnauthorizedException(
+        'Sesión inválida o cuenta dada de baja.',
+      );
+    }
+
+    // Exención de sesión única para rol Estudiante consultando la base de datos
+    const esEstudiante = usuario.roles?.some(
+      (r) => r.rol?.nombre === 'Estudiante',
+    );
+
     if (
-      !usuario ||
-      (usuario.sessionId && usuario.sessionId !== payload.sessionId)
+      !esEstudiante &&
+      usuario.sessionId &&
+      usuario.sessionId !== payload.sessionId
     ) {
       throw new UnauthorizedException(
         'Sesión inválida o expirada. Has iniciado sesión en otro dispositivo.',
       );
     }
 
+    const rolNombre = usuario.roles?.[0]?.rol?.nombre || '';
+
     return {
       id: payload.sub,
       nombre: payload.nombre,
       email: payload.email,
       permisos: payload.permisos || [],
+      rol: rolNombre,
+      debeCambiarPassword: usuario.debeCambiarPassword,
     };
   }
 }

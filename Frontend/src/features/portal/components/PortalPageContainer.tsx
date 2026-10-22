@@ -1,5 +1,5 @@
-import { ModuloEnConstruccion } from "@/shared/components/ModuloEnConstruccion";
+import { StudentExamsView } from './StudentExamsView';
 
 export function PortalPageContainer() {
-  return <ModuloEnConstruccion titulo="Mis exámenes" hus="HU6" />;
+  return <StudentExamsView />;
 }

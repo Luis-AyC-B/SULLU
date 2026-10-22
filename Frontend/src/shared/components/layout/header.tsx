@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { limpiarCacheOfflineEstudiante } from "@/features/portal/lib/offline-portal";
 import { User, LogOut } from "lucide-react";
 
 /**
@@ -28,6 +29,11 @@ function getRolDisplayName(session: SessionUserWithRoles | null | undefined): st
     return String(session.user.role).toUpperCase();
   }
 
+  // Portal del estudiante (HU6): su sesión solo tiene el permiso portal_estudiante
+  if (session?.user?.permisos?.includes("portal_estudiante")) {
+    return "ESTUDIANTE";
+  }
+
   // Fallback: inferir del correo (solo si el backend no envió el rol)
   const email = session?.user?.email?.toLowerCase() || "";
   if (email.includes("admin")) return "ADMINISTRADOR";
@@ -37,6 +43,11 @@ function getRolDisplayName(session: SessionUserWithRoles | null | undefined): st
   return "USUARIO";
 }
 
+interface HeaderProps {
+  /** Muestra la opción "Perfil" en el menú de usuario. El portal del estudiante la oculta. */
+  showProfile?: boolean;
+}
+
 /**
  * Header de la aplicación (cuando el usuario ya inició sesión)
  * Basado en los mockups oficiales (media_1789864393611.png y media_1789917596801.png).
@@ -44,7 +55,7 @@ function getRolDisplayName(session: SessionUserWithRoles | null | undefined): st
  * Extremo derecho: Sección de usuario con rol, nombre y avatar que abre el
  * menú flotante para "Perfil" y "Cerrar sesión" funcional.
  */
-export function Header() {
+export function Header({ showProfile = true }: HeaderProps = {}) {
   const { data: session } = useSession();
   const router = useRouter();
 
@@ -96,6 +107,7 @@ export function Header() {
 
   const handleLogout = () => {
     setIsMenuOpen(false);
+    limpiarCacheOfflineEstudiante();
     signOut({ callbackUrl: "/login" });
   };
 
@@ -155,19 +167,23 @@ export function Header() {
             aria-orientation="vertical"
             className="absolute right-0 top-full mt-2 z-50 w-56 rounded-2xl border border-white/15 bg-[#002D62] p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
           >
-            {/* Opción 1: Perfil */}
-            <button
-              type="button"
-              role="menuitem"
-              onClick={handleGoToProfile}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              <User className="h-5 w-5 text-white" />
-              <span>Perfil</span>
-            </button>
+            {showProfile && (
+              <>
+                {/* Opción 1: Perfil */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleGoToProfile}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <User className="h-5 w-5 text-white" />
+                  <span>Perfil</span>
+                </button>
 
-            {/* Separador sutil */}
-            <div className="my-1.5 h-px w-full bg-white/15" />
+                {/* Separador sutil */}
+                <div className="my-1.5 h-px w-full bg-white/15" />
+              </>
+            )}
 
             {/* Opción 2: Cerrar sesión (Color rojo coral según mockup) */}
             <button

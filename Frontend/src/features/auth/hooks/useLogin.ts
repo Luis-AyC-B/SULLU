@@ -14,6 +14,29 @@ import {
 import { modules } from '@/shared/config/modules';
 
 /**
+ * Orden de prioridad para elegir la ruta inicial tras el login: [prefijo de permiso, ruta].
+ * Debe mantenerse igual al de `redirectsPorModulo` de middleware.ts.
+ */
+const LANDING_POR_MODULO: [string, string][] = [
+  ['usuarios', '/usuarios'],
+  ['roles', '/roles'],
+  ['examenes', '/examenes'],
+  ['estudiantes', '/estudiantes'],
+  ['reportes', '/reportes'],
+  ['ambientes', '/ambientes'],
+  ['control_ingreso', '/control-ingreso'],
+  ['registro_ingresos', '/ingresos'],
+  ['incidencias', '/incidencias'],
+  ['colaboradores', '/colaboradores'],
+  ['portal_estudiante', '/portal'],
+];
+
+/** true si algún permiso es el prefijo exacto o empieza con "prefijo." */
+function tienePermisoDe(permisos: string[], prefijo: string): boolean {
+  return permisos.some((p) => p === prefijo || p.startsWith(`${prefijo}.`));
+}
+
+/**
  * Determina dinámicamente la ruta inicial (Landing Route) del usuario autenticado
  * según los módulos y permisos asignados a su cuenta (soporta roles dinámicos).
  */
@@ -22,25 +45,11 @@ export function getLandingRoute(permisos?: string[]): string {
     return '/usuarios';
   }
 
-  // Comprueba la prioridad de navegación según los módulos autorizados
-  if (permisos.some((p) => p.startsWith('usuarios') || p === 'usuarios')) {
-    return '/usuarios';
-  }
-  if (permisos.some((p) => p.startsWith('roles') || p === 'roles')) {
-    return '/roles';
-  }
-  if (permisos.some((p) => p.startsWith('examenes') || p === 'examenes')) {
-    return '/examenes';
-  }
-  if (permisos.some((p) => p.startsWith('estudiantes') || p === 'estudiantes')) {
-    return '/estudiantes';
-  }
-  if (permisos.some((p) => p.startsWith('reportes') || p === 'reportes')) {
-    return '/reportes';
+  for (const [prefijo, ruta] of LANDING_POR_MODULO) {
+    if (tienePermisoDe(permisos, prefijo)) return ruta;
   }
 
-  // Fallback: busca el primer módulo configurado en el sistema que tenga coincidencia
-  const firstMatch = modules.find((m) => permisos.includes(m.clave));
+  const firstMatch = modules.find((m) => tienePermisoDe(permisos, m.clave));
   return firstMatch ? firstMatch.ruta : '/usuarios';
 }
 

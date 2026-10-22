@@ -39,15 +39,37 @@ export interface CargaMasivaBackendResponse {
     total_filas: number;
     procesadas: number;
     rechazadas: number;
+    creados?: number;
+    omitidos?: number;
+    con_error?: number;
+    cuentas_creadas?: number;
     estudiantes_creados: number;
     estudiantes_reutilizados: number;
     vinculados_nuevos: number;
     ya_vinculados: number;
+    pendientes_ci?: number;
   };
   rechazados: Array<{
     fila: number;
     cod_sis: string | null;
     motivo: string;
+  }>;
+  avisos?: Array<{
+    fila?: number;
+    cod_sis: string;
+    correo?: string;
+    motivo: string;
+  }>;
+  detalleFilas?: Array<{
+    fila?: number;
+    cod_sis: string;
+    nombre: string;
+    apellido: string;
+    ci: string | null;
+    correo: string;
+    estado: 'CREADO' | 'OMITIDO' | 'ERROR';
+    motivo?: string;
+    ciPendiente?: boolean;
   }>;
 }
 

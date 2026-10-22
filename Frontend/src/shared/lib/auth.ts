@@ -25,7 +25,7 @@ export const authOptions: NextAuthOptions = {
             password: credentials?.password,
           };
 
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
           const res = await fetch(`${apiUrl}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -70,7 +70,9 @@ export const authOptions: NextAuthOptions = {
                 'roles.ver', 'roles.crear', 'roles.editar', 'roles.eliminar',
                 'examenes.ver', 'examenes.crear', 'examenes.editar', 'examenes.eliminar',
                 'estudiantes.ver', 'estudiantes.registrar', 'estudiantes.habilitar',
-                'reportes.ver'
+                'reportes.ver',
+                'ambientes.ver', 'ambientes.editar',
+                'colaboradores.ver', 'colaboradores.crear', 'colaboradores.editar', 'colaboradores.eliminar', 'colaboradores.aprobar'
               ],
               accessToken: 'mock-jwt-token-admin',
             } as any;
@@ -83,7 +85,9 @@ export const authOptions: NextAuthOptions = {
               email: 'docente@umss.edu',
               permisos: [
                 'examenes.ver', 'examenes.crear', 'examenes.editar',
-                'estudiantes.ver'
+                'estudiantes.ver',
+                'ambientes.ver',
+                'colaboradores.ver', 'colaboradores.crear', 'colaboradores.editar'
               ],
               accessToken: 'mock-jwt-token-docente',
             } as any;
@@ -110,6 +114,23 @@ export const authOptions: NextAuthOptions = {
               accessToken: 'mock-jwt-token-concurrente',
             } as any;
           }
+
+             // Estudiantes de prueba (HU6) mientras el backend no esté conectado
+             const estudiantesMock: Record<string, { id: number; name: string; token: string }> = {
+               'ana.rojas@umss.edu': { id: 101, name: 'Ana Rojas Mamani', token: 'mock-jwt-token-estudiante-ana' },
+               'luis.quispe@umss.edu': { id: 102, name: 'Luis Quispe Vargas', token: 'mock-jwt-token-estudiante-empty' },
+               'marta.flores@umss.edu': { id: 103, name: 'Marta Flores Rojas', token: 'mock-jwt-token-estudiante-error' },
+             };
+             const estudiante = estudiantesMock[email];
+             if (estudiante && password === 'estudiante123') {
+               return {
+                 id: estudiante.id,
+                 name: estudiante.name,
+                 email,
+                 permisos: ['portal_estudiante'],
+                 accessToken: estudiante.token,
+               } as any;
+             }
 
           // Credenciales incorrectas
           throw new Error('INVALID_CREDENTIALS');

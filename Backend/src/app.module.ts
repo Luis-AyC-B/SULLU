@@ -8,13 +8,18 @@ import { HealthModule } from './health/health.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { RolesModule } from './roles/roles.module';
 import { CargasEstudiantesModule } from './cargas-estudiantes/cargas-estudiantes.module';
+import { PortalEstudianteModule } from './portal-estudiante/portal-estudiante.module';
 import { EstudiantesModule } from './estudiantes/estudiantes.module';
 import { AmbientesModule } from './ambientes/ambientes.module';
+import { IncidenciasModule } from './incidencias/incidencias.module';
 import { ExamenesModule } from './examenes/examenes.module';
 import { CodigosQrModule } from './codigos-qr/codigos-qr.module';
 import { IngresosModule } from './ingresos/ingresos.module';
+import { RegistroIngresosModule } from './registro-ingresos/registro-ingresos.module';
 import { HabilitacionesModule } from './habilitaciones/habilitaciones.module';
 import { MailModule } from './mail/mail.module';
+import { ReservasModule } from './reservas/reservas.module';
+import { ColaboradoresModule } from './colaboradores/colaboradores.module';
 
 @Module({
   imports: [
@@ -34,12 +39,17 @@ import { MailModule } from './mail/mail.module';
     UsuariosModule,
     RolesModule,
     CargasEstudiantesModule,
+    RegistroIngresosModule,
     EstudiantesModule,
     AmbientesModule,
+    ReservasModule,
+    IncidenciasModule,
     ExamenesModule,
     CodigosQrModule,
+    PortalEstudianteModule,
     IngresosModule,
     HabilitacionesModule,
+    ColaboradoresModule,
   ],
   controllers: [AppController],
   providers: [AppService],
