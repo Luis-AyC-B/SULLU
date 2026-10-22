@@ -115,9 +115,8 @@ function ContenidoValidarQr() {
     datos?.estado === 'VALIDO' &&
     !ingresoRegistrado &&
     ((session.user.permisos as string[])?.includes('registro_ingresos') ||
-      (session.user.permisos as string[])?.includes('control_ingreso') ||
-      session.user.rol?.toUpperCase() === 'DOCENTE' ||
-      session.user.rol?.toUpperCase() === 'ADMINISTRADOR');
+      (session.user as { rol?: string }).rol?.toUpperCase() === 'DOCENTE' ||
+      (session.user as { rol?: string }).rol?.toUpperCase() === 'ADMINISTRADOR');
 
   const handleRegistrarIngreso = async () => {
     if (!token) return;
