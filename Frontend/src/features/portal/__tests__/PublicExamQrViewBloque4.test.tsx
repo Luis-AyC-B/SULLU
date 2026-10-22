@@ -42,7 +42,6 @@ describe('Bloque 4: PublicExamQrView (Vista pública QR y motivos de rechazo)', 
         fecha: '2026-10-25T14:00:00Z',
         horaInicio: '14:00',
         horaFin: '16:00',
-        docente: 'Lic. Roberto Gómez',
       },
       vigenteHasta: '2026-10-25T16:00:00Z',
     };

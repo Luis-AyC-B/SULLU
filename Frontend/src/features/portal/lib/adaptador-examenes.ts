@@ -1,5 +1,31 @@
-import type { Examen, RespuestaExamenes } from '../types/qr-examen';
+import type { EstadoQr, Examen, RespuestaExamenes } from '../types/qr-examen';
 import type { ExamenEstudiante } from '../types/student-exam.types';
+
+// TEMPORAL: cálculo de estadoQr en base al reloj del dispositivo cuando el servidor no lo envía
+export function calcularEstadoQrTemporal(
+  habilitado: boolean,
+  fechaInicioIso: string,
+  fechaFinIso: string
+): EstadoQr {
+  if (!habilitado) {
+    return 'INHABILITADO';
+  }
+
+  const ahora = Date.now();
+  const inicio = new Date(fechaInicioIso).getTime();
+  const fin = new Date(fechaFinIso).getTime();
+
+  if (!isNaN(fin) && ahora > fin) {
+    return 'FINALIZADO';
+  }
+
+  const veinticuatroHorasMs = 24 * 60 * 60 * 1000;
+  if (!isNaN(inicio) && ahora < inicio - veinticuatroHorasMs) {
+    return 'NO_DISPONIBLE_AUN';
+  }
+
+  return 'DISPONIBLE';
+}
 
 /**
  * Adaptador de compatibilidad para soportar la respuesta del backend actual
@@ -16,10 +42,15 @@ export function adaptarRespuestaExamenes(data: unknown): RespuestaExamenes {
     const examenesNuevos: Examen[] = [];
 
     for (const item of rawObj.examenes) {
-      if (typeof item === 'object' && item !== null && 'estadoQr' in item) {
-        examenesNuevos.push(item as Examen);
-      } else {
-        examenesNuevos.push(adaptarExamenLegado(item as Partial<ExamenEstudiante>));
+      if (typeof item === 'object' && item !== null) {
+        const rawItem = item as Record<string, unknown>;
+        if (typeof rawItem.estadoQr === 'string') {
+          // El servidor manda estadoQr: NUNCA se pisa ni recalcula
+          examenesNuevos.push(item as Examen);
+        } else {
+          // El servidor no manda estadoQr: cálculo temporal
+          examenesNuevos.push(adaptarExamenLegado(item as Partial<ExamenEstudiante>));
+        }
       }
     }
 
@@ -33,7 +64,13 @@ export function adaptarRespuestaExamenes(data: unknown): RespuestaExamenes {
   if (Array.isArray(data)) {
     return {
       verificacionFotoActiva: false,
-      examenes: data.map((item) => adaptarExamenLegado(item as Partial<ExamenEstudiante>)),
+      examenes: data.map((item) => {
+        if (typeof item === 'object' && item !== null && typeof (item as Record<string, unknown>).estadoQr === 'string') {
+          // Si el elemento ya trae estadoQr del servidor, se respeta estrictamente
+          return item as Examen;
+        }
+        return adaptarExamenLegado(item as Partial<ExamenEstudiante>);
+      }),
     };
   }
 
@@ -53,6 +90,13 @@ function adaptarExamenLegado(item: Partial<ExamenEstudiante>): Examen {
   const fechaInicio = `${fecha}T${horaInicio}:00`;
   const fechaFin = `${fecha}T${horaFin}:00`;
 
+  const inicioDate = new Date(fechaInicio);
+  const disponibleDesdeDate = isNaN(inicioDate.getTime())
+    ? fechaInicio
+    : new Date(inicioDate.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+  const estadoQrCalculado = calcularEstadoQrTemporal(habilitado, fechaInicio, fechaFin);
+
   return {
     id,
     carrera,
@@ -61,8 +105,8 @@ function adaptarExamenLegado(item: Partial<ExamenEstudiante>): Examen {
     fechaInicio,
     fechaFin,
     habilitado,
-    estadoQr: habilitado ? 'DISPONIBLE' : 'INHABILITADO',
-    qrDisponibleDesde: fechaInicio,
+    estadoQr: estadoQrCalculado,
+    qrDisponibleDesde: disponibleDesdeDate,
     qrVigenteHasta: fechaFin,
     qrGenerado: false,
     facultad: item.facultad,

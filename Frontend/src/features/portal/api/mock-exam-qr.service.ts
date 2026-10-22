@@ -275,7 +275,6 @@ export class MockExamQrService {
         fecha: new Date().toISOString(),
         horaInicio: '08:15',
         horaFin: '10:15',
-        docente: 'Ing. Carlos Mendoza',
         tipoEvaluacion: 'Presencial con verificación biométrica',
       },
       vigenteHasta: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),

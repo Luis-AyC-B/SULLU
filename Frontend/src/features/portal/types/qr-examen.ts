@@ -57,7 +57,6 @@ export interface ExamenDetalleValidacion {
   fecha: string;
   horaInicio?: string;
   horaFin?: string;
-  docente?: string;
   tipoEvaluacion?: string;
   estado?: string;
 }

@@ -45,23 +45,14 @@ export function ExamCard({
 }: ExamCardProps) {
   // Solo se usa la vista mínima de respaldo si el objeto no tiene estadoQr
   if (!esExamenNuevo(examen)) {
-    const habilitado =
-      'estado' in examen
-        ? examen.estado === 'Habilitado'
-        : examen.habilitado;
-
-    const fechaInicio = 'fechaInicio' in examen ? examen.fechaInicio : undefined;
-    const fechaFin = 'fechaFin' in examen ? examen.fechaFin : undefined;
-    const rawFecha = ('fecha' in examen && examen.fecha) || (fechaInicio ? fechaInicio.slice(0, 10) : '');
-    const fechaTexto = rawFecha ? formatearFechaLegada(rawFecha) : '';
-
-    const horaTexto = 'horaInicio' in examen && examen.horaInicio
-      ? `${examen.horaInicio} – ${examen.horaFin}`
-      : fechaInicio && fechaFin
-      ? `${formatearHora(fechaInicio)} – ${formatearHora(fechaFin)}`
-      : '08:00 – 10:00';
-
-    const facultadTexto = examen.facultad ? ` (${examen.facultad})` : '';
+    const legado = examen as ExamenEstudiante;
+    const habilitado = legado.estado === 'Habilitado';
+    const fechaTexto = legado.fecha ? formatearFechaLegada(legado.fecha) : '';
+    const horaTexto =
+      legado.horaInicio && legado.horaFin
+        ? `${legado.horaInicio} – ${legado.horaFin}`
+        : '08:00 – 10:00';
+    const facultadTexto = legado.facultad ? ` (${legado.facultad})` : '';
 
     return (
       <article className="flex h-full flex-col rounded-xl border border-border bg-card p-5 text-card-foreground shadow-xs">

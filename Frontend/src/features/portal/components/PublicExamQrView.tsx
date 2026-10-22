@@ -103,7 +103,6 @@ export function PublicExamQrView({ token }: PublicExamQrViewProps) {
               fecha: new Date().toISOString(),
               horaInicio: '08:15',
               horaFin: '10:15',
-              docente: 'Ing. Carlos Mendoza',
               tipoEvaluacion: 'Presencial con verificación biométrica',
             },
             vigenteHasta: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
@@ -279,12 +278,6 @@ export function PublicExamQrView({ token }: PublicExamQrViewProps) {
                             {resultado.examen.ambiente}
                           </span>
                         </div>
-                        {resultado.examen.docente && (
-                          <div className="flex items-center gap-2 col-span-full">
-                            <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                            <span>Docente: {resultado.examen.docente}</span>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}

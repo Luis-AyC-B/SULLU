@@ -24,8 +24,13 @@ const EXAMENES: ExamenEstudiante[] = [
 
 describe('IT-PE-02: StudentExamsView + useStudentExams + ExamCard', () => {
   beforeEach(() => {
+    jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-09-06T08:00:00').getTime());
     localStorage.clear();
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('1. estudiante habilitado en 3 exámenes: muestra una tarjeta por examen', async () => {
@@ -37,7 +42,9 @@ describe('IT-PE-02: StudentExamsView + useStudentExams + ExamCard', () => {
     expect(within(tarjetas[0]).getByText('Cálculo II – Examen Final')).toBeInTheDocument();
     expect(within(tarjetas[1]).getByText('Laboratorio Informática 2 (FCyT)')).toBeInTheDocument();
     expect(within(tarjetas[2]).getByText('14/09/2026')).toBeInTheDocument();
-    expect(screen.getAllByText('Habilitado')).toHaveLength(3);
+    expect(within(tarjetas[0]).getByText('Habilitado')).toBeInTheDocument();
+    expect(within(tarjetas[1]).getByText(/Disponible desde/i)).toBeInTheDocument();
+    expect(within(tarjetas[2]).getByText(/Disponible desde/i)).toBeInTheDocument();
   });
 
   it('2. mientras consulta la lista muestra el estado de carga', async () => {

@@ -1,4 +1,7 @@
-import { adaptarRespuestaExamenes } from '../lib/adaptador-examenes';
+import {
+  adaptarRespuestaExamenes,
+  calcularEstadoQrTemporal,
+} from '../lib/adaptador-examenes';
 import {
   CODIGOS_ERROR_QR_EXAMEN,
   ExamQrError,
@@ -11,7 +14,13 @@ import {
 
 describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
   describe('1. Adaptador de compatibilidad (Forma antigua vs Nueva)', () => {
-    it('debe adaptar correctamente la forma antigua (array de ExamenEstudiante)', () => {
+    it('debe calcular temporalmente el estadoQr si el servidor no lo envía y respetar cuando sí lo envía', () => {
+      // Examen dentro de las 24 horas
+      const ahora = new Date();
+      const horaEn2Horas = new Date(ahora.getTime() + 2 * 60 * 60 * 1000);
+      const horaEn4Horas = new Date(ahora.getTime() + 4 * 60 * 60 * 1000);
+      const horaEn50Horas = new Date(ahora.getTime() + 50 * 60 * 60 * 1000);
+
       const formaAntigua = [
         {
           id: 1,
@@ -19,9 +28,9 @@ describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
           nombre: 'Cálculo II',
           ambiente: 'Aula 203',
           facultad: 'FCyT',
-          fecha: '2026-10-25',
-          horaInicio: '08:00',
-          horaFin: '10:00',
+          fecha: horaEn2Horas.toISOString().slice(0, 10),
+          horaInicio: horaEn2Horas.toTimeString().slice(0, 5),
+          horaFin: horaEn4Horas.toTimeString().slice(0, 5),
           estado: 'Habilitado' as const,
         },
         {
@@ -29,17 +38,27 @@ describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
           carrera: 'Ingeniería de Sistemas',
           nombre: 'Física I',
           ambiente: 'Aula 101',
-          fecha: '2026-10-26',
+          fecha: horaEn50Horas.toISOString().slice(0, 10),
           horaInicio: '14:00',
           horaFin: '16:00',
           estado: 'Inhabilitado' as const,
+        },
+        {
+          id: 3,
+          carrera: 'Ingeniería Informática',
+          nombre: 'Redes I',
+          ambiente: 'Lab Redes',
+          fecha: horaEn50Horas.toISOString().slice(0, 10),
+          horaInicio: '08:00',
+          horaFin: '10:00',
+          estado: 'Habilitado' as const,
         },
       ];
 
       const resultado = adaptarRespuestaExamenes(formaAntigua);
 
       expect(resultado.verificacionFotoActiva).toBe(false);
-      expect(resultado.examenes).toHaveLength(2);
+      expect(resultado.examenes).toHaveLength(3);
 
       const primero = resultado.examenes[0];
       expect(primero.id).toBe(1);
@@ -53,6 +72,30 @@ describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
       expect(segundo.habilitado).toBe(false);
       expect(segundo.estadoQr).toBe<EstadoQr>('INHABILITADO');
       expect(segundo.esLegado).toBe(true);
+
+      const tercero = resultado.examenes[2];
+      expect(tercero.id).toBe(3);
+      expect(tercero.habilitado).toBe(true);
+      // Está a más de 24 horas del examen
+      expect(tercero.estadoQr).toBe<EstadoQr>('NO_DISPONIBLE_AUN');
+    });
+
+    it('la función temporal nunca pisa un estadoQr enviado por el servidor', () => {
+      const examenConEstadoServidor = [
+        {
+          id: 5,
+          carrera: 'Ingeniería',
+          nombre: 'Química',
+          ambiente: 'Aula 5',
+          fechaInicio: '2099-01-01T08:00:00Z',
+          fechaFin: '2099-01-01T10:00:00Z',
+          habilitado: true,
+          estadoQr: 'DISPONIBLE' as EstadoQr,
+        },
+      ];
+
+      const resultado = adaptarRespuestaExamenes(examenConEstadoServidor);
+      expect(resultado.examenes[0].estadoQr).toBe('DISPONIBLE');
     });
 
     it('debe respetar la estructura nueva de HU6 cuando el backend la retorne', () => {
