@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Camera,
-  QrCode,
   User,
   CheckCircle2,
   AlertCircle,
@@ -14,8 +12,6 @@ import { Button } from '@/shared/components/ui/button';
 import { useStudentExams } from '../hooks/useStudentExams';
 import { ExamCard } from './ExamCard';
 import { ExamQrModal } from './ExamQrModal';
-import { StudentQrModal } from './StudentQrModal';
-import { StudentProfileModal } from './StudentProfileModal';
 import { StudentPasswordChangeModal } from './StudentPasswordChangeModal';
 import { MockScenarioSelector } from './MockScenarioSelector';
 import { getMiPerfil } from '../api/student-exam.service';
@@ -35,8 +31,6 @@ export function StudentExamsView() {
     actualizarExamen,
   } = useStudentExams();
 
-  const [qrPersonalOpen, setQrPersonalOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [perfil, setPerfil] = useState<StudentProfile | null>(null);
 
   // Estado para el modal de QR por examen (Bloque 3)
@@ -146,15 +140,10 @@ export function StudentExamsView() {
           </div>
         )}
 
-        {/* Tarjeta de Perfil y Acciones Rápidas */}
+        {/* Tarjeta de perfil (solo informativa) */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs">
           <div className="flex items-center gap-3.5">
-            <button
-              type="button"
-              onClick={() => setProfileOpen(true)}
-              className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-muted transition-transform hover:scale-105 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
-              title="Haz clic para ver o cambiar tu foto"
-            >
+            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-muted">
               {fotoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -167,10 +156,7 @@ export function StudentExamsView() {
                   <User className="h-7 w-7" />
                 </div>
               )}
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity hover:opacity-100">
-                <Camera className="h-4 w-4 text-white" />
-              </div>
-            </button>
+            </div>
 
             <div>
               <div className="flex items-center gap-2">
@@ -192,28 +178,6 @@ export function StudentExamsView() {
                 SIS: <span className="font-mono">{perfil?.cod_sis || '—'}</span> · Carrera: {perfil?.carrera || 'Ingeniería de Sistemas'}
               </p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 self-end md:self-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setProfileOpen(true)}
-              className="gap-2 text-xs"
-            >
-              <User className="h-4 w-4" />
-              Editar perfil
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={() => setQrPersonalOpen(true)}
-              className="gap-2 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
-              aria-label="Mi QR personal (Generar QR)"
-            >
-              <QrCode className="h-4 w-4" />
-              Mi QR personal
-            </Button>
           </div>
         </div>
 
@@ -241,18 +205,9 @@ export function StudentExamsView() {
 
           {!isLoading && !hasError && examenes.length === 0 && (
             <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
-              <p className="text-sm font-medium text-muted-foreground mb-4">
+              <p className="text-sm font-medium text-muted-foreground">
                 No tienes exámenes habilitados por el momento.
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setQrPersonalOpen(true)}
-                className="gap-2 text-xs font-semibold"
-              >
-                <QrCode className="h-4 w-4" />
-                Mi QR personal
-              </Button>
             </div>
           )}
 
@@ -337,20 +292,6 @@ export function StudentExamsView() {
         onClose={() => setExamQrModalOpen(false)}
         onExamenActualizado={(id, cambios) => {
           actualizarExamen(id, cambios);
-        }}
-      />
-
-      <StudentQrModal
-        open={qrPersonalOpen}
-        onClose={() => setQrPersonalOpen(false)}
-      />
-
-      <StudentProfileModal
-        open={profileOpen}
-        onClose={() => setProfileOpen(false)}
-        onProfileUpdated={() => {
-          cargarPerfil();
-          retry();
         }}
       />
 
