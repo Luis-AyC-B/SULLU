@@ -86,7 +86,7 @@ function ordenarMasRecientes(items: Incidencia[]): Incidencia[] {
 export async function getExamenesIncidencias(): Promise<ExamenIncidencia[]> {
   if (USE_MOCKS) return mockGetExamenes();
   try {
-    const { data } = await apiClient.get("/examenes/control");
+        const { data } = await apiClient.get("/incidencias/examenes");
     return examenesIncidenciaSchema.parse(data);
   } catch (error) {
     if (esRutaInexistente(error)) return mockGetExamenes();
@@ -103,8 +103,19 @@ export async function getIncidenciasExamen(
     const { data } = await apiClient.get(
       `/examenes/${encodeURIComponent(examenId)}/incidencias`
     );
+
+    // DEBUG temporal: borrar cuando encuentres el campo que falla
+        // DEBUG temporal: borrar cuando encuentres el campo que falla
+    const result = incidenciasSchema.safeParse(data);
+    if (!result.success) {
+      console.error('Zod issues:', JSON.stringify(result.error.issues, null, 2));
+      console.log('Data recibida:', data);
+      console.log('Motivos recibidos:', JSON.stringify(data.map((i: { motivo: string }) => i.motivo))); // NUEVO
+    }
+
     return ordenarMasRecientes(incidenciasSchema.parse(data));
   } catch (error) {
+    console.error('Error incidencias:', error); // DEBUG temporal
     if (esRutaInexistente(error)) return mockGetIncidencias(examenId);
     throw aServiceError(error);
   }
