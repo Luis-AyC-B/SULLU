@@ -11,6 +11,14 @@ const incluir = {
   controlador: true,
 } as const;
 
+// Para armar el nombre del examen ("Materia – Tipo") en el selector.
+const incluirNombre = {
+  reservaAmbiente: true,
+  carrerasMaterias: {
+    include: { carrera_materia: { include: { materia: true } } },
+  },
+} as const;
+
 type Fila = {
   id: number;
   examenId: number;
@@ -48,11 +56,58 @@ export class IncidenciasService {
     };
   }
 
-  /** Control: examen asignado. Docente: examen propio. */
+  private nombreExamen(ex: {
+    tipoExamen: string;
+    carrerasMaterias: { carrera_materia: { materia: { nombre: string } } }[];
+  }) {
+    const materia =
+      ex.carrerasMaterias[0]?.carrera_materia.materia.nombre ?? 'Examen';
+    return `${materia} – ${ex.tipoExamen}`;
+  }
+
+  /**
+   * Exámenes sobre los que el usuario puede ver incidencias: los propios
+   * (Docente) y los que tiene asignados (Personal de control). Es el mismo
+   * criterio de acceso que validarAcceso. El del día va primero.
+   */
+  async examenesDelUsuario(usuarioId: number) {
+    const [propios, asignados] = await Promise.all([
+      this.prisma.examen.findMany({
+        where: { usuarioId },
+        include: incluirNombre,
+      }),
+      this.prisma.examenControlador.findMany({
+        where: { colaboradorId: usuarioId },
+        include: { examen: { include: incluirNombre } },
+      }),
+    ]);
+
+    const todos = [...propios, ...asignados.map((a) => a.examen)];
+    const unicos = new Map(todos.map((ex) => [ex.id, ex] as const));
+    const hoy = new Date().toISOString().slice(0, 10);
+
+    return [...unicos.values()]
+      .map((ex) => ({
+        id: ex.id,
+        nombre: this.nombreExamen(ex),
+        fecha: ex.reservaAmbiente.fecha.toISOString().slice(0, 10),
+      }))
+      .sort((a, b) => {
+        const ra = a.fecha === hoy ? 0 : 1;
+        const rb = b.fecha === hoy ? 0 : 1;
+        return ra - rb || a.fecha.localeCompare(b.fecha);
+      });
+  }
+
+  /** Control: examen asignado. Docente: examen propio. Devuelve el examen con su horario. */
   private async validarAcceso(examenId: number, usuarioId: number) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
-      select: { id: true, usuarioId: true },
+      select: {
+        id: true,
+        usuarioId: true,
+        reservaAmbiente: { include: { horarioFijo: true } },
+      },
     });
     if (!examen) {
       throw new NotFoundException({
@@ -60,13 +115,48 @@ export class IncidenciasService {
         message: 'El examen no existe',
       });
     }
-    if (examen.usuarioId === usuarioId) return;
+    if (examen.usuarioId === usuarioId) return examen;
     const asignado = await this.prisma.examenControlador.findUnique({
       where: { examenId_colaboradorId: { examenId, colaboradorId: usuarioId } },
     });
     if (!asignado) {
       throw new ForbiddenException('No tienes permiso sobre este examen.');
     }
+    return examen;
+  }
+
+  /** Solo se puede registrar durante el horario del examen. */
+  private validarHorario(reserva: {
+    fecha: Date;
+    horarioFijo: { horaIni: Date; horaFin: Date };
+  }) {
+    const inicio = this.combinar(reserva.fecha, reserva.horarioFijo.horaIni);
+    const fin = this.combinar(reserva.fecha, reserva.horarioFijo.horaFin);
+    const ahora = new Date();
+
+    if (ahora < inicio || ahora > fin) {
+      throw new ForbiddenException({
+        code: 'FUERA_DE_HORARIO',
+        message:
+          'Solo se pueden registrar incidencias durante el horario del examen.',
+      });
+    }
+  }
+
+  // fecha (@db.Date, medianoche UTC) + hora (@db.Time, 1970-01-01 en UTC)
+  // -> instante real, tomando la hora como hora de Bolivia (UTC-4).
+  private combinar(fecha: Date, hora: Date): Date {
+    const BOLIVIA_OFFSET_H = 4;
+    return new Date(
+      Date.UTC(
+        fecha.getUTCFullYear(),
+        fecha.getUTCMonth(),
+        fecha.getUTCDate(),
+        hora.getUTCHours() + BOLIVIA_OFFSET_H,
+        hora.getUTCMinutes(),
+        0,
+      ),
+    );
   }
 
   async listar(examenId: number, usuarioId: number) {
@@ -87,7 +177,8 @@ export class IncidenciasService {
         message: 'El examen no es válido',
       });
     }
-    await this.validarAcceso(examenId, usuarioId);
+    const examen = await this.validarAcceso(examenId, usuarioId);
+    this.validarHorario(examen.reservaAmbiente);
 
     const estudiante = await this.prisma.estudiante.findUnique({
       where: { cod_sis: dto.codigoSis },
