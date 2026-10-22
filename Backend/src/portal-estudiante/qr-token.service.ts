@@ -1,6 +1,4 @@
 import {
-  HttpException,
-  HttpStatus,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -10,9 +8,6 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 const QR_SECRET = process.env.QR_SECRET ?? 'dev-qr-secret';
-const QR_VIGENCIA_SEG = 24 * 60 * 60;
-const MAX_QR_POR_HORA = 30;
-const UNA_HORA_MS = 60 * 60 * 1000;
 
 export interface QrJwtPayload {
   sub?: number;
@@ -33,8 +28,6 @@ function qrError(codigo: string, message: string) {
 
 @Injectable()
 export class QrTokenService {
-  private generacionesPorEstudiante = new Map<number, number[]>();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -43,55 +36,10 @@ export class QrTokenService {
   /** Decodifica SIN verificar firma (solo para inspeccionar metadatos). */
   decodificar(token: string): QrJwtPayload | null {
     try {
-      return this.jwt.decode(token) as QrJwtPayload;
+      return this.jwt.decode(token);
     } catch {
       return null;
     }
-  }
-
-  /** QR personal. Comportamiento original: reemplaza solo los QR personales previos. */
-  async generar(estudianteId: number) {
-    const ahoraMs = Date.now();
-    const timestamps = this.generacionesPorEstudiante.get(estudianteId) ?? [];
-    const recientes = timestamps.filter((t) => t > ahoraMs - UNA_HORA_MS);
-    if (recientes.length >= MAX_QR_POR_HORA) {
-      throw new HttpException(
-        'Límite de generación de QR alcanzado. Intenta más tarde.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    const estudiante = await this.prisma.estudiante.findUnique({
-      where: { id: estudianteId },
-    });
-    if (!estudiante) throw new NotFoundException('Estudiante no encontrado');
-
-    recientes.push(ahoraMs);
-    this.generacionesPorEstudiante.set(estudianteId, recientes);
-
-    const ahora = new Date(ahoraMs);
-    const expiraEn = new Date(ahoraMs + QR_VIGENCIA_SEG * 1000);
-
-    const token = this.jwt.sign(
-      {
-        sub: estudianteId,
-        qrVersion: estudiante.qrVersion,
-        jti: randomUUID(),
-        tipo: 'qr',
-      },
-      { secret: QR_SECRET, expiresIn: QR_VIGENCIA_SEG },
-    );
-
-    // Solo borra los QR PERSONALES (tipo = 'personal'); conserva los de examen.
-    await this.prisma.codigoQr.deleteMany({
-      where: { estudianteId, tipo: 'personal' },
-    });
-
-    await this.prisma.codigoQr.create({
-      data: { estudianteId, token, generadoEn: ahora, expiraEn, tipo: 'personal' },
-    });
-
-    return token;
   }
 
   /** Devuelve el token vigente del examen o genera uno nuevo (mismo exp = fin del examen). */
@@ -112,7 +60,9 @@ export class QrTokenService {
 
     if (vigente) {
       try {
-        const p = this.jwt.verify<QrJwtPayload>(vigente.token, { secret: QR_SECRET });
+        const p = this.jwt.verify<QrJwtPayload>(vigente.token, {
+          secret: QR_SECRET,
+        });
         const est = await this.prisma.estudiante.findUnique({
           where: { id: estudianteId },
         });
@@ -168,6 +118,7 @@ export class QrTokenService {
   /**
    * Devuelve el estudianteId o lanza QR_INVALIDO / QR_CADUCADO / QR_REVOCADO.
    * Con tipoEsperado rechaza tokens de tipo cruzado.
+   * Los QR personales ya no se generan; los emitidos antes se siguen aceptando hasta que vencen (24 h).
    */
   async validar(token: string, tipoEsperado?: TipoEsperado): Promise<number> {
     let payload: QrJwtPayload;
@@ -186,7 +137,8 @@ export class QrTokenService {
 
     const esPersonal = payload.tipo === 'qr' || payload.tipo === 'personal';
     const esExamen = payload.tipo === 'examen';
-    if (!esPersonal && !esExamen) throw qrError('QR_INVALIDO', 'El QR no es válido');
+    if (!esPersonal && !esExamen)
+      throw qrError('QR_INVALIDO', 'El QR no es válido');
     if (tipoEsperado === 'personal' && !esPersonal) {
       throw qrError('QR_INVALIDO', 'El QR no es válido');
     }
@@ -207,7 +159,10 @@ export class QrTokenService {
     });
     if (!estudiante) throw qrError('QR_INVALIDO', 'Estudiante no registrado');
 
-    if (payload.qrVersion !== undefined && estudiante.qrVersion !== payload.qrVersion) {
+    if (
+      payload.qrVersion !== undefined &&
+      estudiante.qrVersion !== payload.qrVersion
+    ) {
       throw qrError(
         'QR_REVOCADO',
         'El código QR ha sido revocado tras una actualización de perfil o cambio de contraseña.',

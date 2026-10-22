@@ -164,10 +164,4 @@ export class EstudianteMeController {
   examenes(@Req() req: RequestConEstudiante) {
     return this.me.examenes(req.estudiante.estudianteId);
   }
-
-  @Get('qr')
-  @ApiOperation({ summary: 'Generar token QR personal de acceso a examen' })
-  qr(@Req() req: RequestConEstudiante) {
-    return this.me.qrPersonal(req.estudiante.estudianteId);
-  }
 }

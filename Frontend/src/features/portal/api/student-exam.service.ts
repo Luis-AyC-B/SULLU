@@ -3,9 +3,7 @@ import { apiClient } from '@/shared/lib/api-client';
 import { adaptarRespuestaExamenes } from '../lib/adaptador-examenes';
 import {
   MOCK_TOKEN_PREFIX,
-  studentQrPayloadSchema,
   type ExamenEstudiante,
-  type StudentQrPayload,
   type StudentProfile,
   type FotoEstudianteItem,
   type SubirFotoResponse,
@@ -48,13 +46,6 @@ const MOCK_EXAMENES: ExamenEstudiante[] = [
     estado: 'Habilitado',
   },
 ];
-
-const MOCK_QR: StudentQrPayload = {
-  nombre: 'Ana Rojas Mamani',
-  sis: '201900123',
-  ci: '8123456',
-  token: 'mock.eyJzaXMiOiIyMDE5MDAxMjMifQ.firma-simulada',
-};
 
 const MOCK_PERFIL: StudentProfile = {
   id: 1,
@@ -107,24 +98,6 @@ export async function getMisExamenes(): Promise<ExamenEstudiante[]> {
       estado: e.habilitado ? 'Habilitado' : 'Inhabilitado',
     };
   });
-}
-
-/** GET /estudiantes/me/qr — genera o consulta el QR personal vigente */
-export async function getMiQr(): Promise<StudentQrPayload> {
-  const mockToken = await getMockToken();
-  if (mockToken) {
-    await wait(300);
-    if (mockToken.endsWith('-empty')) {
-      return { ...MOCK_QR, nombre: 'Luis Quispe Vargas', sis: '201900124', ci: '9234567' };
-    }
-    if (mockToken.endsWith('-error')) {
-      return { ...MOCK_QR, nombre: 'Marta Flores Rojas', sis: '201900125', ci: '7345678' };
-    }
-    return MOCK_QR;
-  }
-
-  const { data } = await apiClient.get('/estudiantes/me/qr');
-  return studentQrPayloadSchema.parse(data);
 }
 
 /** GET /estudiantes/me/perfil — obtiene datos completos del estudiante autenticado */
