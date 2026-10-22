@@ -8,7 +8,6 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import sizeOf from 'image-size';
 import { PrismaService } from '../prisma/prisma.service';
 import { QrTokenService } from './qr-token.service';
@@ -25,49 +24,6 @@ const sigla = (nombre: string) =>
   nombre.match(/\(([^)]+)\)\s*$/)?.[1] ?? nombre;
 const sinParentesis = (nombre: string) =>
   nombre.replace(/\s*\([^)]*\)\s*$/, '').trim();
-
-function resolverFrontendUrl(): string {
-  const envUrl = process.env.FRONTEND_URL;
-  if (
-    envUrl &&
-    !envUrl.includes('localhost') &&
-    !envUrl.includes('127.0.0.1')
-  ) {
-    return envUrl;
-  }
-  try {
-    const interfaces = os.networkInterfaces();
-    let ipCandidata = '';
-    for (const [name, addrs] of Object.entries(interfaces)) {
-      for (const addr of addrs || []) {
-        if (addr.family === 'IPv4' && !addr.internal) {
-          const lower = name.toLowerCase();
-          if (
-            lower.includes('wi-fi') ||
-            lower.includes('wlan') ||
-            lower.includes('inalámbrica') ||
-            lower.includes('wireless')
-          ) {
-            return `http://${addr.address}:4000`;
-          }
-          if (
-            !ipCandidata &&
-            !lower.includes('vethernet') &&
-            !lower.includes('vmnet')
-          ) {
-            ipCandidata = addr.address;
-          }
-        }
-      }
-    }
-    if (ipCandidata) {
-      return `http://${ipCandidata}:4000`;
-    }
-  } catch {
-    // Fallback si no se pueden inspeccionar las interfaces de red
-  }
-  return envUrl || 'http://localhost:4000';
-}
 
 @Injectable()
 export class EstudianteMeService {
@@ -124,32 +80,6 @@ export class EstudianteMeService {
     return items
       .sort((a, b) => a.orden.localeCompare(b.orden))
       .map((i) => i.dto);
-  }
-
-  async qrPersonal(estudianteId: number) {
-    const est = await this.prisma.estudiante.findUnique({
-      where: { id: estudianteId },
-    });
-    if (!est) throw new NotFoundException('Estudiante no encontrado');
-
-    if (!est.fotoUrl) {
-      throw new BadRequestException(
-        'Debes registrar tu fotografía antes de generar el código QR de acceso.',
-      );
-    }
-
-    const token = await this.qr.generar(est.id);
-    const frontendUrl = resolverFrontendUrl();
-    const qrUrl = `${frontendUrl}/qr/v/${encodeURIComponent(token)}`;
-
-    return {
-      nombre: `${est.nombre} ${est.apellido ?? ''}`.trim(),
-      sis: est.cod_sis,
-      ci: est.ci ?? '',
-      token,
-      qrUrl,
-      fotoUrl: est.fotoUrl,
-    };
   }
 
   async perfil(usuarioId: number) {

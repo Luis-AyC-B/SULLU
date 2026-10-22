@@ -94,17 +94,24 @@ describe('Suite de Pruebas HU6 (Portal Estudiante, Foto, Password y QR)', () => 
     });
   });
 
-  describe('2. Generación, Verificación y Revocación de QR Seguro', () => {
-    it('debe generar un token JWT con versión del QR y validarlo exitosamente', async () => {
+  describe('2. Generación, Verificación y Revocación de QR Seguro (por examen)', () => {
+    const EXAMEN_ID = 7;
+    const finExamen = () => new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+    it('debe generar un token JWT de examen con versión del QR y validarlo exitosamente', async () => {
       mockEstudianteFindUnique.mockResolvedValue({
         id: 42,
         qrVersion: 1,
       });
 
-      const token = await qrService.generar(42);
+      const token = await qrService.generarParaExamen(
+        42,
+        EXAMEN_ID,
+        finExamen(),
+      );
       expect(typeof token).toBe('string');
 
-      const estudianteId = await qrService.validar(token);
+      const estudianteId = await qrService.validar(token, 'examen');
       expect(estudianteId).toBe(42);
     });
 
@@ -114,7 +121,11 @@ describe('Suite de Pruebas HU6 (Portal Estudiante, Foto, Password y QR)', () => 
         id: 42,
         qrVersion: 1,
       });
-      const token = await qrService.generar(42);
+      const token = await qrService.generarParaExamen(
+        42,
+        EXAMEN_ID,
+        finExamen(),
+      );
 
       // Posteriormente incrementó su versión a 2
       mockEstudianteFindUnique.mockResolvedValueOnce({
@@ -123,6 +134,22 @@ describe('Suite de Pruebas HU6 (Portal Estudiante, Foto, Password y QR)', () => 
       });
 
       await expect(qrService.validar(token)).rejects.toThrow(/revocado/);
+    });
+
+    it('debe rechazar un QR de examen caducado (el examen ya terminó)', async () => {
+      mockEstudianteFindUnique.mockResolvedValue({
+        id: 42,
+        qrVersion: 1,
+      });
+
+      // Fin de examen en el pasado: el token nace ya vencido.
+      const token = await qrService.generarParaExamen(
+        42,
+        EXAMEN_ID,
+        new Date(Date.now() - 60 * 1000),
+      );
+
+      await expect(qrService.validar(token)).rejects.toThrow(/caducado/);
     });
   });
 
