@@ -68,7 +68,12 @@
   - División en dos secciones: "Próximas evaluaciones" y "Evaluaciones finalizadas".
   - Cuadrícula responsive de 2 columnas en escritorio y 1 en móvil con tarjetas de igual altura.
   - Botón de perfil renombrado a "Mi QR personal" con preservación total de su funcionalidad.
-- [ ] **Bloque 3: Modal de 4 pasos con captura de cámara frontal y fallback**
+- [x] **Bloque 3: Modal de 4 pasos con captura de cámara frontal y fallback**
+  - Modal accesible `ExamQrModal` con los 4 pasos: detalle del examen, captura selfie con marco ovalado y fallback de archivo, pantalla de comparación/verificación, y visualización del QR dinámico.
+  - Gestión de intentos de verificación (1-3) y bloqueo por intentos agotados con orientación a soporte presencial.
+  - Detección en vivo de expiración del QR: difumina el código QR, muestra aviso de vencimiento y deshabilita la descarga en PNG.
+  - Descarga del QR en PNG en alta resolución incluyendo sello institucional, nombre del estudiante, materia y fecha.
+  - Detención segura de tracks de medios (cámara) y revocación de URLs blob al cerrar o desmontar.
 - [ ] **Bloque 4: Vista pública `/qr/v/[token]` con los 3 motivos de rechazo**
 - [ ] **Bloque 5: Caché offline con purga de QRs de examen vencidos**
 - [ ] **Bloque 6: Tests restantes, build sin mock, revisión final**

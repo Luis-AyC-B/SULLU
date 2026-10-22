@@ -13,6 +13,7 @@ import {
 import { Button } from '@/shared/components/ui/button';
 import { useStudentExams } from '../hooks/useStudentExams';
 import { ExamCard } from './ExamCard';
+import { ExamQrModal } from './ExamQrModal';
 import { StudentQrModal } from './StudentQrModal';
 import { StudentProfileModal } from './StudentProfileModal';
 import { StudentPasswordChangeModal } from './StudentPasswordChangeModal';
@@ -45,6 +46,9 @@ export function StudentExamsView() {
     process.env.NEXT_PUBLIC_API_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     'http://localhost:3001';
+
+  const verificacionFotoActiva =
+    process.env.NEXT_PUBLIC_VERIFICACION_FACIAL_ENABLED !== 'false';
 
   const cargarPerfil = useCallback(async () => {
     try {
@@ -326,6 +330,19 @@ export function StudentExamsView() {
       </div>
 
       {/* Modales integrados */}
+      <ExamQrModal
+        open={examQrModalOpen}
+        examen={examenSeleccionado}
+        verificacionFotoActiva={verificacionFotoActiva}
+        fotoPerfilUrl={fotoUrl}
+        estudianteNombre={perfil ? `${perfil.nombre} ${perfil.apellido || ''}`.trim() : 'Estudiante'}
+        estudianteSis={perfil?.cod_sis || '—'}
+        onClose={() => setExamQrModalOpen(false)}
+        onExamenActualizado={(id, cambios) => {
+          actualizarExamen(id, cambios);
+        }}
+      />
+
       <StudentQrModal
         open={qrPersonalOpen}
         onClose={() => setQrPersonalOpen(false)}
