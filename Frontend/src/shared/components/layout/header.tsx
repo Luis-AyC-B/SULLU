@@ -1,5 +1,7 @@
 "use client";
 
+import { offlineIngresosService } from "@/features/control-ingreso/services/offline-ingresos.service";
+import { offlineIncidenciasService } from "@/features/incidencias/services/offline-incidencias.service";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -136,6 +138,17 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
   };
 
   const handleLogout = async () => {
+    const pendIngresos = offlineIngresosService?.contarPendientesSync?.() ?? 0;
+    const pendIncidencias = offlineIncidenciasService?.contarPendientesSync?.() ?? 0;
+    const total = pendIngresos + pendIncidencias;
+
+    if (total > 0) {
+      const confirmar = window.confirm(
+        `Tienes ${total} evento(s) pendiente(s) de sincronizar en este dispositivo.\n\nSi cierras sesión ahora, la cola se conservará para sincronizarse la próxima vez que inicies sesión.\n\n¿Deseas continuar y cerrar sesión?`
+      );
+      if (!confirmar) return;
+    }
+
     setIsMenuOpen(false);
     limpiarCacheOfflineEstudiante();
     limpiarSesionOffline();

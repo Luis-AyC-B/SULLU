@@ -1,6 +1,7 @@
 "use client";
 
 import type { ResumenEnVivoData } from "../../types/control-ingreso.types";
+import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 
 interface ResumenEnVivoCardProps {
   resumen: ResumenEnVivoData | null;
@@ -11,9 +12,10 @@ export function ResumenEnVivoCard({
   resumen,
   isLoading,
 }: ResumenEnVivoCardProps) {
-  const ingresados = resumen?.ingresados ?? 38;
-  const pendientes = resumen?.pendientes ?? 47;
-  const incidencias = resumen?.incidencias ?? 2;
+  const network = useNetworkStatus();
+  const ingresados = resumen?.ingresados ?? 0;
+  const pendientes = resumen?.pendientes ?? 0;
+  const incidencias = resumen?.incidencias ?? 0;
 
   return (
     <div className="w-full rounded-2xl bg-white border border-slate-200/90 p-5 shadow-xs">
@@ -21,10 +23,17 @@ export function ResumenEnVivoCard({
         <h3 className="text-base font-bold text-slate-900 tracking-tight">
           Resumen en vivo
         </h3>
-        <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[11px] font-medium text-emerald-700">En línea</span>
-        </div>
+        {network.isOnline ? (
+          <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[11px] font-medium text-emerald-700">En línea</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            <span className="text-[11px] font-medium text-amber-700">Modo offline</span>
+          </div>
+        )}
       </div>
 
       {/* DISEÑO MOBILE: 3 Columnas Horizontales con divisores */}

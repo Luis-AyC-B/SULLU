@@ -244,7 +244,11 @@ export async function getIngresosExamen(
           .map((p) => ({
             id: p.clienteSyncId,
             hora: p.fechaHora,
-            sis: p.codSis || p.identificador,
+            sis:
+              p.codSis ||
+              (p.identificador.length > 20
+                ? "QR Offline"
+                : p.identificador),
             estudiante: p.nombreReferencial || "Estudiante (offline)",
             metodo: p.metodo === "MANUAL" ? ("Manual" as const) : ("QR" as const),
             estado: "Habilitado" as const,
@@ -298,7 +302,7 @@ export async function getIngresosExamen(
     if (isEndpointMissing(error)) return mockIngresos(examenId);
 
     // Si falló por falta de red, recuperar datos locales en vez de romper la interfaz
-    if (isAxiosError(error) && (!error.response || error.code === 'ERR_NETWORK')) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
       return armarIngresosOffline();
     }
 

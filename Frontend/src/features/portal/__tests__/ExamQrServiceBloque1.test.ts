@@ -28,7 +28,7 @@ describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
           nombre: 'Cálculo II',
           ambiente: 'Aula 203',
           facultad: 'FCyT',
-          fecha: horaEn2Horas.toISOString().slice(0, 10),
+          fecha: `${horaEn2Horas.getFullYear()}-${String(horaEn2Horas.getMonth() + 1).padStart(2, '0')}-${String(horaEn2Horas.getDate()).padStart(2, '0')}`,
           horaInicio: horaEn2Horas.toTimeString().slice(0, 5),
           horaFin: horaEn4Horas.toTimeString().slice(0, 5),
           estado: 'Habilitado' as const,

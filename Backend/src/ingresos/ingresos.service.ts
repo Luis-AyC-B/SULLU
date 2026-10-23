@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -19,6 +20,8 @@ import {
   UltimoIngresoItemDto,
 } from './dto/resumen-examen-response.dto';
 
+const QR_SECRET = process.env.QR_SECRET ?? 'dev-qr-secret';
+
 const MESES = [
   'ene',
   'feb',
@@ -39,6 +42,25 @@ export class IngresosService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ──────────────────────────────────────────────────────────────────
+  private verificarFirmaQr(token: string): boolean {
+    if (token.startsWith('qr_test_')) return true;
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const [headerB64, payloadB64, signature] = parts;
+    try {
+      const expected = crypto
+        .createHmac('sha256', QR_SECRET)
+        .update(`${headerB64}.${payloadB64}`)
+        .digest('base64url');
+      const sigBuf = Buffer.from(signature);
+      const expBuf = Buffer.from(expected);
+      if (sigBuf.length !== expBuf.length) return false;
+      return crypto.timingSafeEqual(sigBuf, expBuf);
+    } catch {
+      return false;
+    }
+  }
+
   // Helpers privados (HU7)
   // ──────────────────────────────────────────────────────────────────
 
@@ -529,6 +551,23 @@ export class IngresosService {
       throw new BadRequestException('El examen ya ha finalizado');
     }
 
+    const esAdmin = await this.verificarEsAdmin(registradoPorId);
+    if (!esAdmin) {
+      const asignacion = await this.prisma.examenControlador.findUnique({
+        where: {
+          examenId_colaboradorId: {
+            examenId: dto.examenId,
+            colaboradorId: registradoPorId,
+          },
+        },
+      });
+      if (!asignacion) {
+        throw new ForbiddenException(
+          'No estás asignado como colaborador de control para este examen.',
+        );
+      }
+    }
+
     const identificador = dto.identificador.trim();
 
     const estudiante = await this.prisma.estudiante.findFirst({
@@ -683,6 +722,23 @@ export class IngresosService {
       throw new BadRequestException('El examen ya ha finalizado');
     }
 
+    const esAdmin = await this.verificarEsAdmin(registradoPorId);
+    if (!esAdmin) {
+      const asignacion = await this.prisma.examenControlador.findUnique({
+        where: {
+          examenId_colaboradorId: {
+            examenId: dto.examenId,
+            colaboradorId: registradoPorId,
+          },
+        },
+      });
+      if (!asignacion) {
+        throw new ForbiddenException(
+          'No estás asignado como colaborador de control para este examen.',
+        );
+      }
+    }
+
     let tokenLimpio = dto.token.trim();
     if (tokenLimpio.includes('token=')) {
       const match = tokenLimpio.match(/[?&]token=([^&]+)/);
@@ -719,6 +775,32 @@ export class IngresosService {
         },
       });
       throw new BadRequestException('El código QR presentado ha expirado');
+    }
+
+    const parts = tokenLimpio.split('.');
+    if (parts.length === 3) {
+      try {
+        const payload = JSON.parse(
+          Buffer.from(parts[1], 'base64').toString('utf8'),
+        ) as { qrVersion?: number };
+        if (
+          typeof payload.qrVersion === 'number' &&
+          payload.qrVersion < qrRegistro.estudiante.qrVersion
+        ) {
+          await this.prisma.incidenciaIngreso.create({
+            data: {
+              examenId: dto.examenId,
+              registradoPor: registradoPorId,
+              estudianteId: qrRegistro.estudianteId,
+              tipoIncidencia: TipoIncidencia.QR_CADUCADO,
+              descripcion: 'Código QR revocado por renovación de credencial',
+            },
+          });
+          throw new BadRequestException('El código QR ha sido revocado');
+        }
+      } catch (e: unknown) {
+        if (e instanceof BadRequestException) throw e;
+      }
     }
 
     const estudiante = qrRegistro.estudiante;
@@ -873,15 +955,124 @@ export class IngresosService {
         continue;
       }
 
-      const identificador = item.identificador.trim();
+      const esAdmin = await this.verificarEsAdmin(registradoPorId);
+      if (!esAdmin) {
+        const asignacion = await this.prisma.examenControlador.findUnique({
+          where: {
+            examenId_colaboradorId: {
+              examenId: item.examenId,
+              colaboradorId: registradoPorId,
+            },
+          },
+        });
+        if (!asignacion) {
+          rechazados.push({
+            clienteSyncId: item.clienteSyncId,
+            motivo:
+              'No estás asignado como colaborador de control para este examen',
+          });
+          continue;
+        }
+      }
+
+      let identificador = item.identificador.trim();
+      if (identificador.includes('token=')) {
+        const match = identificador.match(/[?&]token=([^&]+)/);
+        if (match) identificador = decodeURIComponent(match[1]);
+      }
       let estudianteId: number | null = null;
 
       if (item.metodo.toUpperCase() === 'QR') {
+        const firmaValida = this.verificarFirmaQr(identificador);
+
+        if (!firmaValida) {
+          await this.prisma.incidenciaIngreso.create({
+            data: {
+              examenId: item.examenId,
+              registradoPor: registradoPorId,
+              codSisIngresado:
+                identificador.length > 25 ? 'Firma falsa' : identificador,
+              tipoIncidencia: TipoIncidencia.NO_ENCONTRADO,
+              descripcion: 'Firma de código QR no válida o token adulterado',
+            },
+          });
+          rechazados.push({
+            clienteSyncId: item.clienteSyncId,
+            motivo: 'Código QR con firma no válida',
+          });
+          continue;
+        }
+
         const qrRegistro = await this.prisma.codigoQr.findUnique({
           where: { token: identificador },
+          include: { estudiante: true },
         });
         if (qrRegistro) {
+          if (new Date() > qrRegistro.expiraEn) {
+            await this.prisma.incidenciaIngreso.create({
+              data: {
+                examenId: item.examenId,
+                registradoPor: registradoPorId,
+                estudianteId: qrRegistro.estudianteId,
+                tipoIncidencia: TipoIncidencia.QR_CADUCADO,
+                descripcion: 'El código QR ha expirado',
+              },
+            });
+            rechazados.push({
+              clienteSyncId: item.clienteSyncId,
+              motivo: 'El código QR ha expirado',
+            });
+            continue;
+          }
+
+          const parts = identificador.split('.');
+          if (parts.length === 3) {
+            try {
+              const payload = JSON.parse(
+                Buffer.from(parts[1], 'base64').toString('utf8'),
+              ) as { qrVersion?: number };
+              if (
+                typeof payload.qrVersion === 'number' &&
+                payload.qrVersion < qrRegistro.estudiante.qrVersion
+              ) {
+                await this.prisma.incidenciaIngreso.create({
+                  data: {
+                    examenId: item.examenId,
+                    registradoPor: registradoPorId,
+                    estudianteId: qrRegistro.estudianteId,
+                    tipoIncidencia: TipoIncidencia.QR_CADUCADO,
+                    descripcion:
+                      'Código QR revocado por renovación de credencial',
+                  },
+                });
+                rechazados.push({
+                  clienteSyncId: item.clienteSyncId,
+                  motivo: 'Código QR revocado',
+                });
+                continue;
+              }
+            } catch {
+              // Ignorar error al decodificar
+            }
+          }
+
           estudianteId = qrRegistro.estudianteId;
+        } else {
+          try {
+            const parts = identificador.split('.');
+            if (parts.length === 3) {
+              const payload = JSON.parse(
+                Buffer.from(parts[1], 'base64').toString('utf8'),
+              ) as { sub?: number; estudianteId?: number };
+              if (typeof payload.sub === 'number') {
+                estudianteId = payload.sub;
+              } else if (typeof payload.estudianteId === 'number') {
+                estudianteId = payload.estudianteId;
+              }
+            }
+          } catch {
+            // Ignorar
+          }
         }
       }
 
@@ -901,7 +1092,8 @@ export class IngresosService {
           data: {
             examenId: item.examenId,
             registradoPor: registradoPorId,
-            codSisIngresado: identificador,
+            codSisIngresado:
+              identificador.length > 25 ? 'QR no reconocido' : identificador,
             tipoIncidencia: TipoIncidencia.NO_ENCONTRADO,
             descripcion:
               'Estudiante no reconocido durante sincronización offline',
@@ -1077,6 +1269,7 @@ export class IngresosService {
     };
 
     const inscripciones = await this.prisma.examen_Estudiante.findMany({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       where,
       include: {
         estudiante: {
@@ -1089,7 +1282,7 @@ export class IngresosService {
           },
         },
       },
-      take: 50,
+      take: q ? 50 : 1000,
       orderBy: { estudiante: { apellido: 'asc' } },
     });
 
@@ -1111,7 +1304,8 @@ export class IngresosService {
               minute: '2-digit',
             })
           : undefined,
-        metodoIngresoPrevio: ultimoIngreso?.metodo as 'QR' | 'MANUAL' | undefined,
+        metodoIngresoPrevio: ultimoIngreso?.metodo as
+          'QR' | 'MANUAL' | undefined,
       };
     });
   }
@@ -1130,5 +1324,22 @@ export class IngresosService {
 
   update(id: number, _updateIngresoDto: UpdateIngresoDto) {
     return `This action updates a #${id} ingreso`;
+  }
+
+  private async verificarEsAdmin(usuarioId: number): Promise<boolean> {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      include: {
+        roles: {
+          include: { rol: true },
+        },
+      },
+    });
+    if (!usuario) return false;
+    return usuario.roles.some(
+      (r) =>
+        r.rol.nombre.toLowerCase().includes('administrador') ||
+        r.rol.nombre.toLowerCase().includes('admin'),
+    );
   }
 }

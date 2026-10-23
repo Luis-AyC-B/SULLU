@@ -8,6 +8,8 @@ import type {
 const OFFLINE_STORAGE_KEY = "sullu_offline_ingresos_queue";
 const STORE_NAME = SULLU_STORES.INGRESOS_COLA;
 
+let estaSincronizando = false;
+
 export const offlineIngresosService = {
   /**
    * Guarda un ingreso localmente en IndexedDB (con espejo en localStorage)
@@ -26,19 +28,38 @@ export const offlineIngresosService = {
 
     const isoFecha = new Date().toISOString();
 
+    let resolvedCodSis = estudianteInfo?.codSis;
+    if (!resolvedCodSis && tokenOrIdentificador.split(".").length === 3) {
+      try {
+        const base64Url = tokenOrIdentificador.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonStr = decodeURIComponent(
+          atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        const parsed = JSON.parse(jsonStr) as { sub?: number; estudianteId?: number };
+        if (parsed.sub) resolvedCodSis = String(parsed.sub);
+      } catch {
+        // Ignorar
+      }
+    }
+
     const item: IngresoOfflineItem = {
       id: syncId,
       clienteSyncId: syncId,
       examenId,
       identificador: tokenOrIdentificador,
       tokenQr: tokenOrIdentificador,
+      estudianteId: estudianteInfo?.id,
       metodo,
       fechaHora: isoFecha,
       fechaHoraCaptura: isoFecha,
-      codSis: estudianteInfo?.codSis,
+      codSis: resolvedCodSis,
       nombreReferencial: estudianteInfo?.nombre
         ? `${estudianteInfo.nombre} ${estudianteInfo.apellido ?? ""}`.trim()
-        : undefined,
+        : (resolvedCodSis ? `Estudiante #${resolvedCodSis}` : undefined),
       sincronizado: false,
     };
 
@@ -127,14 +148,16 @@ export const offlineIngresosService = {
    * Obtiene todos los items del espejo de localStorage
    */
   obtenerTodosSync(): IngresoOfflineItem[] {
-    if (typeof window === "undefined") return [];
-    try {
-      const data = localStorage.getItem(OFFLINE_STORAGE_KEY);
-      if (!data) return [];
-      return JSON.parse(data) as IngresoOfflineItem[];
-    } catch {
-      return [];
+    if (typeof window !== "undefined") {
+      try {
+        const data = localStorage.getItem(OFFLINE_STORAGE_KEY);
+        if (!data) return [];
+        return JSON.parse(data) as IngresoOfflineItem[];
+      } catch {
+        return [];
+      }
     }
+    return [];
   },
 
   /**
@@ -149,6 +172,15 @@ export const offlineIngresosService = {
     totalOmitidos: number;
     totalRechazados: number;
   }> {
+    if (estaSincronizando) {
+      return {
+        totalRecibidos: 0,
+        totalSincronizados: 0,
+        totalOmitidos: 0,
+        totalRechazados: 0,
+      };
+    }
+
     const pendientes = await this.obtenerPendientes(examenId);
     if (pendientes.length === 0) {
       return {
@@ -158,6 +190,8 @@ export const offlineIngresosService = {
         totalRechazados: 0,
       };
     }
+
+    estaSincronizando = true;
 
     const payload = {
       ingresos: pendientes.map((p) => ({
@@ -173,26 +207,36 @@ export const offlineIngresosService = {
       const response = await apiClient.post("/ingresos/sincronizar", payload);
       const data = response.data;
 
-      // Eliminar de IndexedDB y localStorage los que se procesaron con éxito o se omitieron por ya procesados
+      // Eliminar de IndexedDB y localStorage TODOS los que ya procesó el servidor
+      // (sincronizados, omitidos por duplicado y rechazados por inhabilitados/etc.)
       const syncIdsProcesados = [
         ...(data.sincronizados || []).map((s: { clienteSyncId: string }) => s.clienteSyncId),
         ...(data.omitidos || []).map((s: { clienteSyncId: string }) => s.clienteSyncId),
+        ...(data.rechazados || []).map((s: { clienteSyncId: string }) => s.clienteSyncId),
       ];
 
-      await this.limpiarSincronizados(syncIdsProcesados);
+      // Si por alguna razón el servidor procesó el lote pero no listó IDs específicos, limpiar los enviados
+      const idsALimpiar = syncIdsProcesados.length > 0
+        ? syncIdsProcesados
+        : pendientes.map((p) => p.clienteSyncId);
+
+      await this.limpiarSincronizados(idsALimpiar);
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("sullu_offline_updated"));
+        window.dispatchEvent(new CustomEvent("sullu_incidencias_offline_updated"));
       }
 
       return {
         totalRecibidos: data.totalRecibidos || pendientes.length,
         totalSincronizados: data.totalSincronizados || (data.sincronizados || []).length,
         totalOmitidos: data.totalOmitidos || 0,
-        totalRechazados: data.totalRechazados || 0,
+        totalRechazados: data.totalRechazados || (data.rechazados || []).length,
       };
     } catch (err) {
       throw err;
+    } finally {
+      estaSincronizando = false;
     }
   },
 
@@ -229,9 +273,19 @@ export const offlineIngresosService = {
   },
 };
 
-// Escuchar evento 'online' del navegador para auto-sincronizar
+// Auto-sincronización:
+// 1. Cuando el navegador dispara el evento 'online'
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => {
     offlineIngresosService.sincronizarLote().catch(() => {});
   });
+
+  // 2. Auto-verificación cada 6 segundos si hay conexión activa y registros pendientes
+  setInterval(() => {
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      if (offlineIngresosService.contarPendientesSync() > 0) {
+        offlineIngresosService.sincronizarLote().catch(() => {});
+      }
+    }
+  }, 6000);
 }

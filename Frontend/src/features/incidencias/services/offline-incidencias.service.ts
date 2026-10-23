@@ -197,6 +197,7 @@ export const offlineIncidenciasService = {
       const syncIdsProcesados = [
         ...(data.sincronizados || []).map((s: { clienteSyncId: string }) => s.clienteSyncId),
         ...(data.omitidos || []).map((s: { clienteSyncId: string }) => s.clienteSyncId),
+        ...(data.rechazados || []).map((s: { clienteSyncId: string }) => s.clienteSyncId),
       ];
 
       await this.limpiarSincronizados(syncIdsProcesados);

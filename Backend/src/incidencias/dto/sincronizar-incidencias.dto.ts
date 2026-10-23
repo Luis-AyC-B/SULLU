@@ -7,7 +7,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -39,9 +38,7 @@ export class ItemIncidenciaOfflineDto {
     description: 'Código SIS del estudiante',
   })
   @IsString()
-  @Matches(/^\d{1,15}$/, {
-    message: 'El código SIS debe tener solo dígitos (1 a 15)',
-  })
+  @MaxLength(50, { message: 'El código SIS debe tener máximo 50 caracteres' })
   codigoSis!: string;
 
   @ApiProperty({

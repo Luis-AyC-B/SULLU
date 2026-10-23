@@ -124,9 +124,15 @@ export class IngresosController {
   }
 
   @Get('examen/:examenId/estudiantes')
-  @Permissions('control_ingreso.registro_manual', 'registro_ingresos.ver')
+  @Permissions(
+    'control_ingreso.registro_manual',
+    'control_ingreso.ver_examenes_asignados',
+    'control_ingreso.escanear_qr',
+    'registro_ingresos.ver',
+  )
   @ApiOperation({
-    summary: 'Buscar estudiantes inscritos en el examen para registro manual o control',
+    summary:
+      'Buscar estudiantes inscritos en el examen para registro manual o control',
   })
   buscarEstudiantesExamen(
     @Param('examenId', ParseIntPipe) examenId: number,

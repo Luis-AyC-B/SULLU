@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Camera, Lock, Search, AlertTriangle, ArrowRight } from "lucide-react";
-import { useDeviceCapabilities } from "../../hooks/useDeviceCapabilities";
 import { toast } from "sonner";
 
 interface AccionesOperativasGridProps {
@@ -17,7 +16,6 @@ export function AccionesOperativasGrid({
 }: AccionesOperativasGridProps = {}) {
   const router = useRouter();
   const { data: session } = useSession();
-  const { canScanQr, helperText } = useDeviceCapabilities();
 
   const permisos = (session?.user?.permisos as string[]) || [];
 
@@ -42,10 +40,6 @@ export function AccionesOperativasGrid({
   const handleEscanearQr = () => {
     if (!canEscanearQr) {
       toast.error("No tienes permiso para escanear códigos QR");
-      return;
-    }
-    if (!canScanQr) {
-      toast.info(helperText);
       return;
     }
     if (onAbrirScanner) {
@@ -170,15 +164,23 @@ export function AccionesOperativasGrid({
               Registrar ingreso manual
             </h3>
 
-            <p className="hidden md:block text-xs text-slate-500 leading-relaxed mb-4">
-              {canRegistroManual
-                ? "Busca por código SIS, CI o nombre y verifica los datos antes de registrar."
-                : "No dispones del permiso necesario para registrar ingresos manualmente."}
-            </p>
+            {!canRegistroManual ? (
+              <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                No dispones del permiso necesario para registrar ingresos manuales.
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                Busca por código SIS, CI o nombre y verifica los datos antes de registrar.
+              </p>
+            )}
           </div>
 
           <div className="pt-2">
-            {canRegistroManual ? (
+            {!canRegistroManual ? (
+              <span className="text-xs font-medium text-slate-400 select-none">
+                Permiso no asignado
+              </span>
+            ) : (
               <button
                 type="button"
                 onClick={handleRegistroManual}
@@ -187,28 +189,23 @@ export function AccionesOperativasGrid({
                 <span>Buscar estudiante</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
-            ) : (
-              <span className="text-xs font-medium text-slate-400 select-none">
-                Permiso no asignado
-              </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Tarjeta 3: ¿Ocurrió una incidencia? */}
-      <div className="rounded-2xl bg-white border border-slate-200/90 p-5 shadow-xs flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div className="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 shrink-0">
+      {/* Tarjeta 3: Banner inferior para registro de incidencias (Acceso directo) */}
+      <div className="w-full rounded-2xl bg-amber-50/60 border border-amber-200/80 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
             <AlertTriangle className="h-5 w-5" />
           </div>
-          <div className="min-w-0">
-            <h4 className="text-sm md:text-base font-bold text-slate-900 truncate">
+          <div>
+            <h4 className="text-sm font-bold text-slate-900 mb-0.5">
               ¿Ocurrió una incidencia?
             </h4>
-            <p className="hidden md:block text-xs text-slate-500 mt-0.5">
-              Deja constancia de problemas de identificación, acceso o
-              ambiente.
+            <p className="text-xs text-slate-600 font-medium">
+              Deja constancia de problemas de identificación, acceso o ambiente.
             </p>
           </div>
         </div>
@@ -216,9 +213,9 @@ export function AccionesOperativasGrid({
         <button
           type="button"
           onClick={handleRegistrarIncidencia}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-xs md:text-sm font-semibold text-slate-700 transition-colors shrink-0 shadow-2xs cursor-pointer active:scale-95"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-amber-300 text-xs font-bold text-amber-800 hover:bg-amber-100/60 transition-colors cursor-pointer shrink-0 shadow-2xs"
         >
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTriangle className="h-3.5 w-3.5" />
           <span>Registrar</span>
         </button>
       </div>

@@ -4,7 +4,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
 } from 'class-validator';
 
@@ -17,9 +16,7 @@ export enum MotivoIncidencia {
 
 export class CrearIncidenciaDto {
   @IsString()
-  @Matches(/^\d{1,15}$/, {
-    message: 'El código SIS debe tener solo dígitos (1 a 15)',
-  })
+  @MaxLength(50, { message: 'El código SIS debe tener máximo 50 caracteres' })
   codigoSis!: string;
 
   @Transform(({ value }) =>

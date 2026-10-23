@@ -271,7 +271,9 @@ export async function getIncidenciasExamen(
       }
     }
 
-    return ordenarMasRecientes([...pendientesLocales, ...cacheadas]);
+    const idSetC = new Set(cacheadas.map((c) => String(c.id)));
+    const pendientesFiltradosC = pendientesLocales.filter((p) => !idSetC.has(String(p.id)));
+    return ordenarMasRecientes([...pendientesFiltradosC, ...cacheadas]);
   }
 
   try {
@@ -298,7 +300,9 @@ export async function getIncidenciasExamen(
       }
     }
 
-    return ordenarMasRecientes([...pendientesLocales, ...parsed]);
+    const idSet = new Set(parsed.map((p) => String(p.id)));
+    const pendientesFiltrados = pendientesLocales.filter((p) => !idSet.has(String(p.id)));
+    return ordenarMasRecientes([...pendientesFiltrados, ...parsed]);
   } catch (error) {
     if (esRutaInexistente(error)) return mockGetIncidencias(examenId);
 
