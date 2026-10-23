@@ -203,8 +203,9 @@ export function AccionesOperativasGrid({
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-sm md:text-base font-bold text-slate-900 truncate">
-              ¿Ocurrió una incidencia?
+            <h4 className="text-sm md:text-base font-bold text-slate-900">
+              <span className="md:hidden">¿Incidencia?</span>
+              <span className="hidden md:inline">¿Ocurrió una incidencia?</span>
             </h4>
             <p className="hidden md:block text-xs text-slate-500 mt-0.5">
               Deja constancia de problemas de identificación, acceso o
