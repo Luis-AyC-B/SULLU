@@ -1,10 +1,17 @@
-import type { ExamenEstudiante, StudentQrPayload } from '../types/student-exam.types';
+import type {
+  ExamenEstudiante,
+  StudentProfile,
+  StudentQrPayload,
+} from '../types/student-exam.types';
 import type { Examen } from '../types/qr-examen';
 
 const STORAGE_PREFIX = 'exacontrol_offline_';
 export const CACHED_EXAMENES_KEY = `${STORAGE_PREFIX}examenes`;
 export const CACHED_QR_KEY = `${STORAGE_PREFIX}qr`;
 export const CACHED_EXAM_QRS_KEY = `${STORAGE_PREFIX}exam_qrs`;
+export const CACHED_PERFIL_KEY = `${STORAGE_PREFIX}perfil`;
+export const SESION_PORTAL_KEY = `${STORAGE_PREFIX}sesion_ok`;
+export const CACHED_USUARIO_KEY = `${STORAGE_PREFIX}usuario`;
 
 export interface CachedData<T> {
   data: T;
@@ -28,6 +35,24 @@ export function guardarExamenesOffline(examenes: (Examen | ExamenEstudiante)[]):
     };
     localStorage.setItem(CACHED_EXAMENES_KEY, JSON.stringify(payload));
   } catch {}
+}
+
+
+export function guardarUsuarioOffline(usuario: { nombre: string; rol: string }): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(CACHED_USUARIO_KEY, JSON.stringify(usuario));
+  } catch {}
+}
+
+export function obtenerUsuarioOffline(): { nombre: string; rol: string } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CACHED_USUARIO_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function obtenerExamenesOffline(): CachedData<(Examen | ExamenEstudiante)[]> | null {
@@ -60,6 +85,51 @@ export function obtenerQrOffline(): CachedData<StudentQrPayload> | null {
     return JSON.parse(raw);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Guarda el perfil del estudiante para mostrarlo (nombre, SIS, foto) sin conexión.
+ */
+export function guardarPerfilOffline(perfil: StudentProfile): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const payload: CachedData<StudentProfile> = {
+      data: perfil,
+      cachedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(CACHED_PERFIL_KEY, JSON.stringify(payload));
+  } catch {}
+}
+
+export function obtenerPerfilOffline(): CachedData<StudentProfile> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CACHED_PERFIL_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Marca que este dispositivo tuvo una sesión de estudiante válida estando online.
+ * Permite que StudentAuthGuard deje entrar sin red (solo lectura de datos ya guardados).
+ */
+export function marcarSesionPortal(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SESION_PORTAL_KEY, '1');
+  } catch {}
+}
+
+export function haySesionPortalOffline(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(SESION_PORTAL_KEY) === '1';
+  } catch {
+    return false;
   }
 }
 
@@ -187,7 +257,7 @@ export function purgarQrsExamenVencidos(fechaReferencia: Date = new Date()): num
 
 /**
  * Borra el almacenamiento local sensible al cerrar sesión (voluntaria o por 401).
- * Limpia exámenes, QR personal y QRs de examen.
+ * Limpia exámenes, perfil, marca de sesión, QR personal y QRs de examen.
  */
 export function limpiarCacheOfflineEstudiante(): void {
   if (typeof window === 'undefined') return;
@@ -195,5 +265,8 @@ export function limpiarCacheOfflineEstudiante(): void {
     localStorage.removeItem(CACHED_EXAMENES_KEY);
     localStorage.removeItem(CACHED_QR_KEY);
     localStorage.removeItem(CACHED_EXAM_QRS_KEY);
+    localStorage.removeItem(CACHED_PERFIL_KEY);
+    localStorage.removeItem(SESION_PORTAL_KEY);
+    localStorage.removeItem(CACHED_USUARIO_KEY);
   } catch {}
 }

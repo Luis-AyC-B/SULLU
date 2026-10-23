@@ -3,7 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { limpiarCacheOfflineEstudiante } from "@/features/portal/lib/offline-portal";
+import {
+  limpiarCacheOfflineEstudiante,
+  obtenerUsuarioOffline,
+} from "@/features/portal/lib/offline-portal";
 import { User, LogOut } from "lucide-react";
 
 /**
@@ -61,11 +64,18 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [cached, setCached] = useState<{ nombre: string; rol: string } | null>(null);
+
+useEffect(() => {
+  setCached(obtenerUsuarioOffline());
+}, []);
 
   // Nombre del usuario con fallback representativo del mockup
-  const nombre = session?.user?.name || "Prof. Luis Medina";
-  const rol = getRolDisplayName(session);
-
+  const nombre = session?.user?.name || cached?.nombre || "Usuario";
+const rol = session
+  ? getRolDisplayName(session)
+  : (cached?.rol ?? "Usuario").toUpperCase();
+  
   // Iniciales para el avatar circular
   const iniciales = nombre
     .split(" ")
@@ -105,11 +115,12 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
     router.push("/perfil");
   };
 
-  const handleLogout = () => {
-    setIsMenuOpen(false);
-    limpiarCacheOfflineEstudiante();
-    signOut({ callbackUrl: "/login" });
-  };
+  const handleLogout = async () => {
+  setIsMenuOpen(false);
+  limpiarCacheOfflineEstudiante();
+  await signOut({ redirect: false });
+  router.push("/login");
+};
 
   return (
     <header className="flex h-16 w-full items-center justify-between bg-[#002D62] px-3 md:px-6 shadow-sm border-b border-[#001f45] select-none text-white z-30">
