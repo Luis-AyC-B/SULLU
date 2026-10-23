@@ -12,10 +12,12 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
   let service: IngresosService;
   let prismaMock: {
     examen: { findUnique: jest.Mock };
-    codigoQr: { findUnique: jest.Mock };
+    codigoQr: { findUnique: jest.Mock; deleteMany: jest.Mock };
     examen_Estudiante: { findUnique: jest.Mock };
     ingreso: { findFirst: jest.Mock; findUnique: jest.Mock; create: jest.Mock };
     incidenciaIngreso: { create: jest.Mock };
+    usuario: { findUnique: jest.Mock };
+    examenControlador: { findUnique: jest.Mock };
   };
 
   const mockExamen = {
@@ -71,6 +73,15 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
       },
       incidenciaIngreso: {
         create: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      usuario: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 2,
+          roles: [{ rol: { nombre: 'Administrador' } }],
+        }),
+      },
+      examenControlador: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1 }),
       },
     };
 

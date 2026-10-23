@@ -5,12 +5,12 @@ import type { DeviceCapabilities } from "../types/control-ingreso.types";
 
 export function useDeviceCapabilities(): DeviceCapabilities {
   const [capabilities, setCapabilities] = useState<DeviceCapabilities>({
-    canScanQr: false,
+    canScanQr: true,
     isMobile: false,
-    hasCamera: false,
-    helperText: "No se detectó una cámara disponible en este dispositivo.",
-    isQrBlocked: true,
-    blockedMessage: "No se detectó una cámara disponible en este dispositivo.",
+    hasCamera: true,
+    helperText: "Cámara disponible para escaneo de códigos QR.",
+    isQrBlocked: false,
+    blockedMessage: "",
   });
 
   useEffect(() => {
@@ -31,8 +31,8 @@ export function useDeviceCapabilities(): DeviceCapabilities {
 
       const isMobile = isTouch || isNarrowScreen;
 
-      // 2. Detección de cámara física disponible
-      let hasCamera = false;
+      // 2. Detección de soporte de MediaDevices
+      let hasCamera = true;
       try {
         if (
           typeof navigator !== "undefined" &&
@@ -44,31 +44,19 @@ export function useDeviceCapabilities(): DeviceCapabilities {
             const videoDevices = devices.filter(
               (device) => device.kind === "videoinput"
             );
-
-            // Filtrar dispositivos virtuales comunes si tienen etiqueta explícita
-            const nonVirtualDevices = videoDevices.filter(
-              (device) =>
-                !device.label ||
-                !/obs|virtual|dummy|v4l2loopback|fake|manycam|droidcam|iriun/i.test(
-                  device.label
-                )
-            );
-
-            // Si hay dispositivos de video detectados (o aún sin etiquetas por permisos pendientes), o la API existe
-            hasCamera = videoDevices.length === 0 ? true : nonVirtualDevices.length > 0;
-          } else {
-            hasCamera = true;
+            // Permitir cámaras físicas y virtuales (DroidCam, Iriun, webcams USB)
+            hasCamera = videoDevices.length > 0 || devices.length === 0;
           }
         }
       } catch {
         hasCamera = true;
       }
 
-      const canScanQr = hasCamera;
-      const isQrBlocked = !canScanQr;
+      const canScanQr = true; // Permitir siempre el intento para que el navegador solicite permisos
+      const isQrBlocked = false;
 
       const blockedMessage = !hasCamera
-        ? "No se detectó una cámara disponible en este dispositivo."
+        ? "No se detectó una cámara activa. Puedes conectar una webcam o utilizar una imagen de prueba."
         : "Cámara disponible para escaneo de códigos QR.";
 
       if (isMounted) {

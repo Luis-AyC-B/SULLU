@@ -89,6 +89,7 @@ export type TipoExcepcionQr =
   | "NO_HABILITADO"
   | "AMBIENTE_INCORRECTO"
   | "QR_INVALIDO"
+  | "QR_CADUCADO"
   | "SIN_CONEXION"
   | "CAMARA_DENEGADA";
 
@@ -102,6 +103,8 @@ export interface EstudianteQrResultado {
   horaIngresoPrevio?: string;
   motivoInhabilitacion?: string;
   ambienteAsignado?: string;
+  estadoHabilitado?: boolean;
+  yaIngreso?: boolean;
 }
 
 export interface ValidacionQrResponse {
@@ -123,6 +126,7 @@ export interface IngresoOfflineItem {
   examenId: number;
   identificador: string;
   tokenQr?: string;
+  estudianteId?: number;
   metodo: "QR" | "MANUAL";
   fechaHora: string;
   fechaHoraCaptura?: string;

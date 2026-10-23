@@ -60,8 +60,10 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
     },
     codigoQr: {
       findUnique: jest.fn().mockImplementation(({ where }) => {
-        if (where.token === 'qr_test_alejandro') return Promise.resolve(mockQrVigente);
-        if (where.token === 'qr_expirado_alejandro') return Promise.resolve(mockQrExpirado);
+        if (where.token === 'qr_test_alejandro')
+          return Promise.resolve(mockQrVigente);
+        if (where.token === 'qr_expirado_alejandro')
+          return Promise.resolve(mockQrExpirado);
         return Promise.resolve(null);
       }),
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -116,12 +118,15 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
         canActivate: (context: ExecutionContext) => {
           const req = context
             .switchToHttp()
-            .getRequest<Request & { user: { id: number; permisos: string[] } }>();
+            .getRequest<
+              Request & { user: { id: number; permisos: string[] } }
+            >();
           if (!req.headers.authorization) throw new UnauthorizedException();
           const token = req.headers.authorization;
           req.user = {
             id: 2,
-            permisos: token === 'Bearer allowed' ? ['control_ingreso.escanear_qr'] : [],
+            permisos:
+              token === 'Bearer allowed' ? ['control_ingreso.escanear_qr'] : [],
           };
           return true;
         },

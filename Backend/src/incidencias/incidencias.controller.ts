@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Post,
@@ -9,10 +11,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // AJUSTAR
-import { PermissionsGuard } from '../auth/guards/permissions.guard'; // AJUSTAR
-import { Permissions } from '../auth/decorators/permissions.decorator'; // AJUSTAR
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CrearIncidenciaDto } from './dto/crear-incidencia.dto';
+import { SincronizarIncidenciasDto } from './dto/sincronizar-incidencias.dto';
 import { IncidenciasService } from './incidencias.service';
 
 // Usuario que deja JwtAuthGuard en req.user (según la estrategia JWT del proyecto).
@@ -52,5 +55,15 @@ export class IncidenciasController {
   @Permissions('incidencias.registrar')
   crear(@Body() dto: CrearIncidenciaDto, @Req() req: RequestAutenticado) {
     return this.service.crear(dto, uid(req), req.ip);
+  }
+
+  @Post('incidencias/sincronizar')
+  @Permissions('incidencias.registrar')
+  @HttpCode(HttpStatus.OK)
+  sincronizarOffline(
+    @Body() dto: SincronizarIncidenciasDto,
+    @Req() req: RequestAutenticado,
+  ) {
+    return this.service.sincronizarEnLote(dto, uid(req), req.ip);
   }
 }

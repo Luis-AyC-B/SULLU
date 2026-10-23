@@ -30,7 +30,9 @@ export class BuscarEstudiantesService {
    */
   async buscar(termino: string): Promise<EstudianteBusquedaResultado[]> {
     if (!termino || termino.trim().length < 2) {
-      throw new BadRequestException('El término de búsqueda debe tener al menos 2 caracteres');
+      throw new BadRequestException(
+        'El término de búsqueda debe tener al menos 2 caracteres',
+      );
     }
 
     const termLimpio = termino.trim();
@@ -54,7 +56,9 @@ export class BuscarEstudiantesService {
     const resultados = estudiantes.filter((est) => {
       const sis = (est.cod_sis || '').toLowerCase();
       const ci = (est.ci || '').toLowerCase();
-      const nombreNorm = this.normalizarTexto(`${est.nombre} ${est.apellido || ''}`);
+      const nombreNorm = this.normalizarTexto(
+        `${est.nombre} ${est.apellido || ''}`,
+      );
 
       return (
         sis.includes(termNormalizado) ||

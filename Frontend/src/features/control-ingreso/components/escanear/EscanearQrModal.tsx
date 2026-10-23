@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X } from "lucide-react";
+import { X, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import jsQR from "jsqr";
 import type {
@@ -75,6 +76,12 @@ export function EscanearQrModal({
   // Contador reactivo de ingresos offline pendientes en IndexedDB
   const [pendientesOfflineCount, setPendientesOfflineCount] =
     useState<number>(0);
+
+  useEffect(() => {
+    if (isOpen && examen?.id) {
+      controlIngresoService.cargarNominaCompletaExamen(examen.id).catch(() => {});
+    }
+  }, [isOpen, examen?.id]);
 
   useEffect(() => {
     const updateCount = () => {
@@ -378,6 +385,34 @@ export function EscanearQrModal({
     onAbrirRegistroManual();
   };
 
+  const handleSeleccionarArchivoQr = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imgData.data, imgData.width, imgData.height);
+          if (code && code.data) {
+            void procesarTokenQr(code.data);
+          } else {
+            toast.error("No se detectó ningún código QR en la imagen seleccionada");
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   return (
     <div
       role="dialog"
@@ -389,14 +424,29 @@ export function EscanearQrModal({
         <h3 className="text-lg font-bold text-white tracking-tight">
           Escanear código QR
         </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="h-10 w-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer active:scale-95"
-          aria-label="Cerrar escáner"
-        >
-          <X className="h-6 w-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          <label
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-white cursor-pointer transition-colors"
+            title="Subir archivo o captura con código QR"
+          >
+            <Upload className="h-4 w-4" />
+            <span>Subir imagen QR</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleSeleccionarArchivoQr}
+              className="hidden"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 w-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer active:scale-95"
+            aria-label="Cerrar escáner"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
       </div>
 
       {/* 2. Contenido principal a pantalla completa: Visor de cámara fluido */}

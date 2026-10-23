@@ -19,9 +19,8 @@ describe('UT02-HU09: Validación de enrutamiento y extracción de usuario en end
     id: 2,
     email: 'guardia@umss.edu.bo',
     nombre: 'Juan Pérez',
-    roles: ['Personal de control'],
+    rol: 'Personal de control',
     permisos: ['control_ingreso.escanear_qr'],
-    alcances: [],
   };
 
   beforeEach(async () => {
@@ -42,7 +41,11 @@ describe('UT02-HU09: Validación de enrutamiento y extracción de usuario en end
         },
         {
           provide: PrismaService,
-          useValue: { modulo: { findFirst: jest.fn().mockResolvedValue({ activo: true }) } },
+          useValue: {
+            modulo: {
+              findFirst: jest.fn().mockResolvedValue({ activo: true }),
+            },
+          },
         },
       ],
     }).compile();

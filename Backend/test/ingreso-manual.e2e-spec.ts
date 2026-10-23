@@ -51,7 +51,8 @@ describe('UT2-HU8: Endpoints de ingreso manual (e2e integration)', () => {
     estudiante: {
       findFirst: jest.fn().mockImplementation(({ where }) => {
         const id = where.OR?.[0]?.cod_sis || where.OR?.[1]?.ci;
-        if (id === '202110234' || id === '8765432') return Promise.resolve(mockEstudianteHabilitado);
+        if (id === '202110234' || id === '8765432')
+          return Promise.resolve(mockEstudianteHabilitado);
         if (id === '202111884') {
           return Promise.resolve({
             id: 20,
@@ -116,12 +117,17 @@ describe('UT2-HU8: Endpoints de ingreso manual (e2e integration)', () => {
         canActivate: (context: ExecutionContext) => {
           const req = context
             .switchToHttp()
-            .getRequest<Request & { user: { id: number; permisos: string[] } }>();
+            .getRequest<
+              Request & { user: { id: number; permisos: string[] } }
+            >();
           if (!req.headers.authorization) throw new UnauthorizedException();
           const token = req.headers.authorization;
           req.user = {
             id: 2,
-            permisos: token === 'Bearer allowed' ? ['control_ingreso.registro_manual'] : [],
+            permisos:
+              token === 'Bearer allowed'
+                ? ['control_ingreso.registro_manual']
+                : [],
           };
           return true;
         },
