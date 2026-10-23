@@ -56,7 +56,7 @@ export function SeleccionExamenView() {
       {/* Contenido Principal a 2 Columnas (Desktop) / 1 Columna (Mobile) */}
       <div className="flex flex-col md:flex-row items-start gap-6 md:gap-8">
         {/* Columna Izquierda: Lista de Exámenes */}
-        <div className="flex-1 w-full">
+        <div className="flex-1 min-w-0 w-full">
           {isLoading && <ExamenesSkeleton />}
 
           {!isLoading && error && (
