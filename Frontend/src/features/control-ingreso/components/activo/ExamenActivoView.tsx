@@ -52,9 +52,9 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
       </div>
 
       {/* VERSIÓN DESKTOP: Layout a 2 Columnas */}
-      <div className="hidden md:flex flex-row items-start gap-8">
+      <div className="hidden md:flex flex-row items-start gap-6 lg:gap-8">
         {/* Columna Izquierda: Acciones Operativas (QR, Manual, Incidencias) */}
-        <div className="flex-1 w-full space-y-5">
+        <div className="flex-1 min-w-0 w-full space-y-5">
           <AccionesOperativasGrid
             onAbrirRegistroManual={() => setIsModalManualOpen(true)}
             onAbrirScanner={() => setIsScannerOpen(true)}
@@ -62,7 +62,7 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
         </div>
 
         {/* Columna Derecha: Resumen en vivo */}
-        <div className="w-80 xl:w-96 shrink-0 space-y-5">
+        <div className="w-64 lg:w-72 xl:w-80 shrink-0 space-y-5">
           <ResumenEnVivoCard resumen={resumen} isLoading={isLoading} />
         </div>
       </div>
