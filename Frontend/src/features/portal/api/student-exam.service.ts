@@ -1,11 +1,9 @@
 import { getSession } from 'next-auth/react';
 import { apiClient } from '@/shared/lib/api-client';
+import { adaptarRespuestaExamenes } from '../lib/adaptador-examenes';
 import {
   MOCK_TOKEN_PREFIX,
-  examenesEstudianteSchema,
-  studentQrPayloadSchema,
   type ExamenEstudiante,
-  type StudentQrPayload,
   type StudentProfile,
   type FotoEstudianteItem,
   type SubirFotoResponse,
@@ -49,13 +47,6 @@ const MOCK_EXAMENES: ExamenEstudiante[] = [
   },
 ];
 
-const MOCK_QR: StudentQrPayload = {
-  nombre: 'Ana Rojas Mamani',
-  sis: '201900123',
-  ci: '8123456',
-  token: 'mock.eyJzaXMiOiIyMDE5MDAxMjMifQ.firma-simulada',
-};
-
 const MOCK_PERFIL: StudentProfile = {
   id: 1,
   cod_sis: '201900123',
@@ -90,25 +81,23 @@ export async function getMisExamenes(): Promise<ExamenEstudiante[]> {
   }
 
   const { data } = await apiClient.get('/estudiantes/me/examenes');
-  return examenesEstudianteSchema.parse(data);
-}
-
-/** GET /estudiantes/me/qr — genera o consulta el QR personal vigente */
-export async function getMiQr(): Promise<StudentQrPayload> {
-  const mockToken = await getMockToken();
-  if (mockToken) {
-    await wait(300);
-    if (mockToken.endsWith('-empty')) {
-      return { ...MOCK_QR, nombre: 'Luis Quispe Vargas', sis: '201900124', ci: '9234567' };
-    }
-    if (mockToken.endsWith('-error')) {
-      return { ...MOCK_QR, nombre: 'Marta Flores Rojas', sis: '201900125', ci: '7345678' };
-    }
-    return MOCK_QR;
-  }
-
-  const { data } = await apiClient.get('/estudiantes/me/qr');
-  return studentQrPayloadSchema.parse(data);
+  const adaptada = adaptarRespuestaExamenes(data);
+  return adaptada.examenes.map((e) => {
+    const fecha = e.fechaInicio ? e.fechaInicio.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const horaInicio = e.fechaInicio && e.fechaInicio.includes('T') ? e.fechaInicio.split('T')[1].slice(0, 5) : '08:00';
+    const horaFin = e.fechaFin && e.fechaFin.includes('T') ? e.fechaFin.split('T')[1].slice(0, 5) : '10:00';
+    return {
+      id: e.id,
+      carrera: e.carrera,
+      nombre: e.nombre,
+      ambiente: e.ambiente,
+      facultad: e.facultad || 'FCyT',
+      fecha,
+      horaInicio,
+      horaFin,
+      estado: e.habilitado ? 'Habilitado' : 'Inhabilitado',
+    };
+  });
 }
 
 /** GET /estudiantes/me/perfil — obtiene datos completos del estudiante autenticado */

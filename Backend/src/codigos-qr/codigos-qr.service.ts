@@ -20,6 +20,7 @@ export interface ResultadoValidacionPublica {
   mensaje: string;
   nombre?: string;
   sis?: string;
+  carrera?: string;
   fotoUrl?: string | null;
   examenes?: {
     id: number;
@@ -35,7 +36,10 @@ export interface ResultadoValidacionPublica {
 @Injectable()
 export class CodigosQrService {
   // Rate limiting en memoria: máximo 30 solicitudes por minuto por IP
-  private rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+  private rateLimitMap = new Map<
+    string,
+    { count: number; resetTime: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -62,7 +66,10 @@ export class CodigosQrService {
    * - No consume el QR.
    * - Si el QR no es válido, devuelve estado genérico sin filtrar datos personales.
    */
-  async validarQrPublico(tokenRaw: string, ip: string): Promise<ResultadoValidacionPublica> {
+  async validarQrPublico(
+    tokenRaw: string,
+    ip: string,
+  ): Promise<ResultadoValidacionPublica> {
     if (!this.checkRateLimit(ip)) {
       throw new HttpException(
         'Límite de solicitudes de verificación excedido (máximo 30 por minuto). Intenta más tarde.',
@@ -87,7 +94,9 @@ export class CodigosQrService {
     try {
       estudianteId = await this.qrTokenService.validar(token);
     } catch (err: unknown) {
-      const errorData = (err as { response?: { codigo?: string; message?: string } })?.response;
+      const errorData = (
+        err as { response?: { codigo?: string; message?: string } }
+      )?.response;
       if (errorData?.codigo === 'QR_CADUCADO') {
         return {
           estado: 'EXPIRADO',
@@ -97,7 +106,8 @@ export class CodigosQrService {
       if (errorData?.message?.toLowerCase().includes('revocado')) {
         return {
           estado: 'REVOCADO',
-          mensaje: 'El código QR ha sido revocado o ya fue utilizado para ingresar al examen',
+          mensaje:
+            'El código QR ha sido revocado o ya fue utilizado para ingresar al examen',
         };
       }
       return {
@@ -166,11 +176,36 @@ export class CodigosQrService {
       };
     });
 
+    const primeraCarrera = estudiante.examenes.find(
+      (ee) =>
+        ee.examen?.carrerasMaterias?.[0]?.carrera_materia?.carrera?.nombre,
+    )?.examen?.carrerasMaterias?.[0]?.carrera_materia?.carrera?.nombre;
+
+    // Registrar bitácora de consulta QR pública
+    try {
+      await this.prisma.bitacora_Auditoria.create({
+        data: {
+          accion: 'CONSULTA_QR_PUBLICO',
+          modulo: 'PORTAL_ESTUDIANTE',
+          tablaAfectada: 'estudiantes',
+          registroId: estudiante.id,
+          ipOrigen: ip?.slice(0, 45) ?? null,
+          detallesNuevo: {
+            resultado: 'VALIDO',
+            sis: estudiante.cod_sis,
+          },
+        },
+      });
+    } catch {
+      // No bloquear consulta por error no crítico en auditoría
+    }
+
     return {
       estado: 'VALIDO',
       mensaje: 'Código QR válido y vigente',
       nombre: `${estudiante.nombre} ${estudiante.apellido ?? ''}`.trim(),
       sis: estudiante.cod_sis,
+      carrera: primeraCarrera || 'Universidad Mayor de San Simón',
       fotoUrl,
       examenes,
     };
@@ -182,7 +217,9 @@ export class CodigosQrService {
    */
   async servirFotoQr(tokenRaw: string, res: Response): Promise<void> {
     if (!tokenRaw || !tokenRaw.trim()) {
-      throw new BadRequestException('Token QR requerido para visualizar la fotografía');
+      throw new BadRequestException(
+        'Token QR requerido para visualizar la fotografía',
+      );
     }
 
     let token = tokenRaw.trim();
@@ -208,16 +245,21 @@ export class CodigosQrService {
       },
     });
 
-    const archivoRelativo = estudiante?.fotos[0]?.archivo || estudiante?.fotoUrl;
+    const archivoRelativo =
+      estudiante?.fotos[0]?.archivo || estudiante?.fotoUrl;
     if (!archivoRelativo) {
-      throw new NotFoundException('El estudiante no posee una fotografía activa');
+      throw new NotFoundException(
+        'El estudiante no posee una fotografía activa',
+      );
     }
 
     const rutaLimpia = archivoRelativo.replace(/^\/?(uploads\/)?/, '');
     const rutaCompleta = path.resolve(process.cwd(), 'uploads', rutaLimpia);
 
     if (!fs.existsSync(rutaCompleta)) {
-      throw new NotFoundException('Archivo de fotografía no encontrado en el servidor');
+      throw new NotFoundException(
+        'Archivo de fotografía no encontrado en el servidor',
+      );
     }
 
     const ext = path.extname(rutaCompleta).toLowerCase();

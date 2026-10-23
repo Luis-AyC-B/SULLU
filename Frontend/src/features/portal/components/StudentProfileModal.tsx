@@ -338,8 +338,7 @@ export function StudentProfileModal({
 
               <div className="flex-1 text-center sm:text-left">
                 <h3 className="text-lg font-bold text-foreground">
-                  {perfil?.nombre} {perfil?.apellido}
-                </h3>
+{perfil?.nombre}                </h3>
                 <p className="text-sm text-muted-foreground">
                   SIS: <span className="font-semibold text-foreground">{perfil?.cod_sis}</span> · CI: <span className="font-semibold text-foreground">{perfil?.ci}</span>
                 </p>

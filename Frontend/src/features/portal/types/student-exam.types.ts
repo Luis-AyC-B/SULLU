@@ -26,15 +26,19 @@ export const examenesEstudianteSchema = z.array(examenEstudianteSchema);
 /* ---------- QR personal ---------- */
 
 /**
- * `token` es opaco: el backend lo firma y lo valida al escanear.
- * El CI se muestra en pantalla pero NO viaja en texto plano dentro del QR.
+ * `token` es el contenido que se dibuja en el QR. Lo genera y lo cifra/firma el backend
+ * (incluye nombre, SIS y la URL de la fotografía) y el módulo de Control de ingreso
+ * lo valida al escanear. El front nunca arma ni cifra ese contenido.
+ * El CI se muestra en pantalla pero NO viaja en el QR.
+ * `fotoUrl` es solo para mostrar la fotografía en el modal.
  */
 export const studentQrPayloadSchema = z.object({
   nombre: z.string(),
   sis: z.string(),
   ci: z.string(),
   token: z.string(),
-  qrUrl: z.string().optional(),
+qrUrl: z.string().optional(),
+  fotoUrl: z.string().nullable().optional(),
 });
 
 export type StudentQrPayload = z.infer<typeof studentQrPayloadSchema>;
@@ -49,6 +53,7 @@ export interface StudentProfile {
   apellido: string;
   correo: string;
   telefono: string;
+  carrera?: string;
   fotoUrl: string | null;
   perfilCompleto: boolean;
   debeCambiarPassword: boolean;

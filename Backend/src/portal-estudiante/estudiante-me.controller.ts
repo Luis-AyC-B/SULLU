@@ -5,6 +5,7 @@ import {
   Get,
   Patch,
   Post,
+  Put,
   Req,
   UploadedFile,
   UseGuards,
@@ -44,27 +45,47 @@ export class EstudianteMeController {
   constructor(private readonly me: EstudianteMeService) {}
 
   @Get('perfil')
-  @ApiOperation({ summary: 'Obtener datos de perfil del estudiante autenticado' })
+  @ApiOperation({
+    summary: 'Obtener datos de perfil del estudiante autenticado',
+  })
   @ApiResponse({ status: 200, description: 'Datos del perfil del estudiante' })
   perfil(@Req() req: RequestConEstudiante) {
     return this.me.perfil(req.estudiante.usuarioId);
   }
 
-  @Patch('perfil')
-  @ApiOperation({ summary: 'Actualizar datos de contacto (teléfono)' })
+  @Put('perfil')
+  @ApiOperation({ summary: 'Actualizar datos de perfil (CI y teléfono)' })
   @ApiResponse({ status: 200, description: 'Perfil actualizado exitosamente' })
-  actualizarPerfil(
+  actualizarPerfilPut(
     @Req() req: RequestConEstudiante,
     @Body() dto: ActualizarPerfilDto,
   ) {
     return this.me.actualizarPerfil(req.estudiante.usuarioId, dto);
   }
 
-  @Patch('password')
+  @Patch('perfil')
+  @ApiOperation({ summary: 'Actualizar datos de contacto (teléfono o CI)' })
+  actualizarPerfilPatch(
+    @Req() req: RequestConEstudiante,
+    @Body() dto: ActualizarPerfilDto,
+  ) {
+    return this.me.actualizarPerfil(req.estudiante.usuarioId, dto);
+  }
+
+  @Post('cambiar-password')
   @ApiOperation({ summary: 'Cambiar contraseña obligatoria o voluntaria' })
   @ApiResponse({ status: 200, description: 'Contraseña cambiada con éxito' })
   @ApiResponse({ status: 400, description: 'Datos de contraseña inválidos' })
-  cambiarPassword(
+  cambiarPasswordPost(
+    @Req() req: RequestConEstudiante,
+    @Body() dto: CambiarPasswordEstudianteDto,
+  ) {
+    return this.me.cambiarPassword(req.estudiante.usuarioId, dto);
+  }
+
+  @Patch('password')
+  @ApiOperation({ summary: 'Cambiar contraseña (ruta compatible)' })
+  cambiarPasswordPatch(
     @Req() req: RequestConEstudiante,
     @Body() dto: CambiarPasswordEstudianteDto,
   ) {
@@ -72,7 +93,7 @@ export class EstudianteMeController {
   }
 
   @Post('foto')
-  @ApiOperation({ summary: 'Subir foto inicial o solicitar cambio de foto' })
+  @ApiOperation({ summary: 'Subir fotografía cuadrada del estudiante' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -85,7 +106,7 @@ export class EstudianteMeController {
       },
     },
   })
-  @ApiResponse({ status: 200, description: 'Foto procesada (ACTIVA o PENDIENTE)' })
+  @ApiResponse({ status: 200, description: 'Foto procesada (ACTIVA)' })
   @ApiResponse({ status: 400, description: 'Archivo inválido o ausente' })
   @UseInterceptors(
     FileInterceptor('foto', {
@@ -100,17 +121,17 @@ export class EstudianteMeController {
         filename: (_req, file, cb) => {
           const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
           const ext = extname(file.originalname).toLowerCase();
-          cb(null, `foto-${uniqueSuffix}${ext}`);
+          cb(null, `temp-${uniqueSuffix}${ext}`);
         },
       }),
       limits: {
         fileSize: 2 * 1024 * 1024, // 2MB
       },
       fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png)$/)) {
           return cb(
             new BadRequestException(
-              'Solo se permiten imágenes en formato JPG, PNG o WEBP',
+              'Solo se permiten imágenes en formato JPG o PNG',
             ),
             false,
           );
@@ -124,7 +145,9 @@ export class EstudianteMeController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     if (!file) {
-      throw new BadRequestException('Debes enviar un archivo de imagen en el campo "foto"');
+      throw new BadRequestException(
+        'Debes enviar un archivo de imagen en el campo "foto"',
+      );
     }
     const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
     return this.me.procesarSubidaFoto(req.estudiante.usuarioId, file, ip);
@@ -132,7 +155,6 @@ export class EstudianteMeController {
 
   @Get('fotos')
   @ApiOperation({ summary: 'Obtener historial de fotos del estudiante' })
-  @ApiResponse({ status: 200, description: 'Historial de fotos' })
   historialFotos(@Req() req: RequestConEstudiante) {
     return this.me.historialFotos(req.estudiante.usuarioId);
   }
@@ -141,11 +163,5 @@ export class EstudianteMeController {
   @ApiOperation({ summary: 'Listar exámenes del estudiante' })
   examenes(@Req() req: RequestConEstudiante) {
     return this.me.examenes(req.estudiante.estudianteId);
-  }
-
-  @Get('qr')
-  @ApiOperation({ summary: 'Generar token QR personal de acceso a examen' })
-  qr(@Req() req: RequestConEstudiante) {
-    return this.me.qrPersonal(req.estudiante.estudianteId);
   }
 }

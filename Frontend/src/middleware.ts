@@ -7,6 +7,7 @@ const redirectsPorModulo: [string, string][] = [
   ['roles', '/roles'],
   ['examenes', '/examenes'],
   ['estudiantes', '/estudiantes'],
+  ['reportes', '/reportes'],
   ['ambientes', '/ambientes'],
   ['control_ingreso', '/control-ingreso'],
   ['registro_ingresos', '/ingresos'],
@@ -86,6 +87,8 @@ export default withAuth(
           pathname.startsWith('/unauthorized') ||
           pathname.startsWith('/recuperar-password') ||
           pathname.startsWith('/validar-qr') ||
+          pathname === '/qr/v' || // NUEVO: vista pública del QR (HU6)
+          pathname.startsWith('/qr/v/') || // NUEVO: vista pública del QR (HU6)
           /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$/.test(pathname)
         ) {
           return true;

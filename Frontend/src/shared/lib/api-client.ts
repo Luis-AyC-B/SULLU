@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { getSession, signOut } from 'next-auth/react';
 import { toast } from 'sonner';
+import { limpiarCacheOfflineEstudiante } from '@/features/portal/lib/offline-portal';
 
 export const apiClient = axios.create({
   baseURL:
@@ -42,8 +43,9 @@ apiClient.interceptors.response.use(
         duration: 4000,
       });
 
-      // Retrasa el cierre de sesión 4 segundos para que el usuario pueda leer
+      // Retrasa el cierre de sesión 3 segundos para que el usuario pueda leer
       setTimeout(() => {
+        limpiarCacheOfflineEstudiante();
         signOut({ callbackUrl: '/login' });
       }, 3000);
     }

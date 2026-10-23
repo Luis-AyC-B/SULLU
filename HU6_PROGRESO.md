@@ -1,0 +1,131 @@
+# Progreso de Integración HU6 (Front + Back)
+
+**Fecha:** 21 de Octubre de 2026
+**Rama de trabajo:** `hu6-integracion` (base: `origin/develop`, merged con `origin/hu6-fe`)
+**Destino de PR:** `develop`
+
+---
+
+## Estado General de Fases
+
+- [x] **Fase 0: Auditoría y Planificación** (Completada)
+  - Auditoría de backend, frontend, base de datos y compatibilidad con HU13 (Colaboradores).
+  - Creación de rama `hu6-integracion` y resolución de conflictos de merge con `origin/hu6-fe`.
+- [x] **Fase 1: Reestructurar Usuario / Estudiante** (Completada & Commiteada `ce2140b`)
+  - Vínculo 1:1 `Usuario` - `Estudiante` mediante FK `usuarioId` en `estudiantes`.
+  - Columnas añadidas al esquema: `debe_configurar_perfil` (en `usuarios`, default `true`), `qr_version` (en `estudiantes`, default `1`).
+  - Migración reversible: `20261021120000_hu6_usuario_estudiante_perfil` aplicada en PostgreSQL (con `rollback.sql`).
+  - Script de backfill idempotente: `Backend/prisma/backfill-estudiantes-usuarios.ts`.
+  - Compatibilidad total con modelo multi-rol de HU13 (un estudiante puede recibir el rol "Personal de control" sin duplicar usuario).
+- [x] **Fase 2: CSV y Modal de Importar Estudiantes** (Completada & Commiteada `ce2140b`)
+  - Entrada: 4 columnas base (`nombre,apellidos,codigo,ci`; CI opcional). Correo institucional autogenerado (`{codigo}@est.umss.edu.bo`).
+  - Correo institucional visible en:
+    - Vista previa y banner de resultados de importación (`UploadResultBanner.tsx`).
+    - Tabla y cards de estudiantes (`EstudianteTableRow.tsx` y `EstudianteCard.tsx`) debajo del CI.
+    - Plantilla CSV descargable (`csv-template.ts` y `UploadModal.tsx`).
+  - Validaciones: máx 2 MB / 5000 filas, código SIS duplicado, CI duplicado, manejo de CI opcional con clave temporal aleatoria ("pendiente de CI").
+  - Resumen y detalle fila por fila: "X creados, Y omitidos, Z con error".
+  - Transacción atómica e idempotente (reimportación sin duplicados).
+- [x] **Fase 3: Login del Estudiante & Fix de Sesión en /portal** (Completada & Commiteada `da8e2ad`)
+  - Causa raíz del bug `/portal`: `AuthService.login()` firmaba JWTs usando `jwtSecret` global (`JWT_SECRET`), mientras que `EstudianteJwtGuard` verificaba exclusivamente con `JWT_ESTUDIANTE_SECRET`. El guard respondía HTTP 401, lo cual disparaba el interceptor de `apiClient.ts` cerrando la sesión con toast "Sesión inválida o iniciada en otro dispositivo".
+  - Solución de raíz: `EstudianteJwtGuard` ahora valida contra `jwtSecret` institucional, verifica `sessionId` en base de datos para garantizar sesión única activa sin choques, y no expulsa al usuario erróneamente.
+  - Bloqueo IDOR estricto: el id del estudiante se extrae de la sesión y cualquier parámetro ajeno en URL/body es rechazado con 403 y registrado en bitácora.
+- [x] **Fase 4: Configuración de Perfil (Foto, Datos, Password)** (Completada & Commiteada `da8e2ad`)
+  - Bloqueo de endpoints del portal con 403 `PERFIL_INCOMPLETO` hasta que `debeConfigurarPerfil = false`.
+  - Paso 1 (Foto): Validación de formato JPG/PNG por magic bytes en el servidor, tamaño máx. 2 MB, dimensiones mínimas 600x600 px y relación cuadrada 1:1. Almacenamiento local en `uploads/estudiantes/` con UUID y registro en `FotoEstudiante` con hash SHA-256 (estado ACTIVA, anteriores pasan a REEMPLAZADA).
+  - Hook Sprint 3: Interfaz `ValidadorFoto` con `ValidadorFotoStubService` que aprueba por defecto dejando lista la extensión biométrica.
+  - Paso 2 (Datos personales): Actualización atómica de CI y teléfono celular boliviano (8 dígitos). No permite vaciar el CI si ya existía.
+  - Paso 3 (Nueva contraseña): Validación de 8-12 caracteres con letras y números; no permite que sea igual al actual ni al CI.
+  - Al completar: transacción atómica que pone `debeConfigurarPerfil = false`, incrementa `qrVersion`, regenera `sessionId` y registra en auditoría. Respuestas por clave incorrecta devuelven HTTP 400 (nunca 401 para evitar deslogueo).
+- [x] **Fase 5: "Mis Exámenes" Conectado** (Completada & Commiteada `da8e2ad`)
+  - Endpoint `GET /estudiantes/me/examenes` filtrando por el estudiante autenticado.
+  - Soporte para estados Habilitado / Inhabilitado según la asignación docente (HU6 Escenario Positivo 4: inhabilitados no pueden generar QR).
+  - Manejo de lista vacía ("No tienes exámenes habilitados") y reintento sin pantalla en blanco ante fallos de red.
+- [x] **Fase 6: Código QR Seguro y Credencial Móvil** (Completada & Commiteada `da8e2ad`)
+  - QR contiene URL con token firmado HMAC: `https://<dominio>/qr/v/<token>`.
+  - Token incluye versión del QR (`qrVersion`) y expira; revocado automáticamente si el estudiante cambia foto o contraseña.
+  - Vista pública para cámara móvil (`/qr/v/[token]` y `/validar-qr`): muestra foto ACTIVA servida por stream seguro (`/qr/foto?token=...`), nombre, SIS, carrera, exámenes habilitados y leyenda "Código personal e intransferible" sin exponer CI completo, teléfono ni correo.
+  - Rate limiting (30 req/min por IP) y registro en `bitacora_auditoria` en cada escaneo.
+  - Modal en portal con botón "Generar QR" y botón "Descargar QR".
+- [x] **Fase 7: Offline y Descarga de QR** (Completada)
+  - Descarga de credencial QR en formato PNG de alta resolución (`QR-<sis>.png`).
+  - Soporte offline mediante `localStorage` con clave temporal `exacontrol_offline_*`. Si falla la conexión, muestra los exámenes y QR guardados con advertencia visual "Estás sin conexión, mostrando datos guardados el [fecha]".
+  - Purga automática y segura del almacenamiento sensible (`limpiarCacheOfflineEstudiante()`) al cerrar sesión voluntariamente o por expiración (401).
+
+
+---
+
+## HU6 Ampliación: QR por Examen con Verificación Facial (Frontend)
+
+- **Regla de negocio:** Se mantienen DOS QR independientes: el QR personal (permanente mientras no cambie credenciales) y el QR por examen (único por evaluación, disponible 24h antes y válido hasta el fin del examen). La comparación facial es responsabilidad del backend.
+- [x] **Bloque 1: Contrato de tipos, adaptador de compatibilidad y servicios real/mock**
+  - Contrato TypeScript centralizado en `Frontend/src/features/portal/types/qr-examen.ts`.
+  - Adaptador de formato legado (`adaptador-examenes.ts`) para compatibilidad retroactiva sin romper el backend actual.
+  - Servicio simulado (`mock-exam-qr.service.ts`) con 10 escenarios y selector flotante de desarrollo (`MockScenarioSelector.tsx`).
+  - Capa de servicio (`exam-qr.service.ts`) con importación dinámica de mocks fuera de producción.
+- [x] **Bloque 2: Rediseño "Mis exámenes" (2 columnas, tarjeta con 5 estados y borde superior)**
+  - Tarjeta ExamCard con borde superior coloreado (border-t-4) y badges para los 5 estados.
+  - División en dos secciones: "Próximas evaluaciones" y "Evaluaciones finalizadas".
+  - Cuadrícula responsive de 2 columnas en escritorio y 1 en móvil con tarjetas de igual altura.
+  - Botón de perfil renombrado a "Mi QR personal" con preservación total de su funcionalidad.
+- [x] **Bloque 3: Modal de 4 pasos con captura de cámara frontal y fallback**
+  - Modal accesible `ExamQrModal` con los 4 pasos: detalle del examen, captura selfie con marco ovalado y fallback de archivo, pantalla de comparación/verificación, y visualización del QR dinámico.
+  - Gestión de intentos de verificación (1-3) y bloqueo por intentos agotados con orientación a soporte presencial.
+  - Detección en vivo de expiración del QR: difumina el código QR, muestra aviso de vencimiento y deshabilita la descarga en PNG.
+  - Descarga del QR en PNG en alta resolución incluyendo sello institucional, nombre del estudiante, materia y fecha.
+  - Detención segura de tracks de medios (cámara) y revocación de URLs blob al cerrar o desmontar.
+- [x] **Bloque 4: Vista pública `/qr/v/[token]` con los 3 motivos de rechazo**
+  - Componente accesible `PublicExamQrView` con cabecera institucional UMSS `#0B1B3D` y desacoplado totalmente de `validar-qr`.
+  - Presentación de credencial digital válida con sello verde "QR VÁLIDO", datos del estudiante (nombre, SIS, carrera) y de la evaluación (materia, ambiente, fecha, horario).
+  - Verificación estricta de privacidad: nunca expone CI, teléfono ni correo electrónico.
+  - Implementación visual de los 3 estados de rechazo sin datos personales: "Este código venció" (reloj en gris/ámbar), "Este código fue revocado" (alerta) y "Código no válido" (cruz roja), con indicaciones claras para el estudiante.
+  - Conexión pública en `/qr/v/[token]/page.tsx` y excepciones en `middleware.ts` para escaneo libre sin sesión.
+  - Soporte de simulación para desarrollo mediante query params `?mock=vencido|revocado|invalido|valido`.
+- [x] **Bloque 5: Caché offline con purga de QRs de examen vencidos**
+  - Almacenamiento seguro offline para QRs por examen en `CACHED_EXAM_QRS_KEY` (`exacontrol_offline_exam_qrs`).
+  - Purga automática `purgarQrsExamenVencidos()` ejecutada al abrir/cargar la vista: compara contra la hora del dispositivo para ocultar y eliminar del almacenamiento local los QRs de evaluaciones ya vencidas.
+  - Actualización atómica en caché de exámenes: si el QR venció, se marca como `estadoQr: 'FINALIZADO'` y se limpia `qrGenerado: false` y `qrUrl: null`.
+  - Preservación crítica del QR personal: `CACHED_QR_KEY` nunca es purgado por expiración de examen, únicamente al cerrar sesión mediante `limpiarCacheOfflineEstudiante()`.
+  - Integración reactiva en el hook `useStudentExams` y sincronización inmediata al generar o actualizar QRs.
+- [x] **Bloque 6: Tests restantes, build sin mock, revisión final**
+  - Suite de pruebas de frontend 100% en verde: 16 test suites pasando, 106 tests pasando (0 fallos).
+  - TypeScript typecheck estricto (`tsc --noEmit`) con 0 errores en Frontend y Backend.
+  - Verificación de producción: compilación exitosa con Next.js Turbopack (`next build --turbopack`).
+  - Auditoría de bundles en `.next/static`: `MockExamQrService` y `MockScenarioSelector` no se filtran en producción (árbol sacudido por importación dinámica).
+  - Preservación estricta de aislamiento de ramas y componentes: sin dependencias directas en la carpeta `validar-qr`.
+
+---
+
+## Contrato de API para QR por Examen (Frontend & Backend)
+
+### 1. Endpoints
+- `GET /estudiantes/me/examenes`: Retorna la lista de evaluaciones habilitadas para el estudiante autenticado, con estados de disponibilidad de QR (`NO_DISPONIBLE_AUN`, `DISPONIBLE`, `GENERADO`, `FINALIZADO`, `INHABILITADO`).
+- `POST /estudiantes/me/examenes/:id/qr`: Genera el código QR específico para el examen indicado. Acepta opcionalmente un campo multipart `selfie` para validación facial contra la foto activa del perfil.
+- `GET /qr/validar?token=...`: Endpoint público para lectura de credencial digital desde dispositivos móviles. Retorna el estado (`VALIDO`, `EXPIRADO`, `REVOCADO`, `INVALIDO`), datos del estudiante (sin CI ni datos de contacto) y detalles de la evaluación.
+
+### 2. Códigos de Estado y Respuestas de Error
+- `HTTP 200 OK`: Operación exitosa (consulta de exámenes o validación pública).
+- `HTTP 201 Created`: QR por examen generado exitosamente. Retorna `{ qrUrl, vigenteHasta, token }`.
+- `HTTP 400 Bad Request`: Parámetros inválidos, archivo corrupto o no compatible.
+- `HTTP 401 Unauthorized`: Sesión de estudiante expirada o inválida.
+- `HTTP 403 Forbidden`: `PERFIL_INCOMPLETO`, `EXAMEN_NO_HABILITADO` o manipulación de IDs (Anti-IDOR).
+- `HTTP 404 Not Found`: Examen no encontrado o no asignado.
+- `HTTP 429 Too Many Requests`: `VERIFICACION_INTENTOS_AGOTADOS` (máximo 3 intentos de verificación facial) o límite de escaneos públicos por IP (30 req/min).
+
+### 3. Variables de Entorno Nuevas (Frontend)
+- `NEXT_PUBLIC_USE_MOCKS`: Activa el modo simulado de 10 escenarios para desarrollo local (`true` o `false`, por defecto `false`).
+- `NEXT_PUBLIC_VERIFICACION_FACIAL_ENABLED`: Permite activar/desactivar la exigencia de selfie en el modal de generación de QR (`true` o `false`, por defecto `true`).
+---
+
+## Migraciones Aplicadas
+- `20261021120000_hu6_usuario_estudiante_perfil/migration.sql` (aplicada en PostgreSQL, con `rollback.sql`).
+
+## Estado de Tests
+- `Backend/src/cargas-estudiantes/cargas-estudiantes.spec.ts`: 6/6 tests pasando (100%).
+- `Backend/src/portal-estudiante/portal-estudiante.spec.ts`: 10/10 tests pasando (100%).
+- `Frontend/src/features/portal/__tests__`: 39/39 tests pasando (100%, 6 test suites específicas de portal).
+- Frontend Jest Suite completa: 16 suites pasando, 106 tests pasando, 0 fallando (100%).
+- Backend Typecheck (`tsc --noEmit`): 0 errores.
+- Frontend Typecheck (`tsc --noEmit`): 0 errores.
+- Frontend Build (`next build --turbopack`): 22/22 páginas estáticas generadas exitosamente.
+- ESLint (Husky / lint-staged): 0 errores.

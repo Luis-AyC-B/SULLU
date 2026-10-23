@@ -8,7 +8,8 @@ export interface FilaEstudianteCsv {
   apellido: string;
   cod_sis: string;
   ci: string | null;
-  correo: string | null;
+  correo: string;
+  ciPendiente?: boolean;
 }
 
 export interface FilaRechazada {
@@ -18,10 +19,18 @@ export interface FilaRechazada {
   motivo: string;
 }
 
+export interface FilaAviso {
+  fila?: number;
+  cod_sis: string;
+  correo?: string;
+  motivo: string;
+}
+
 export interface ResultadoParseoCsv {
   totalFilas: number;
   validas: FilaEstudianteCsv[];
   rechazados: FilaRechazada[];
+  avisos: FilaAviso[];
 }
 
 export const DOMINIOS_ESTUDIANTE: string[] = (
@@ -40,13 +49,16 @@ export function esCorreoInstitucionalValido(correo: string): boolean {
 
 const MAPA_HEADERS: Record<string, string> = {
   nombre: 'nombre',
+  nombres: 'nombre',
   apellido: 'apellido',
   apellidos: 'apellido',
   codigo: 'cod_sis',
   'codigo de estudiante': 'cod_sis',
   cod_sis: 'cod_sis',
+  sis: 'cod_sis',
   ci: 'ci',
   cedula: 'ci',
+  'carnet de identidad': 'ci',
   correo: 'correo',
   email: 'correo',
   'correo institucional': 'correo',
@@ -71,6 +83,12 @@ function decodificarBuffer(buffer: Buffer): string {
 }
 
 export function parsearCsvEstudiantes(buffer: Buffer): ResultadoParseoCsv {
+  if (buffer.length > 2 * 1024 * 1024) {
+    throw new BadRequestException(
+      'El archivo excede el tamaño máximo permitido de 2 MB',
+    );
+  }
+
   const contenido = decodificarBuffer(buffer);
 
   let filas: Record<string, string>[];
@@ -97,9 +115,10 @@ export function parsearCsvEstudiantes(buffer: Buffer): ResultadoParseoCsv {
   }
 
   const rechazados: FilaRechazada[] = [];
+  const avisos: FilaAviso[] = [];
   const validas: FilaEstudianteCsv[] = [];
   const codigosVistos = new Set<string>();
-  const correosVistos = new Set<string>();
+  const cisVistos = new Set<string>();
 
   for (let index = 0; index < filas.length; index++) {
     const fila = filas[index];
@@ -107,31 +126,20 @@ export function parsearCsvEstudiantes(buffer: Buffer): ResultadoParseoCsv {
     const nombre = fila['nombre']?.trim();
     const apellido = fila['apellido']?.trim();
     const cod_sis = fila['cod_sis']?.trim();
-    const ci = fila['ci']?.trim() || null;
-    const correo = fila['correo']?.trim().toLowerCase();
+    const ciRaw = fila['ci']?.trim();
+    const ci = ciRaw && ciRaw.length > 0 ? ciRaw : null;
+    const correoEnCsv = fila['correo']?.trim().toLowerCase();
 
     const faltantes: string[] = [];
     if (!nombre) faltantes.push('nombre');
     if (!apellido) faltantes.push('apellidos');
     if (!cod_sis) faltantes.push('código');
-    if (!correo) faltantes.push('correo institucional');
 
     if (faltantes.length > 0) {
       rechazados.push({
         fila: numeroFila,
         cod_sis: cod_sis || null,
-        correo: correo || null,
         motivo: `Falta(n) el/los campo(s) obligatorio(s): ${faltantes.join(', ')}`,
-      });
-      continue;
-    }
-
-    if (!esCorreoInstitucionalValido(correo)) {
-      rechazados.push({
-        fila: numeroFila,
-        cod_sis: cod_sis || null,
-        correo,
-        motivo: `El correo debe pertenecer a un dominio institucional válido (${DOMINIOS_ESTUDIANTE.join(', ')})`,
       });
       continue;
     }
@@ -140,33 +148,58 @@ export function parsearCsvEstudiantes(buffer: Buffer): ResultadoParseoCsv {
       rechazados.push({
         fila: numeroFila,
         cod_sis,
-        correo,
         motivo: 'Código SIS duplicado en el archivo',
       });
       continue;
     }
 
-    if (correosVistos.has(correo)) {
+    if (ci && cisVistos.has(ci)) {
       rechazados.push({
         fila: numeroFila,
         cod_sis,
-        correo,
-        motivo: 'Correo institucional duplicado en el archivo',
+        motivo: 'Número de carnet (CI) duplicado en el archivo',
       });
       continue;
     }
 
+    const correoGenerado = `${cod_sis.toLowerCase()}@est.umss.edu.bo`;
+    const correoFinal = correoGenerado;
+
+    if (correoEnCsv && correoEnCsv.length > 0) {
+      if (correoEnCsv !== correoGenerado) {
+        avisos.push({
+          fila: numeroFila,
+          cod_sis,
+          correo: correoEnCsv,
+          motivo: `El correo en CSV ('${correoEnCsv}') no coincide con el formato institucional '{codigo}@est.umss.edu.bo'. Se utilizó el correo generado '${correoGenerado}'.`,
+        });
+      }
+    }
+
+    const ciPendiente = !ci;
+    if (ciPendiente) {
+      avisos.push({
+        fila: numeroFila,
+        cod_sis,
+        correo: correoFinal,
+        motivo:
+          'Estudiante sin CI: se generó una contraseña temporal aleatoria (pendiente de CI).',
+      });
+    }
+
     codigosVistos.add(cod_sis);
-    correosVistos.add(correo);
+    if (ci) cisVistos.add(ci);
+
     validas.push({
       fila: numeroFila,
       nombre,
       apellido,
       cod_sis,
       ci,
-      correo,
+      correo: correoFinal,
+      ciPendiente,
     });
   }
 
-  return { totalFilas: filas.length, validas, rechazados };
+  return { totalFilas: filas.length, validas, rechazados, avisos };
 }

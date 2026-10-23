@@ -41,20 +41,14 @@ function tienePermisoDe(permisos: string[], prefijo: string): boolean {
  * según los módulos y permisos asignados a su cuenta (soporta roles dinámicos).
  */
 export function getLandingRoute(permisos?: string[]): string {
-  
   if (!permisos || permisos.length === 0) {
     return '/usuarios';
-  }
-  // Portal del estudiante (HU6)
-  if (permisos.some((p) => p === 'portal_estudiante' || p.startsWith('portal_estudiante.'))) {
-    return '/portal';
   }
 
   for (const [prefijo, ruta] of LANDING_POR_MODULO) {
     if (tienePermisoDe(permisos, prefijo)) return ruta;
   }
 
-  // Fallback: primer módulo configurado en el sistema que coincida con algún permiso
   const firstMatch = modules.find((m) => tienePermisoDe(permisos, m.clave));
   return firstMatch ? firstMatch.ruta : '/usuarios';
 }

@@ -9,12 +9,14 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/shared/components/ui/dialog";
+
 interface UploadModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onFileSelect: (file: File) => Promise<unknown>;
     isSubmitting?: boolean;
 }
+
 export function UploadModal({
     open,
     onOpenChange,
@@ -23,13 +25,16 @@ export function UploadModal({
 }: UploadModalProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragOver, setIsDragOver] = useState(false);
+
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragOver(true);
     };
+
     const handleDragLeave = () => {
         setIsDragOver(false);
     };
+
     const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragOver(false);
@@ -39,6 +44,7 @@ export function UploadModal({
             onOpenChange(false);
         }
     };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (files && files.length > 0) {
@@ -48,6 +54,7 @@ export function UploadModal({
             onOpenChange(false);
         }
     };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl">
@@ -73,7 +80,7 @@ export function UploadModal({
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".csv,.xlsx"
+                            accept=".csv"
                             className="hidden"
                             onChange={handleFileChange}
                             disabled={isSubmitting}
@@ -90,6 +97,7 @@ export function UploadModal({
                             Formato aceptado: .csv · máx. 2MB / 5 000 filas
                         </p>
                     </div>
+
                     <div className="rounded-xl border border-slate-200/80 bg-[#F4F6F8] p-4 text-left">
                         <div className="flex items-center justify-between mb-2">
                             <h4 className="text-xs font-bold text-slate-800 tracking-tight">
@@ -110,7 +118,10 @@ export function UploadModal({
                             <p>María,González Roca,202105678,</p>
                         </div>
                         <p className="mt-2 text-[11px] text-slate-600">
-                            * Los campos <span className="font-semibold text-slate-800">nombre, apellidos y codigo</span> son obligatorios. El campo <span className="font-semibold text-slate-800">ci</span> es opcional. La primera fila debe contener los nombres de las columnas.
+                            * Los campos <span className="font-semibold text-slate-800">nombre, apellidos y codigo</span> son obligatorios. El campo <span className="font-semibold text-slate-800">ci</span> es opcional.
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-600">
+                            * El <strong>correo institucional</strong> (<span className="font-mono">{'{codigo}'}@est.umss.edu.bo</span>) se genera automáticamente y no es necesario incluirlo en el archivo.
                         </p>
                     </div>
                 </div>
