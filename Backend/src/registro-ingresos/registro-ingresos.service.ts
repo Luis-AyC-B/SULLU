@@ -29,19 +29,29 @@ export class RegistroIngresosService {
     return `${materia} – ${ex.tipoExamen}`;
   }
 
-  /** Exámenes asignados al usuario; el del día primero. */
+  /** Examen controlable: asignado como controlador O responsable (docente). */
+  private puedeControlar(usuarioId: number) {
+    return {
+      OR: [
+        { controladores: { some: { colaboradorId: usuarioId } } },
+        { usuarioId }, // responsable del examen
+      ],
+    };
+  }
+
+  /** Exámenes que el usuario puede controlar; el del día primero. */
   async examenesControl(usuarioId: number) {
-    const filas = await this.prisma.examenControlador.findMany({
-      where: { colaboradorId: usuarioId },
-      include: { examen: { include: incluirNombre } },
+    const examenes = await this.prisma.examen.findMany({
+      where: this.puedeControlar(usuarioId),
+      include: incluirNombre,
     });
     const hoy = new Date().toISOString().slice(0, 10);
 
-    return filas
-      .map((f) => ({
-        id: f.examen.id,
-        nombre: this.nombreExamen(f.examen),
-        fecha: f.examen.reservaAmbiente.fecha.toISOString().slice(0, 10),
+    return examenes
+      .map((ex) => ({
+        id: ex.id,
+        nombre: this.nombreExamen(ex),
+        fecha: ex.reservaAmbiente.fecha.toISOString().slice(0, 10),
       }))
       .sort((a, b) => {
         const ra = a.fecha === hoy ? 0 : 1;
@@ -57,13 +67,14 @@ export class RegistroIngresosService {
     });
     if (!examen) throw new NotFoundException('El examen no existe');
 
-    const asignado = await this.prisma.examenControlador.findUnique({
-      where: {
-        examenId_colaboradorId: { examenId, colaboradorId: usuarioId },
-      },
+    const permitido = await this.prisma.examen.findFirst({
+      where: { id: examenId, ...this.puedeControlar(usuarioId) },
+      select: { id: true },
     });
-    if (!asignado) {
-      throw new ForbiddenException('No tienes permiso para controlar este examen.');
+    if (!permitido) {
+      throw new ForbiddenException(
+        'No tienes permiso para controlar este examen.',
+      );
     }
 
     const [total, ingresosDb, habilitaciones] = await Promise.all([
@@ -95,9 +106,11 @@ export class RegistroIngresosService {
         id: i.id,
         hora: aBolivia(i.fechaHora),
         sis: String(i.estudiante.cod_sis),
-        estudiante: `${i.estudiante.nombre} ${i.estudiante.apellido ?? ''}`.trim(),
+        estudiante:
+          `${i.estudiante.nombre} ${i.estudiante.apellido ?? ''}`.trim(),
         metodo: i.metodo.toUpperCase() === 'QR' ? 'QR' : 'Manual',
-        estado: habil.get(i.estudianteId) === false ? 'Inhabilitado' : 'Habilitado',
+        estado:
+          habil.get(i.estudianteId) === false ? 'Inhabilitado' : 'Habilitado',
       }));
 
     return { examenId, ingresados: ingresos.length, total, ingresos };

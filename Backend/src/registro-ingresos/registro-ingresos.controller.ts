@@ -11,7 +11,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { RegistroIngresosService } from './registro-ingresos.service';
 
-// Tu token trae el id del usuario en "sub" (18)
+// El id del usuario viene en "sub" del token
 const uid = (req: any): number =>
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   Number(req.user?.userId ?? req.user?.id ?? req.user?.sub);
@@ -22,7 +22,7 @@ export class RegistroIngresosController {
   constructor(private readonly service: RegistroIngresosService) {}
 
   @Get('control')
-  @Permissions('control_ingreso.ver_examenes_asignados')
+  @Permissions('registro_ingresos.ver')
   examenesControl(@Req() req: any) {
     return this.service.examenesControl(uid(req));
   }
