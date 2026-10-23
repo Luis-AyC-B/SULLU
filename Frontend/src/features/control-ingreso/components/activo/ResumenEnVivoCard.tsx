@@ -27,56 +27,46 @@ export function ResumenEnVivoCard({
         </div>
       </div>
 
-      {/* DISEÑO MOBILE: 3 Columnas Horizontales con divisores */}
-      <div className="grid grid-cols-3 divide-x divide-slate-100 text-center md:hidden">
-        <div className="px-2">
+      {/* Mobile/Tablet: 3 columnas horizontales compactas */}
+      <div className="grid grid-cols-3 divide-x divide-slate-100 text-center lg:hidden">
+        <div className="px-2 py-1">
           <p className="text-2xl font-black text-[#002D62] tracking-tight">
-            {isLoading ? "..." : ingresados}
+            {isLoading ? "…" : ingresados}
           </p>
-          <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-            Ingresados
-          </p>
+          <p className="text-[11px] font-medium text-slate-500 mt-0.5">Ingresados</p>
         </div>
-
-        <div className="px-2">
+        <div className="px-2 py-1">
           <p className="text-2xl font-black text-slate-800 tracking-tight">
-            {isLoading ? "..." : pendientes}
+            {isLoading ? "…" : pendientes}
           </p>
-          <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-            Pendientes
-          </p>
+          <p className="text-[11px] font-medium text-slate-500 mt-0.5">Pendientes</p>
         </div>
-
-        <div className="px-2">
+        <div className="px-2 py-1">
           <p className="text-2xl font-black text-amber-600 tracking-tight">
-            {isLoading ? "..." : incidencias}
+            {isLoading ? "…" : incidencias}
           </p>
-          <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-            Incidencias
-          </p>
+          <p className="text-[11px] font-medium text-slate-500 mt-0.5">Incidencias</p>
         </div>
       </div>
 
-      {/* DISEÑO DESKTOP: 3 Filas Apiladas con bloques y fondos temáticos */}
-      <div className="hidden md:flex flex-col gap-2.5">
+      {/* Desktop (lg+): filas apiladas con fondo temático */}
+      <div className="hidden lg:flex flex-col gap-2">
         <div className="flex items-center justify-between rounded-xl bg-[#f0f4f9] px-4 py-3">
           <span className="text-xs font-semibold text-slate-600">Ingresados</span>
           <span className="text-xl font-black text-[#002D62]">
-            {isLoading ? "..." : ingresados}
+            {isLoading ? "…" : ingresados}
           </span>
         </div>
-
         <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
           <span className="text-xs font-semibold text-slate-600">Pendientes</span>
           <span className="text-xl font-black text-slate-800">
-            {isLoading ? "..." : pendientes}
+            {isLoading ? "…" : pendientes}
           </span>
         </div>
-
         <div className="flex items-center justify-between rounded-xl bg-amber-50/70 px-4 py-3">
           <span className="text-xs font-semibold text-amber-800">Incidencias</span>
           <span className="text-xl font-black text-amber-700">
-            {isLoading ? "..." : incidencias}
+            {isLoading ? "…" : incidencias}
           </span>
         </div>
       </div>

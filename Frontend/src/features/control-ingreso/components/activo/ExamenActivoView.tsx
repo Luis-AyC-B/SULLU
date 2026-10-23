@@ -42,29 +42,13 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
         onCambiarExamen={clearExamenActivo}
       />
 
-      {/* VERSIÓN MOBILE: Resumen en vivo debajo de la tarjeta, luego acciones operativas */}
-      <div className="block md:hidden space-y-4">
+      {/* Layout único en columna: Resumen en vivo → Acciones operativas */}
+      <div className="flex flex-col gap-4">
         <ResumenEnVivoCard resumen={resumen} isLoading={isLoading} />
         <AccionesOperativasGrid
           onAbrirRegistroManual={() => setIsModalManualOpen(true)}
           onAbrirScanner={() => setIsScannerOpen(true)}
         />
-      </div>
-
-      {/* VERSIÓN DESKTOP: Layout a 2 Columnas */}
-      <div className="hidden md:flex flex-row items-start gap-8">
-        {/* Columna Izquierda: Acciones Operativas (QR, Manual, Incidencias) */}
-        <div className="flex-1 w-full space-y-5">
-          <AccionesOperativasGrid
-            onAbrirRegistroManual={() => setIsModalManualOpen(true)}
-            onAbrirScanner={() => setIsScannerOpen(true)}
-          />
-        </div>
-
-        {/* Columna Derecha: Resumen en vivo */}
-        <div className="w-80 xl:w-96 shrink-0 space-y-5">
-          <ResumenEnVivoCard resumen={resumen} isLoading={isLoading} />
-        </div>
       </div>
 
       {/* Modal Adaptativo para Registro Manual (Desktop Modal / Mobile Hoja Inferior) */}

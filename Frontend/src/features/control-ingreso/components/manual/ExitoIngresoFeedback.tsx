@@ -53,14 +53,14 @@ export function ExitoIngresoFeedback({
         <button
           type="button"
           onClick={onContinuar}
-          className="w-full py-2.5 px-4 bg-[#002D62] hover:bg-[#001D42] text-white text-xs md:text-sm font-semibold rounded-xl transition-colors cursor-pointer"
+          className="w-full py-2.5 px-4 bg-[#002D62] hover:bg-[#001D42] text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap"
         >
-          Registrar otro estudiante
+          Nuevo registro
         </button>
         <button
           type="button"
           onClick={onCerrar}
-          className="w-full py-2.5 px-4 border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs md:text-sm font-semibold rounded-xl transition-colors cursor-pointer"
+          className="w-full py-2.5 px-4 border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap"
         >
           Cerrar ventana
         </button>
