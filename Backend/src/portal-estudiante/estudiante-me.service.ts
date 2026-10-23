@@ -66,7 +66,7 @@ export class EstudianteMeService {
         dto: {
           id: ex.id,
           carrera: cm?.carrera.nombre ?? '',
-          nombre: `${materia} – ${ex.tipoExamen}`,
+          nombre: `${materia} – ${ex.tipoExamen}`, // <- esta línea
           ambiente: sinParentesis(reserva.ambiente.nombre),
           facultad: sigla(reserva.ambiente.facultad?.nombre ?? ''),
           fecha: reserva.fecha.toISOString().slice(0, 10),

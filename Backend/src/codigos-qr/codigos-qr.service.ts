@@ -167,7 +167,7 @@ export class CodigosQrService {
 
       return {
         id: ex.id,
-        nombre: `${materia} – ${ex.tipoExamen}`,
+        nombre: `${materia} – ${/^(examen )?final$/i.test(ex.tipoExamen.trim()) ? 'Examen final' : ex.tipoExamen}`,
         ambiente: res.ambiente.nombre,
         fecha: res.fecha.toISOString().slice(0, 10),
         horaInicio: hhmm(res.horarioFijo.horaIni),
