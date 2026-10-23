@@ -17,7 +17,10 @@ import { MockScenarioSelector } from './MockScenarioSelector';
 import { getMiPerfil } from '../api/student-exam.service';
 import type { StudentProfile } from '../types/student-exam.types';
 import type { Examen } from '../types/qr-examen';
-import { formatearFechaCorta } from '../lib/formato-fechas';
+
+// Grid que se adapta al ancho disponible (no al ancho de la pantalla)
+const GRID_EXAMENES =
+  'grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] items-stretch gap-4';
 
 export function StudentExamsView() {
   const {
@@ -107,21 +110,18 @@ export function StudentExamsView() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      {/* Encabezado Principal Institucional */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-border pb-4">
-        <div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-primary">
-            MÓDULO DEL ESTUDIANTE
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+    <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      {/* Encabezado principal */}
+      <div className="mb-6 flex flex-col justify-between gap-2 border-b border-border pb-4 sm:flex-row sm:items-end">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
             Mis exámenes
           </h1>
-          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
             Exámenes en los que estás habilitado para rendir evaluación
           </p>
         </div>
-        <div className="text-xs font-medium text-muted-foreground self-start sm:self-end">
+        <div className="self-start text-xs font-medium text-muted-foreground sm:self-end">
           {textoActualizado}
         </div>
       </div>
@@ -141,8 +141,8 @@ export function StudentExamsView() {
         )}
 
         {/* Tarjeta de perfil (solo informativa) */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs">
-          <div className="flex items-center gap-3.5">
+        <div className="flex flex-col justify-between gap-4 rounded-xl border border-border bg-card p-4 shadow-xs sm:p-5 md:flex-row md:items-center">
+          <div className="flex min-w-0 items-center gap-3.5">
             <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-muted">
               {fotoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -158,33 +158,35 @@ export function StudentExamsView() {
               )}
             </div>
 
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-foreground">
-{perfil ? perfil.nombre : 'Estudiante'}                </h2>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h2 className="break-words text-base font-bold text-foreground">
+                  {perfil ? perfil.nombre : 'Estudiante'}
+                </h2>
                 {perfil?.perfilCompleto ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                     <CheckCircle2 className="h-3 w-3" />
                     Perfil completo
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                     <AlertCircle className="h-3 w-3" />
                     Incompleto
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                SIS: <span className="font-mono">{perfil?.cod_sis || '—'}</span> · Carrera: {perfil?.carrera || 'Ingeniería de Sistemas'}
+              <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                SIS: <span className="font-mono">{perfil?.cod_sis || '—'}</span>{' '}
+                · Carrera: {perfil?.carrera || 'Ingeniería de Sistemas'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Sección de Exámenes */}
+        {/* Sección de exámenes */}
         <section aria-live="polite" className="flex flex-col gap-8">
           {isLoading && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy="true">
+            <div className={GRID_EXAMENES} aria-busy="true">
               {[0, 1, 2, 3].map((i) => (
                 <div key={i} className="h-48 animate-pulse rounded-xl bg-muted" />
               ))}
@@ -192,12 +194,20 @@ export function StudentExamsView() {
           )}
 
           {!isLoading && hasError && (
-            <div role="alert" className="rounded-xl border border-border bg-card p-8 text-center shadow-xs">
-              <ShieldAlert className="h-10 w-10 text-destructive mx-auto mb-3" />
+            <div
+              role="alert"
+              className="rounded-xl border border-border bg-card p-8 text-center shadow-xs"
+            >
+              <ShieldAlert className="mx-auto mb-3 h-10 w-10 text-destructive" />
               <p className="text-sm font-medium text-foreground">
-                No pudimos cargar tus exámenes. Revisa tu conexión e intenta de nuevo.
+                No pudimos cargar tus exámenes. Revisa tu conexión e intenta de
+                nuevo.
               </p>
-              <Button variant="outline" onClick={retry} className="mt-4 text-xs font-semibold">
+              <Button
+                variant="outline"
+                onClick={retry}
+                className="mt-4 text-xs font-semibold"
+              >
                 Reintentar
               </Button>
             </div>
@@ -215,17 +225,18 @@ export function StudentExamsView() {
             <>
               {/* Sección: Próximos y recientes */}
               <div>
-                <div className="mb-3.5 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
                       Próximos y recientes
                     </h3>
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                      {proximas.length} {proximas.length === 1 ? 'examen' : 'exámenes'}
+                      {proximas.length}{' '}
+                      {proximas.length === 1 ? 'examen' : 'exámenes'}
                     </span>
                   </div>
 
-                  <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <span className="hidden items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">
                     Los códigos se habilitan 24 horas antes.
                   </span>
                 </div>
@@ -235,9 +246,9 @@ export function StudentExamsView() {
                     <p>No tienes evaluaciones próximas.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+                  <div className={GRID_EXAMENES}>
                     {proximas.map((examen) => (
-                      <div key={examen.id} className="h-full">
+                      <div key={examen.id} className="h-full min-w-0">
                         <ExamCard
                           examen={examen}
                           isOffline={isOffline}
@@ -250,21 +261,21 @@ export function StudentExamsView() {
                 )}
               </div>
 
-              {/* Sección: Evaluaciones Finalizadas (más discreta) */}
+              {/* Sección: Evaluaciones finalizadas (más discreta) */}
               {finalizadas.length > 0 && (
-                <div className="pt-2 border-t border-border/60">
+                <div className="border-t border-border/60 pt-2">
                   <div className="mb-3 flex items-center gap-2">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Evaluaciones finalizadas
                     </h3>
-                    <span className="rounded-full bg-muted px-2 py-0.2 text-[11px] font-medium text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                       {finalizadas.length}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+                  <div className={GRID_EXAMENES}>
                     {finalizadas.map((examen) => (
-                      <div key={examen.id} className="h-full">
+                      <div key={examen.id} className="h-full min-w-0">
                         <ExamCard
                           examen={examen}
                           isOffline={isOffline}
@@ -287,7 +298,11 @@ export function StudentExamsView() {
         examen={examenSeleccionado}
         verificacionFotoActiva={verificacionFotoActiva}
         fotoPerfilUrl={fotoUrl}
-        estudianteNombre={perfil ? `${perfil.nombre} ${perfil.apellido || ''}`.trim() : 'Estudiante'}
+        estudianteNombre={
+          perfil
+            ? `${perfil.nombre} ${perfil.apellido || ''}`.trim()
+            : 'Estudiante'
+        }
         estudianteSis={perfil?.cod_sis || '—'}
         onClose={() => setExamQrModalOpen(false)}
         onExamenActualizado={(id, cambios) => {
@@ -306,7 +321,7 @@ export function StudentExamsView() {
         />
       )}
 
-      {/* Selector Flotante de Escenarios (visible únicamente en desarrollo con mock activado) */}
+      {/* Selector flotante de escenarios (solo desarrollo con mock activado) */}
       <MockScenarioSelector onScenarioChange={retry} />
     </div>
   );
