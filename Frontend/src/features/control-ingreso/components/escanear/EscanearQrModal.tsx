@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Sparkles } from "lucide-react";
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import jsQR from "jsqr";
 import type {
   ExamenAsignado,
   TipoExcepcionQr,
@@ -37,9 +38,10 @@ export function EscanearQrModal({
   const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
-  // Estados de control
+  // Estados de control de cámara
   const [cameraActiva, setCameraActiva] = useState(false);
   const [permisoDenegado, setPermisoDenegado] = useState(false);
+  const [isVerificando, setIsVerificando] = useState(false);
 
   // Control de lecturas consecutivas (Task-9.2)
   const isProcessingRef = useRef(false);
@@ -59,6 +61,16 @@ export function EscanearQrModal({
     ambienteAsignado?: string;
     pendientesOffline?: number;
   } | null>(null);
+
+  // Referencias mutables para evitar reinicios del stream por cambio de dependencias
+  const excepcionActivaRef = useRef(excepcionActiva);
+  excepcionActivaRef.current = excepcionActiva;
+
+  const estudianteExitosoRef = useRef(estudianteExitoso);
+  estudianteExitosoRef.current = estudianteExitoso;
+
+  const onIngresoExitosoRef = useRef(onIngresoExitoso);
+  onIngresoExitosoRef.current = onIngresoExitoso;
 
   // Contador reactivo de ingresos offline pendientes en IndexedDB
   const [pendientesOfflineCount, setPendientesOfflineCount] =
@@ -86,40 +98,24 @@ export function EscanearQrModal({
     try {
       const res = await offlineIngresosService.sincronizarLote(examen.id);
       if (res.totalSincronizados > 0) {
-        onIngresoExitoso?.();
+        onIngresoExitosoRef.current?.();
       }
     } catch {
       // Si continúa sin conexión, se mantiene en cola en IndexedDB
     }
   };
 
-  // Detener la cámara
-  const detenerCamara = useCallback(() => {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setCameraActiva(false);
-  }, []);
-
-  // Procesar código QR detectado
+  // Procesar código QR detectado (estable, no depende de estados transitorios)
   const procesarTokenQr = useCallback(
     async (token: string) => {
       const now = Date.now();
       const cleanToken = token.trim();
       if (!cleanToken) return;
 
-      // Anti-rebote y prevención de lecturas duplicadas con el mismo QR (Task-9.2)
+      // Anti-rebote y prevención de lecturas duplicadas con el mismo QR
       if (isProcessingRef.current) return;
-      if (excepcionActiva) return; // No procesar nuevos QRs si hay una excepción abierta
-      if (estudianteExitoso) return; // Esperar a que concluyan los 1.5s de confirmación
+      if (excepcionActivaRef.current) return; // No procesar nuevos QRs si hay una excepción abierta
+      if (estudianteExitosoRef.current) return; // Esperar a que concluyan los 1.5s de confirmación
 
       // Cooldown de 3.5 segundos si se mantiene el mismo QR frente a la cámara
       if (
@@ -132,6 +128,7 @@ export function EscanearQrModal({
       isProcessingRef.current = true;
       lastScannedTokenRef.current = cleanToken;
       cooldownUntilRef.current = now + 3500;
+      setIsVerificando(true);
 
       try {
         const resultado = await controlIngresoService.validarYRegistrarQr(
@@ -142,16 +139,11 @@ export function EscanearQrModal({
 
         if (resultado.success && resultado.estudiante) {
           // CASO EXITOSO (Task-9.3)
-          // 1. Emitir señal sonora y háptica
           playSuccessChime();
-
-          // 2. Mostrar tarjeta verde con datos
           setEstudianteExitoso(resultado.estudiante);
+          onIngresoExitosoRef.current?.();
 
-          // 3. Notificar actualización de resumen en vivo
-          onIngresoExitoso?.();
-
-          // 4. Desaparecer automáticamente entre 1 y 2 segundos (1.5s) dejando el escáner abierto
+          // Desaparecer automáticamente entre 1 y 2 segundos dejando el escáner abierto
           setTimeout(() => {
             setEstudianteExitoso(null);
             isProcessingRef.current = false;
@@ -167,132 +159,46 @@ export function EscanearQrModal({
             pendientesOffline: resultado.pendientesOffline,
           });
           isProcessingRef.current = false;
+        } else {
+          // Si no hubo éxito ni excepción explícita, mostrar advertencia de QR no válido
+          setExcepcionActiva({
+            tipo: "QR_INVALIDO",
+          });
+          isProcessingRef.current = false;
         }
       } catch {
         setExcepcionActiva({
           tipo: "QR_INVALIDO",
         });
         isProcessingRef.current = false;
+      } finally {
+        setIsVerificando(false);
       }
     },
-    [examen.id, examen.ambiente, excepcionActiva, estudianteExitoso, onIngresoExitoso]
+    [examen.id, examen.ambiente]
   );
 
-  // Simulación directa para pruebas visuales de cada uno de los mockups oficiales
-  const simularEscenario = useCallback(
-    (
-      escenario:
-        | "VALIDO"
-        | "YA_REGISTRADO"
-        | "NO_HABILITADO"
-        | "AMBIENTE_INCORRECTO"
-        | "INVALIDO"
-        | "SIN_CONEXION"
-    ) => {
-      isProcessingRef.current = false;
-      cooldownUntilRef.current = 0;
-      setExcepcionActiva(null);
-      setEstudianteExitoso(null);
+  const procesarTokenQrRef = useRef(procesarTokenQr);
+  procesarTokenQrRef.current = procesarTokenQr;
 
-      switch (escenario) {
-        case "VALIDO": {
-          playSuccessChime();
-          setEstudianteExitoso({
-            id: 101,
-            nombre: "Valentina",
-            apellido: "Pérez",
-            codSis: "2021-10234",
-            carrera: "Ingeniería de Sistemas",
-            horaIngreso: "12:18:41",
-          });
-          onIngresoExitoso?.();
-          setTimeout(() => {
-            setEstudianteExitoso(null);
-          }, 1600);
-          break;
-        }
-        case "YA_REGISTRADO": {
-          setExcepcionActiva({
-            tipo: "YA_REGISTRADO",
-            estudiante: {
-              id: 102,
-              nombre: "Andrés",
-              apellido: "González",
-              codSis: "2020-08711",
-              carrera: "Ingeniería de Sistemas",
-            },
-            horaIngresoPrevio: "08:47:32",
-          });
-          break;
-        }
-        case "NO_HABILITADO": {
-          setExcepcionActiva({
-            tipo: "NO_HABILITADO",
-            estudiante: {
-              id: 103,
-              nombre: "Mariana",
-              apellido: "Rojas",
-              codSis: "2022-11582",
-              carrera: "Ingeniería de Sistemas",
-            },
-            motivoInhabilitacion: "Inscripción de la asignatura no confirmada",
-          });
-          break;
-        }
-        case "AMBIENTE_INCORRECTO": {
-          setExcepcionActiva({
-            tipo: "AMBIENTE_INCORRECTO",
-            estudiante: {
-              id: 104,
-              nombre: "Carlos",
-              apellido: "Rocha",
-              codSis: "2020-05819",
-              carrera: "Ingeniería de Sistemas",
-            },
-            ambienteAsignado: "Aula A-101",
-          });
-          break;
-        }
-        case "INVALIDO": {
-          setExcepcionActiva({
-            tipo: "QR_INVALIDO",
-          });
-          break;
-        }
-        case "SIN_CONEXION": {
-          offlineIngresosService
-            .guardarIngresoOffline(
-              examen.id,
-              "202110234",
-              {
-                nombre: "Valentina",
-                apellido: "Pérez",
-                codSis: "2021-10234",
-              },
-              "QR"
-            )
-            .then((count) => {
-              setPendientesOfflineCount(count);
-              setExcepcionActiva({
-                tipo: "SIN_CONEXION",
-                estudiante: {
-                  id: 101,
-                  nombre: "Valentina",
-                  apellido: "Pérez",
-                  codSis: "2021-10234",
-                  carrera: "Ingeniería de Sistemas",
-                },
-                pendientesOffline: count,
-              });
-            });
-          break;
-        }
-      }
-    },
-    [onIngresoExitoso]
-  );
+  // Detener la cámara y liberar el hardware
+  const detenerCamara = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActiva(false);
+    setIsVerificando(false);
+  }, []);
 
-  // Inicializar cámara y bucle de lectura continua
+  // Inicializar cámara y bucle de lectura continua (Cero dependencias dinámicas para evitar parpadeos)
   const iniciarCamara = useCallback(async () => {
     setPermisoDenegado(false);
     try {
@@ -323,10 +229,18 @@ export function EscanearQrModal({
       }
 
       // Preparar detector nativo de códigos de barra si está soportado
-      let barcodeDetector: { detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>> } | null = null;
+      let barcodeDetector: {
+        detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>>;
+      } | null = null;
       if (typeof window !== "undefined" && "BarcodeDetector" in window) {
         try {
-          const DetectorClass = (window as unknown as { BarcodeDetector: new (opts: { formats: string[] }) => { detect: (s: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
+          const DetectorClass = (
+            window as unknown as {
+              BarcodeDetector: new (opts: { formats: string[] }) => {
+                detect: (s: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>>;
+              };
+            }
+          ).BarcodeDetector;
           barcodeDetector = new DetectorClass({
             formats: ["qr_code"],
           });
@@ -335,25 +249,63 @@ export function EscanearQrModal({
         }
       }
 
-      // Bucle de detección continuo en frames de video
-      const scanFrame = async () => {
+      // Bucle de detección continuo en frames de video (con fallback universal a jsQR)
+      let lastScanTime = 0;
+      const scanFrame = async (timestamp: number) => {
         if (!videoRef.current || !streamRef.current) return;
 
+        // Escanear cada ~150ms para no saturar CPU y mantener fluidez a 60fps
         if (
+          timestamp - lastScanTime > 150 &&
           videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA &&
           !isProcessingRef.current &&
-          !excepcionActiva &&
-          !estudianteExitoso
+          !excepcionActivaRef.current &&
+          !estudianteExitosoRef.current
         ) {
+          lastScanTime = timestamp;
           try {
+            let detectedToken: string | null = null;
+
+            // 1. Probar BarcodeDetector nativo si está disponible
             if (barcodeDetector) {
-              const barcodes = await barcodeDetector.detect(videoRef.current);
-              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-                await procesarTokenQr(barcodes[0].rawValue);
+              try {
+                const barcodes = await barcodeDetector.detect(videoRef.current);
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  detectedToken = barcodes[0].rawValue;
+                }
+              } catch {
+                // Continuar a jsQR
               }
             }
+
+            // 2. Fallback universal usando jsQR y canvas para máxima compatibilidad
+            if (!detectedToken && canvasRef.current && videoRef.current) {
+              const canvas = canvasRef.current;
+              const video = videoRef.current;
+              if (video.videoWidth > 0 && video.videoHeight > 0) {
+                // Escalar canvas a resolución óptima para escaneo veloz
+                const scale = Math.min(1, 640 / video.videoWidth);
+                canvas.width = Math.floor(video.videoWidth * scale);
+                canvas.height = Math.floor(video.videoHeight * scale);
+                const ctx = canvas.getContext("2d", { willReadFrequently: true });
+                if (ctx) {
+                  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                  const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                  });
+                  if (code && code.data) {
+                    detectedToken = code.data;
+                  }
+                }
+              }
+            }
+
+            if (detectedToken) {
+              await procesarTokenQrRef.current(detectedToken);
+            }
           } catch {
-            // Ignorar errores puntuales entre cuadros
+            // Ignorar errores puntuales entre frames
           }
         }
 
@@ -369,14 +321,12 @@ export function EscanearQrModal({
       ) {
         setPermisoDenegado(true);
       } else {
-        // En navegadores de escritorio sin webcam física (NotFoundError) o entornos de desarrollo,
-        // mantenemos activo el visor visual con los botones de simulación interactiva
         setCameraActiva(true);
       }
     }
-  }, [excepcionActiva, estudianteExitoso, procesarTokenQr]);
+  }, []);
 
-  // Manejo del ciclo de vida de la ventana modal
+  // Manejo del ciclo de vida de la ventana modal (permanece activa sin apagarse)
   useEffect(() => {
     if (isOpen) {
       iniciarCamara();
@@ -407,7 +357,6 @@ export function EscanearQrModal({
     const nombre = excepcionActiva?.estudiante?.nombre || "";
     detenerCamara();
     onClose();
-    // Redirigir a Incidencias con parámetros de contexto
     router.push(
       `/incidencias?examenId=${examen.id}&codSis=${encodeURIComponent(
         codSis
@@ -427,7 +376,7 @@ export function EscanearQrModal({
       aria-modal="true"
       className="fixed inset-0 z-50 bg-[#0E131F] flex flex-col w-full h-full text-white animate-in fade-in duration-200 overflow-hidden"
     >
-      {/* 1. Header superior que tapa el header del dashboard (como en Yape) */}
+      {/* 1. Header superior que cubre el header del dashboard (estilo aplicación nativa) */}
       <div className="flex items-center justify-between px-5 py-4 z-20 shrink-0 bg-[#0E131F] border-b border-slate-800/80 shadow-md">
         <h3 className="text-lg font-bold text-white tracking-tight">
           Escanear código QR
@@ -442,7 +391,7 @@ export function EscanearQrModal({
         </button>
       </div>
 
-      {/* 2. Contenido principal a pantalla completa: Visor de cámara */}
+      {/* 2. Contenido principal a pantalla completa: Visor de cámara fluido */}
       <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
         <QrViewfinder
           examen={examen}
@@ -451,64 +400,11 @@ export function EscanearQrModal({
           cameraActiva={cameraActiva && !permisoDenegado}
           pendientesCount={pendientesOfflineCount}
           onSincronizar={handleSincronizarOffline}
+          isVerificando={isVerificando}
         />
 
         {/* Confirmación verde de 1 a 2 segundos (Mockup 2) */}
         {estudianteExitoso && <QrSuccessCard estudiante={estudianteExitoso} />}
-      </div>
-
-      {/* 3. Barra de Simulación en la parte inferior de la pantalla */}
-      <div className="z-20 px-3 py-3 bg-slate-950/95 border-t border-slate-800 shrink-0">
-        <div className="flex items-center justify-between gap-1 overflow-x-auto max-w-lg mx-auto">
-          <span className="text-[10px] font-bold text-slate-400 uppercase px-1.5 flex items-center gap-1 shrink-0">
-            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-            Simular:
-          </span>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => simularEscenario("VALIDO")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer active:scale-95 shrink-0"
-            >
-              Válido (Valentina)
-            </button>
-            <button
-              type="button"
-              onClick={() => simularEscenario("YA_REGISTRADO")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer active:scale-95 shrink-0"
-            >
-              Ya registrado (Andrés)
-            </button>
-            <button
-              type="button"
-              onClick={() => simularEscenario("NO_HABILITADO")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer active:scale-95 shrink-0"
-            >
-              No habilitado (Mariana)
-            </button>
-            <button
-              type="button"
-              onClick={() => simularEscenario("AMBIENTE_INCORRECTO")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors cursor-pointer active:scale-95 shrink-0"
-            >
-              Otro ambiente (Carlos)
-            </button>
-            <button
-              type="button"
-              onClick={() => simularEscenario("INVALIDO")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-white hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 shrink-0"
-            >
-              QR no válido
-            </button>
-            <button
-              type="button"
-              onClick={() => simularEscenario("SIN_CONEXION")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 transition-colors cursor-pointer active:scale-95 shrink-0"
-            >
-              Sin conexión
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Modal de Excepción Activa (Mockups 1, 3, 4, 5) */}
@@ -527,7 +423,7 @@ export function EscanearQrModal({
         />
       )}
 
-      {/* Modal de Permiso Denegado (Task-9.7) */}
+      {/* Modal de Permiso Denegado */}
       {permisoDenegado && (
         <QrExceptionDialog
           excepcion="CAMARA_DENEGADA"
