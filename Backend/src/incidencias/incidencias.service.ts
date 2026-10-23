@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearIncidenciaDto } from './dto/crear-incidencia.dto';
+import { SincronizarIncidenciasDto } from './dto/sincronizar-incidencias.dto';
 
 const incluir = {
   estudiante: true,
@@ -218,5 +219,115 @@ export class IncidenciasService {
       },
     });
     return this.aDto(creada);
+  }
+
+  /**
+   * Procesa en lote incidencias capturadas en modo offline.
+   * Maneja idempotencia por clienteSyncId y no valida horario actual
+   * (ya que la incidencia ocurrió durante el examen).
+   */
+  async sincronizarEnLote(
+    dto: SincronizarIncidenciasDto,
+    usuarioId: number,
+    ip?: string,
+  ) {
+    const totalRecibidos = dto.incidencias?.length || 0;
+    const sincronizados: Array<{
+      clienteSyncId: string;
+      incidenciaId: number;
+    }> = [];
+    const omitidos: Array<{ clienteSyncId: string }> = [];
+    const rechazados: Array<{ clienteSyncId: string; motivo: string }> = [];
+
+    for (const item of dto.incidencias) {
+      try {
+        // 1. Idempotencia: Verificar si ya existe por clienteSyncId
+        if (item.clienteSyncId) {
+          const existente = await this.prisma.incidenciaIngreso.findUnique({
+            where: { clienteSyncId: item.clienteSyncId },
+          });
+          if (existente) {
+            omitidos.push({ clienteSyncId: item.clienteSyncId });
+            continue;
+          }
+        }
+
+        const examenId = Number(item.examenId);
+        if (!Number.isInteger(examenId)) {
+          rechazados.push({
+            clienteSyncId: item.clienteSyncId,
+            motivo: 'El examen no es válido',
+          });
+          continue;
+        }
+
+        // 2. Validar acceso (no se valida horario ya que la incidencia ocurrió offline)
+        await this.validarAcceso(examenId, usuarioId);
+
+        // 3. Buscar estudiante si existe
+        const estudiante = await this.prisma.estudiante.findUnique({
+          where: { cod_sis: item.codigoSis },
+        });
+
+        const fechaHora = item.fechaHoraCaptura
+          ? new Date(item.fechaHoraCaptura)
+          : new Date();
+
+        const creada = await this.prisma.incidenciaIngreso.create({
+          data: {
+            examenId,
+            registradoPor: usuarioId,
+            estudianteId: estudiante?.id || null,
+            codSisIngresado: estudiante ? null : item.codigoSis,
+            tipoIncidencia: item.motivo,
+            descripcion: item.observaciones || null,
+            fechaHora: isNaN(fechaHora.getTime()) ? new Date() : fechaHora,
+            clienteSyncId: item.clienteSyncId,
+          },
+          include: incluir,
+        });
+
+        await this.prisma.bitacora_Auditoria.create({
+          data: {
+            usuarioId,
+            accion: 'SINCRONIZAR_INCIDENCIA_OFFLINE',
+            modulo: 'Incidencias',
+            tablaAfectada: 'incidencia_ingreso',
+            registroId: creada.id,
+            detallesNuevo: {
+              examenId,
+              codigoSis: item.codigoSis,
+              motivo: item.motivo,
+              clienteSyncId: item.clienteSyncId,
+            },
+            ipOrigen: ip?.slice(0, 45),
+          },
+        });
+
+        sincronizados.push({
+          clienteSyncId: item.clienteSyncId,
+          incidenciaId: creada.id,
+        });
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : 'Error desconocido al procesar incidencia offline';
+        rechazados.push({
+          clienteSyncId: item.clienteSyncId,
+          motivo: msg,
+        });
+      }
+    }
+
+    return {
+      totalRecibidos,
+      totalSincronizados: sincronizados.length,
+      totalOmitidos: omitidos.length,
+      totalRechazados: rechazados.length,
+      sincronizados,
+      omitidos,
+      rechazados,
+    };
   }
 }

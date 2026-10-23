@@ -1,40 +1,12 @@
 import { apiClient } from "../../../shared/lib/api-client";
+import { openSulluDB, SULLU_STORES } from "../../../shared/lib/offline-sullu-db";
 import type {
   IngresoOfflineItem,
   EstudianteQrResultado,
 } from "../types/control-ingreso.types";
 
 const OFFLINE_STORAGE_KEY = "sullu_offline_ingresos_queue";
-const DB_NAME = "sullu_offline_db";
-const DB_VERSION = 1;
-const STORE_NAME = "ingresos_cola";
-
-/**
- * Abre o inicializa la base de datos IndexedDB local
- */
-function openIndexedDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === "undefined" || !window.indexedDB) {
-      return reject(new Error("IndexedDB no disponible en este entorno"));
-    }
-
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, {
-          keyPath: "clienteSyncId",
-        });
-        store.createIndex("examenId", "examenId", { unique: false });
-        store.createIndex("sincronizado", "sincronizado", { unique: false });
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
+const STORE_NAME = SULLU_STORES.INGRESOS_COLA;
 
 export const offlineIngresosService = {
   /**
@@ -72,7 +44,7 @@ export const offlineIngresosService = {
 
     // 1. Guardar en IndexedDB
     try {
-      const db = await openIndexedDB();
+      const db = await openSulluDB();
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
@@ -104,7 +76,7 @@ export const offlineIngresosService = {
    */
   async obtenerPendientes(examenId?: number): Promise<IngresoOfflineItem[]> {
     try {
-      const db = await openIndexedDB();
+      const db = await openSulluDB();
       return new Promise<IngresoOfflineItem[]>((resolve) => {
         const tx = db.transaction(STORE_NAME, "readonly");
         const store = tx.objectStore(STORE_NAME);
@@ -201,12 +173,13 @@ export const offlineIngresosService = {
       const response = await apiClient.post("/ingresos/sincronizar", payload);
       const data = response.data;
 
-      // Eliminar de IndexedDB y localStorage los que se procesaron con éxito
-      const syncIdsExitosos = (data.sincronizados || []).map(
-        (s: { clienteSyncId: string }) => s.clienteSyncId
-      );
+      // Eliminar de IndexedDB y localStorage los que se procesaron con éxito o se omitieron por ya procesados
+      const syncIdsProcesados = [
+        ...(data.sincronizados || []).map((s: { clienteSyncId: string }) => s.clienteSyncId),
+        ...(data.omitidos || []).map((s: { clienteSyncId: string }) => s.clienteSyncId),
+      ];
 
-      await this.limpiarSincronizados(syncIdsExitosos);
+      await this.limpiarSincronizados(syncIdsProcesados);
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("sullu_offline_updated"));
@@ -214,7 +187,7 @@ export const offlineIngresosService = {
 
       return {
         totalRecibidos: data.totalRecibidos || pendientes.length,
-        totalSincronizados: data.totalSincronizados || syncIdsExitosos.length,
+        totalSincronizados: data.totalSincronizados || (data.sincronizados || []).length,
         totalOmitidos: data.totalOmitidos || 0,
         totalRechazados: data.totalRechazados || 0,
       };
@@ -232,7 +205,7 @@ export const offlineIngresosService = {
 
     // 1. Limpiar de IndexedDB
     try {
-      const db = await openIndexedDB();
+      const db = await openSulluDB();
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
       for (const id of syncIds) {

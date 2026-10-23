@@ -9,6 +9,7 @@ import {
   haySesionPortalOffline,
   marcarSesionPortal,
 } from '../lib/offline-portal';
+import { obtenerUsuarioOperadorOffline } from '@/shared/lib/offline-auth';
 
 const PERMISO_PORTAL = 'portal_estudiante';
 const RUTA_PERFIL = '/portal/perfil';
@@ -27,15 +28,21 @@ export function StudentAuthGuard({ children, requierePerfilCompleto = true }: St
   const router = useRouter();
   const allowed =
     session?.user?.rol === 'Estudiante' ||
+    session?.user?.rol === 'Control' ||
     !!session?.user?.permisos?.some(
       (p) => p === PERMISO_PORTAL || p.startsWith(`${PERMISO_PORTAL}.`),
     );
   const [perfilListo, setPerfilListo] = useState(!requierePerfilCompleto);
 
-  // Estado de conexión (arranca en true para no romper la hidratación)
-  const [online, setOnline] = useState(true);
+  // Inicializar estado offline inmediatamente desde navigator.onLine para evitar race-condition en mount
+  const [online, setOnline] = useState(() => {
+    if (typeof navigator !== 'undefined') {
+      return navigator.onLine;
+    }
+    return true;
+  });
+
   useEffect(() => {
-    setOnline(navigator.onLine);
     const alVolver = () => setOnline(true);
     const alPerder = () => setOnline(false);
     window.addEventListener('online', alVolver);
@@ -46,32 +53,41 @@ export function StudentAuthGuard({ children, requierePerfilCompleto = true }: St
     };
   }, []);
 
-  // Sin red, next-auth no puede validar la sesión: se acepta la última sesión válida del dispositivo
+  // Sin red: nunca enviar a /login (el servidor no responderá y dará dinosaurio)
+  const sinRed = !online || (typeof navigator !== 'undefined' && !navigator.onLine);
   const sesionOffline =
-    status !== 'authenticated' && !online && haySesionPortalOffline();
+    sinRed ||
+    (status !== 'authenticated' &&
+      (haySesionPortalOffline() || obtenerUsuarioOperadorOffline() !== null));
 
-  // Recordar que este dispositivo tuvo una sesión de estudiante válida
+  // Recordar que este dispositivo tuvo una sesión válida
   useEffect(() => {
-  if (status === 'authenticated' && allowed) {
-    marcarSesionPortal();
-    guardarUsuarioOffline({
-      nombre: session?.user?.name ?? '',
-      rol: 'Estudiante',
-    });
-  }
-}, [status, allowed, session]);
+    if (status === 'authenticated' && allowed) {
+      marcarSesionPortal();
+      guardarUsuarioOffline({
+        nombre: session?.user?.name ?? '',
+        rol: session?.user?.rol ?? 'Estudiante',
+      });
+    }
+  }, [status, allowed, session]);
 
   useEffect(() => {
-    if (sesionOffline) return;
+    // Si no hay red, NUNCA redirigir a /login
+    if (sinRed || sesionOffline) return;
+
     if (status === 'unauthenticated') {
       router.replace('/login');
     } else if (status === 'authenticated' && !allowed) {
       router.replace(`/unauthorized?modulo=${PERMISO_PORTAL}`);
     }
-  }, [status, allowed, router, sesionOffline]);
+  }, [status, allowed, router, sesionOffline, sinRed]);
 
   useEffect(() => {
     if (!requierePerfilCompleto || status !== 'authenticated' || !allowed) return;
+    if (sinRed) {
+      setPerfilListo(true);
+      return;
+    }
 
     let cancelado = false;
     getMiPerfil()
@@ -81,17 +97,16 @@ export function StudentAuthGuard({ children, requierePerfilCompleto = true }: St
         else router.replace(RUTA_PERFIL);
       })
       .catch(() => {
-        // Si no se puede consultar el perfil (red, o un usuario que no es estudiante), no se bloquea
-        // la pantalla: cada vista muestra su propio error. El back debe validar el perfil por su cuenta.
         if (!cancelado) setPerfilListo(true);
       });
 
     return () => {
       cancelado = true;
     };
-  }, [requierePerfilCompleto, status, allowed, router]);
+  }, [requierePerfilCompleto, status, allowed, router, sinRed]);
 
-  if (sesionOffline) return <>{children}</>;
+  // Si está offline, permitir acceso inmediato a la vista offline
+  if (sinRed || sesionOffline) return <>{children}</>;
   if (status !== 'authenticated' || !allowed || !perfilListo) return null;
   return <>{children}</>;
 }

@@ -2,15 +2,25 @@
 
 import { useEffect } from 'react';
 
-/** Registra el service worker solo en producción (en dev cachearía chunks viejos). */
+/**
+ * Registra el Service Worker unificado (soporte offline para portal y módulos operador).
+ * Se registra tanto en desarrollo como en producción para permitir pruebas locales.
+ */
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    console.log('SW register: NODE_ENV =', process.env.NODE_ENV);
-    if (process.env.NODE_ENV !== 'production') return;
-    if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
-      // Sin service worker el portal sigue funcionando, solo que sin modo offline
-    });
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/' })
+      .then((reg) => {
+        // Si hay una nueva versión del SW esperando, activarla
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      })
+      .catch((err) => {
+        console.warn('No se pudo registrar el Service Worker:', err);
+      });
   }, []);
 
   return null;

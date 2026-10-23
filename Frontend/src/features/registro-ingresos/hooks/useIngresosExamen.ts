@@ -9,9 +9,8 @@ const INTERVALO_MS = 5000;
 const FALLOS_PARA_DESCONECTAR = 3;
 
 /**
- * Tiempo real por polling. Si fallan 3 consultas seguidas, el estado pasa a
- * "desconectado", pero se sigue reintentando y los datos ya cargados se
- * mantienen visibles. Si una consulta vuelve a funcionar, se reconecta.
+ * Tiempo real por polling con soporte offline.
+ * Si no hay red, carga inmediatamente la copia local de IndexedDB/localStorage.
  */
 export function useIngresosExamen(
   examenId: string | null,
@@ -26,21 +25,27 @@ export function useIngresosExamen(
     let cancelled = false;
     let fallos = 0;
 
-    // Al cambiar de examen se descartan los datos del anterior
     setData(null);
-    setConexion("conectado");
+    setConexion(typeof navigator !== "undefined" && !navigator.onLine ? "desconectado" : "conectado");
 
     const cargar = async () => {
       try {
         const resultado = await getIngresosExamen(examenId);
         if (cancelled) return;
-        fallos = 0;
         setData(resultado);
-        setConexion("conectado");
+
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          setConexion("desconectado");
+        } else {
+          fallos = 0;
+          setConexion("conectado");
+        }
       } catch {
         if (cancelled) return;
         fallos += 1;
-        if (fallos >= FALLOS_PARA_DESCONECTAR) setConexion("desconectado");
+        if (fallos >= FALLOS_PARA_DESCONECTAR || (typeof navigator !== "undefined" && !navigator.onLine)) {
+          setConexion("desconectado");
+        }
       }
     };
 

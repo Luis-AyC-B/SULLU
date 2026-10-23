@@ -480,6 +480,7 @@ model IncidenciaIngreso {
   tipoIncidencia     TipoIncidencia @map("tipo_incidencia")
   descripcion        String?        @db.Text
   fechaHora          DateTime       @default(now()) @map("fecha_hora") @db.Timestamp()
+  clienteSyncId      String?        @unique @map("cliente_sync_id") // UUID generado offline para idempotencia
 
   examen      Examen      @relation(fields: [examenId], references: [id])
   controlador Usuario     @relation("ControlRegistraIncidencia", fields: [registradoPor], references: [id])

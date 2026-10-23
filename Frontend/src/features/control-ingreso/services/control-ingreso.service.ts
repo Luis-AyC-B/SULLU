@@ -1,4 +1,9 @@
 import { apiClient } from "../../../shared/lib/api-client";
+import {
+  idbGetAll,
+  idbPut,
+  SULLU_STORES,
+} from "../../../shared/lib/offline-sullu-db";
 import type {
   ExamenAsignado,
   ResumenEnVivoData,
@@ -9,25 +14,95 @@ import type {
 } from "../types/control-ingreso.types";
 import { offlineIngresosService } from "./offline-ingresos.service";
 
+const EXAMENES_STORAGE_KEY = "sullu_examenes_asignados_cache";
+const RESUMEN_STORAGE_PREFIX = "sullu_resumen_examen_";
+
 export const controlIngresoService = {
   /**
    * Obtiene la lista de exámenes asignados al usuario de control actual.
+   * Con fallback a IndexedDB y localStorage si no hay conexión.
    */
   async getMisExamenes(): Promise<ExamenAsignado[]> {
-    const response = await apiClient.get<ExamenAsignado[]>(
-      "/control-ingreso/mis-examenes"
-    );
-    return Array.isArray(response.data) ? response.data : [];
+    try {
+      const response = await apiClient.get<ExamenAsignado[]>(
+        "/control-ingreso/mis-examenes"
+      );
+      const lista = Array.isArray(response.data) ? response.data : [];
+
+      if (typeof window !== "undefined" && lista.length > 0) {
+        try {
+          localStorage.setItem(EXAMENES_STORAGE_KEY, JSON.stringify(lista));
+          for (const item of lista) {
+            await idbPut(SULLU_STORES.EXAMENES_ASIGNADOS, item);
+          }
+        } catch {
+          // Ignorar errores de guardado de cache
+        }
+      }
+
+      return lista;
+    } catch (err: unknown) {
+      try {
+        const cachedIdb = await idbGetAll<ExamenAsignado>(
+          SULLU_STORES.EXAMENES_ASIGNADOS
+        );
+        if (cachedIdb && cachedIdb.length > 0) {
+          return cachedIdb;
+        }
+      } catch {
+        // Continuar a localStorage
+      }
+
+      if (typeof window !== "undefined") {
+        const raw = localStorage.getItem(EXAMENES_STORAGE_KEY);
+        if (raw) {
+          try {
+            return JSON.parse(raw) as ExamenAsignado[];
+          } catch {
+            // Ignorar
+          }
+        }
+      }
+
+      throw err;
+    }
   },
 
   /**
    * Obtiene el resumen en vivo y los últimos ingresos de un examen activo.
+   * Si no hay red, entrega el último snapshot guardado en cache.
    */
   async getResumenExamen(examenId: number): Promise<ResumenEnVivoData> {
-    const response = await apiClient.get<ResumenEnVivoData>(
-      `/control-ingreso/examenes/${examenId}/resumen`
-    );
-    return response.data;
+    try {
+      const response = await apiClient.get<ResumenEnVivoData>(
+        `/control-ingreso/examenes/${examenId}/resumen`
+      );
+      if (response.data && typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            `${RESUMEN_STORAGE_PREFIX}${examenId}`,
+            JSON.stringify(response.data)
+          );
+        } catch {
+          // Ignorar
+        }
+      }
+      return response.data;
+    } catch (err) {
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem(
+          `${RESUMEN_STORAGE_PREFIX}${examenId}`
+        );
+        if (cached) {
+          try {
+            return JSON.parse(cached) as ResumenEnVivoData;
+          } catch {
+            // Ignorar
+          }
+        }
+      }
+      throw err;
+    }
   },
 
   /**
@@ -90,11 +165,44 @@ export const controlIngresoService = {
   /**
    * HU8: Registra el ingreso manual de un estudiante validado en el examen activo.
    * Conectado con el contrato oficial de backend: POST /ingresos/manual
+   * Si no hay conexión, lo encola offline para sincronización posterior.
    */
   async registrarIngresoManual(
     examenId: number,
     payload: RegistroManualPayload
   ): Promise<RegistroManualResponse> {
+    const syncId =
+      payload.clienteSyncId ||
+      (typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `manual_${Date.now()}`);
+
+    // Si el navegador no tiene conexión activa, guardar directo en cola offline
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await offlineIngresosService.guardarIngresoOffline(
+        examenId,
+        payload.identificador,
+        undefined,
+        "MANUAL"
+      );
+      return {
+        success: true,
+        ingresoId: -1,
+        fechaHora: new Date().toISOString(),
+        estudiante: {
+          id: payload.estudianteId || 0,
+          codSis: payload.identificador,
+          ci: "",
+          nombre: "Estudiante",
+          apellido: "",
+          estadoHabilitado: true,
+          ambienteAsignado: "",
+          yaIngreso: true,
+        },
+        mensaje: "Ingreso manual guardado sin conexión",
+      };
+    }
+
     try {
       const response = await apiClient.post<{
         mensaje: string;
@@ -120,7 +228,7 @@ export const controlIngresoService = {
       }>("/ingresos/manual", {
         examenId,
         identificador: payload.identificador,
-        clienteSyncId: payload.clienteSyncId,
+        clienteSyncId: syncId,
       });
 
       if (response.data && response.data.ingreso) {
@@ -145,7 +253,35 @@ export const controlIngresoService = {
     } catch (err: unknown) {
       const axiosErr = err as {
         response?: { status: number; data?: { message?: string } };
+        code?: string;
       };
+
+      // Si fue error de red/servidor no disponible, encolar offline
+      if (!axiosErr.response || axiosErr.code === "ERR_NETWORK") {
+        await offlineIngresosService.guardarIngresoOffline(
+          examenId,
+          payload.identificador,
+          undefined,
+          "MANUAL"
+        );
+        return {
+          success: true,
+          ingresoId: -1,
+          fechaHora: new Date().toISOString(),
+          estudiante: {
+            id: payload.estudianteId || 0,
+            codSis: payload.identificador,
+            ci: "",
+            nombre: "Estudiante",
+            apellido: "",
+            estadoHabilitado: true,
+            ambienteAsignado: "",
+            yaIngreso: true,
+          },
+          mensaje: "Ingreso guardado sin conexión (se sincronizará al reconectar)",
+        };
+      }
+
       if (axiosErr.response?.data?.message) {
         throw new Error(axiosErr.response.data.message);
       }
