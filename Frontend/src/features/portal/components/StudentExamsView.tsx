@@ -17,6 +17,7 @@ import { MockScenarioSelector } from './MockScenarioSelector';
 import { getMiPerfil } from '../api/student-exam.service';
 import type { StudentProfile } from '../types/student-exam.types';
 import type { Examen } from '../types/qr-examen';
+import { guardarPerfilOffline, obtenerPerfilOffline } from '../lib/offline-portal';
 
 // Grid que se adapta al ancho disponible (no al ancho de la pantalla)
 const GRID_EXAMENES =
@@ -49,8 +50,12 @@ export function StudentExamsView() {
     try {
       const data = await getMiPerfil();
       setPerfil(data);
+      guardarPerfilOffline(data);
     } catch {
-      // Si falla o está offline, no interrumpe la vista de exámenes
+      // Sin conexión: se muestra el último perfil guardado. Se desactiva el modal de
+      // cambio de contraseña porque no se puede completar sin red.
+      const cached = obtenerPerfilOffline();
+      if (cached) setPerfil({ ...cached.data, debeCambiarPassword: false });
     }
   }, []);
 
@@ -176,7 +181,8 @@ export function StudentExamsView() {
                 )}
               </div>
               <p className="mt-0.5 break-words text-xs text-muted-foreground">
-                SIS: <span className="font-mono">{perfil?.cod_sis || '—'}</span>
+                SIS: <span className="font-mono">{perfil?.cod_sis || '—'}</span>{' '}
+                · Carrera: {perfil?.carrera || 'Ingeniería de Sistemas'}
               </p>
             </div>
           </div>

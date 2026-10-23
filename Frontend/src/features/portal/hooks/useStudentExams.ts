@@ -5,6 +5,8 @@ import { getMisExamenes } from '../api/student-exam.service';
 import {
   guardarExamenesOffline,
   obtenerExamenesOffline,
+  obtenerTodosQrsExamenOffline,
+  purgarQrsExamenVencidos,
 } from '../lib/offline-portal';
 import type { Examen } from '../types/qr-examen';
 import { adaptarRespuestaExamenes } from '../lib/adaptador-examenes';
@@ -21,6 +23,31 @@ function formatearFecha(iso: string): string {
   }
 }
 
+/**
+ * Marca como GENERADO los exámenes que tienen un QR guardado en el dispositivo y todavía vigente,
+ * para que el modal abra directo en "Tu QR" aunque no haya conexión.
+ */
+function conQrsGuardados(lista: Examen[]): Examen[] {
+  const qrs = obtenerTodosQrsExamenOffline();
+  const ahora = Date.now();
+
+  return lista.map((ex): Examen => {
+    const qr = qrs[String(ex.id)];
+    if (!qr) return ex;
+    if (new Date(qr.vigenteHasta).getTime() <= ahora) return ex;
+    if (ex.estadoQr === 'FINALIZADO' || ex.estadoQr === 'INHABILITADO') return ex;
+
+    return {
+      ...ex,
+      estadoQr: 'GENERADO',
+      qrGenerado: true,
+      qrUrl: qr.qrUrl,
+      qrVigenteHasta: qr.vigenteHasta,
+      token: qr.token,
+    };
+  });
+}
+
 export function useStudentExams() {
   const [examenes, setExamenes] = useState<Examen[]>([]);
   const [verificacionFotoActiva, setVerificacionFotoActiva] = useState(false);
@@ -32,19 +59,24 @@ export function useStudentExams() {
   const load = useCallback(async () => {
     setIsLoading(true);
     setHasError(false);
+
+    // Elimina del dispositivo los QRs de examen cuya vigencia ya terminó
+    purgarQrsExamenVencidos();
+
     try {
       const data = await getMisExamenes();
       const adaptado = adaptarRespuestaExamenes(data);
-      setExamenes(adaptado.examenes);
+      const lista = conQrsGuardados(adaptado.examenes);
+      setExamenes(lista);
       setVerificacionFotoActiva(adaptado.verificacionFotoActiva);
       setIsOffline(false);
       setFechaGuardado(null);
-      guardarExamenesOffline(adaptado.examenes);
+      guardarExamenesOffline(lista);
     } catch {
       const cached = obtenerExamenesOffline();
       if (cached && cached.data && Array.isArray(cached.data)) {
         const adaptado = adaptarRespuestaExamenes(cached.data);
-        setExamenes(adaptado.examenes);
+        setExamenes(conQrsGuardados(adaptado.examenes));
         setIsOffline(true);
         setFechaGuardado(formatearFecha(cached.cachedAt));
         setHasError(false);
@@ -77,4 +109,3 @@ export function useStudentExams() {
     actualizarExamen,
   };
 }
-
