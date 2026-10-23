@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EstadoExamen, TipoIncidencia } from '@prisma/client';
+import { EstadoExamen, Prisma, TipoIncidencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { CreateIngresoDto } from './dto/create-ingreso.dto';
@@ -684,7 +684,10 @@ export class IngresosService {
     }
 
     let tokenLimpio = dto.token.trim();
-    if (tokenLimpio.includes('token=')) {
+    const matchUrl = tokenLimpio.match(/\/qr\/v\/([A-Za-z0-9\-_.]+)/i);
+    if (matchUrl) {
+      tokenLimpio = matchUrl[1];
+    } else if (tokenLimpio.includes('token=')) {
       const match = tokenLimpio.match(/[?&]token=([^&]+)/);
       if (match) tokenLimpio = decodeURIComponent(match[1]);
     }
@@ -697,6 +700,50 @@ export class IngresosService {
     });
 
     if (!qrRegistro) {
+      let estudianteIdJwt: number | null = null;
+      try {
+        const parts = tokenLimpio.split('.');
+        if (parts.length === 3) {
+          const raw = Buffer.from(parts[1], 'base64').toString();
+          const payload = JSON.parse(raw) as Record<string, unknown>;
+          if (
+            typeof payload === 'object' &&
+            payload !== null &&
+            'sub' in payload
+          ) {
+            const subVal = payload.sub;
+            if (typeof subVal === 'number' || typeof subVal === 'string') {
+              estudianteIdJwt = Number(subVal);
+            }
+          }
+        }
+      } catch {
+        // Token no es un JWT decodificable
+      }
+
+      if (estudianteIdJwt) {
+        const yaIngreso = await this.prisma.ingreso.findFirst({
+          where: {
+            estudianteId: estudianteIdJwt,
+            examenId: dto.examenId,
+          },
+        });
+        if (yaIngreso) {
+          await this.prisma.incidenciaIngreso.create({
+            data: {
+              examenId: dto.examenId,
+              registradoPor: registradoPorId,
+              estudianteId: estudianteIdJwt,
+              tipoIncidencia: TipoIncidencia.DOBLE_MARCACION,
+              descripcion: 'Intento de reingreso con código QR',
+            },
+          });
+          throw new ConflictException(
+            'El estudiante ya registró su ingreso a este examen',
+          );
+        }
+      }
+
       await this.prisma.incidenciaIngreso.create({
         data: {
           examenId: dto.examenId,
@@ -719,6 +766,21 @@ export class IngresosService {
         },
       });
       throw new BadRequestException('El código QR presentado ha expirado');
+    }
+
+    if (qrRegistro.examenId && qrRegistro.examenId !== dto.examenId) {
+      await this.prisma.incidenciaIngreso.create({
+        data: {
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          estudianteId: qrRegistro.estudianteId,
+          tipoIncidencia: TipoIncidencia.NO_HABILITADO,
+          descripcion: 'El código QR no corresponde a este examen',
+        },
+      });
+      throw new BadRequestException(
+        'El código QR no corresponde a este examen',
+      );
     }
 
     const estudiante = qrRegistro.estudiante;
@@ -873,7 +935,14 @@ export class IngresosService {
         continue;
       }
 
-      const identificador = item.identificador.trim();
+      let identificador = item.identificador.trim();
+      const matchUrl = identificador.match(/\/qr\/v\/([A-Za-z0-9\-_.]+)/i);
+      if (matchUrl) {
+        identificador = matchUrl[1];
+      } else if (identificador.includes('token=')) {
+        const match = identificador.match(/[?&]token=([^&]+)/);
+        if (match) identificador = decodeURIComponent(match[1]);
+      }
       let estudianteId: number | null = null;
 
       if (item.metodo.toUpperCase() === 'QR') {
@@ -1062,7 +1131,7 @@ export class IngresosService {
 
     const q = query?.trim();
 
-    const where: any = {
+    const where: Prisma.Examen_EstudianteWhereInput = {
       examenId,
       ...(q && {
         estudiante: {
@@ -1111,7 +1180,8 @@ export class IngresosService {
               minute: '2-digit',
             })
           : undefined,
-        metodoIngresoPrevio: ultimoIngreso?.metodo as 'QR' | 'MANUAL' | undefined,
+        metodoIngresoPrevio: ultimoIngreso?.metodo as
+          'QR' | 'MANUAL' | undefined,
       };
     });
   }
