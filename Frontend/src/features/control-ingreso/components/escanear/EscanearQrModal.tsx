@@ -116,8 +116,16 @@ export function EscanearQrModal({
   const procesarTokenQr = useCallback(
     async (token: string) => {
       const now = Date.now();
-      const cleanToken = token.trim();
+      let cleanToken = token.trim();
       if (!cleanToken) return;
+
+      const matchUrl = cleanToken.match(/\/qr\/v\/([A-Za-z0-9\-_.]+)/i);
+      if (matchUrl) {
+        cleanToken = matchUrl[1];
+      } else if (cleanToken.includes("token=")) {
+        const matchParam = cleanToken.match(/[?&]token=([^&]+)/);
+        if (matchParam) cleanToken = decodeURIComponent(matchParam[1]);
+      }
 
       // Anti-rebote y prevención de lecturas duplicadas con el mismo QR
       if (isProcessingRef.current) return;

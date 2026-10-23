@@ -76,11 +76,11 @@ export function QrExceptionDialog({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-60 flex items-end justify-center p-0 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-60 flex items-end md:items-center justify-center p-0 md:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
     >
-      <div className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl p-6 flex flex-col relative animate-in slide-in-from-bottom duration-200 border-t border-slate-100 max-h-[92vh] overflow-y-auto">
-        {/* Barra superior de arrastre en mobile */}
-        <div className="h-1 w-12 rounded-full bg-slate-200 mx-auto mb-3 shrink-0" />
+      <div className="w-full max-w-md bg-white rounded-t-3xl md:rounded-3xl shadow-2xl p-6 flex flex-col relative animate-in slide-in-from-bottom md:slide-in-from-bottom-0 md:zoom-in-95 duration-200 border-t md:border border-slate-100 max-h-[92vh] overflow-y-auto">
+        {/* Barra superior de arrastre solo en mobile */}
+        <div className="h-1 w-12 rounded-full bg-slate-200 mx-auto mb-3 shrink-0 md:hidden" />
 
         {/* Encabezado con título y botón de cierre */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">

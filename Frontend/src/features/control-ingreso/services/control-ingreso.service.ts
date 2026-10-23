@@ -648,7 +648,15 @@ export const controlIngresoService = {
     tokenQr: string,
     ambienteActual?: string
   ): Promise<ValidacionQrResponse> {
-    const rawToken = tokenQr.trim();
+    let rawToken = tokenQr.trim();
+    const matchUrl = rawToken.match(/\/qr\/v\/([A-Za-z0-9\-_.]+)/i);
+    if (matchUrl) {
+      rawToken = matchUrl[1];
+    } else if (rawToken.includes("token=")) {
+      const matchParam = rawToken.match(/[?&]token=([^&]+)/);
+      if (matchParam) rawToken = decodeURIComponent(matchParam[1]);
+    }
+
     if (!rawToken) {
       return {
         success: false,
@@ -1032,7 +1040,7 @@ export const controlIngresoService = {
             mensaje: message || "El código QR presentado ha expirado",
           };
         }
-        if (message.includes("no figura en la nómina")) {
+        if (message.includes("no figura en la nómina") || message.includes("no corresponde a este examen")) {
           return {
             success: false,
             excepcion: "AMBIENTE_INCORRECTO",

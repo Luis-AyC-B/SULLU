@@ -92,16 +92,16 @@ export function ExamenActivoHeaderCard({
         </div>
 
         {/* Fila de metadatos: Ambiente, Horario y Habilitados */}
-        <div className="flex items-center gap-8 text-sm text-slate-600 pl-14.5">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-slate-400" />
-            <span>{examen.ambiente}</span>
+        <div className="flex flex-wrap items-center gap-4 lg:gap-8 text-sm text-slate-600 pl-14.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <BookOpen className="h-4 w-4 text-slate-400 shrink-0" />
+            <span className="truncate">{examen.ambiente}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Clock className="h-4 w-4 text-slate-400" />
             <span>{examen.horario}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <GraduationCap className="h-4 w-4 text-slate-400" />
             <span>{examen.totalEstudiantes} habilitados</span>
           </div>
