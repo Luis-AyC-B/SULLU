@@ -176,8 +176,7 @@ export function StudentExamsView() {
                 )}
               </div>
               <p className="mt-0.5 break-words text-xs text-muted-foreground">
-                SIS: <span className="font-mono">{perfil?.cod_sis || '—'}</span>{' '}
-                · Carrera: {perfil?.carrera || 'Ingeniería de Sistemas'}
+                SIS: <span className="font-mono">{perfil?.cod_sis || '—'}</span>
               </p>
             </div>
           </div>
