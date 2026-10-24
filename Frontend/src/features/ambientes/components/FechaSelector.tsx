@@ -13,7 +13,7 @@ export function FechaSelector({
   fechaSeleccionada,
   onSelectFecha,
 }: FechaSelectorProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   // Calcular fechas base (Hoy y Dentro de 1 mes)
   const { hoy, dentroDeUnMes, formatoTexto } = useMemo(() => {
@@ -123,7 +123,7 @@ export function FechaSelector({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-card border border-border/80 rounded-xl text-sm font-medium text-foreground hover:border-primary/50 transition-all shadow-xs"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-card border border-border/80 rounded-xl text-sm font-medium text-foreground hover:border-primary/50 transition-all shadow-xs cursor-pointer"
       >
         <div className="flex items-center gap-2.5">
           <CalendarIcon className="w-4 h-4 text-primary" />
