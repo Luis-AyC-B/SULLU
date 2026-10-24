@@ -6,12 +6,20 @@ import { z } from "zod";
 
 // Hoy solo existe "No habilitado". Para agregar más motivos basta con
 // sumarlos aquí y en MOTIVO_LABEL (el formulario y el listado se adaptan).
-export const MOTIVOS_INCIDENCIA = ["NO_HABILITADO"] as const;
+export const MOTIVOS_INCIDENCIA = [
+  "NO_HABILITADO",
+  "DOBLE_MARCACION",
+  "QR_CADUCADO",
+  "NO_ENCONTRADO",
+] as const;
 
 export type MotivoIncidencia = (typeof MOTIVOS_INCIDENCIA)[number];
 
 export const MOTIVO_LABEL: Record<MotivoIncidencia, string> = {
   NO_HABILITADO: "No habilitado",
+  DOBLE_MARCACION: "Doble marcación",
+  QR_CADUCADO: "QR caducado",
+  NO_ENCONTRADO: "No encontrado",
 };
 
 export const MOTIVO_POR_DEFECTO: MotivoIncidencia = "NO_HABILITADO";

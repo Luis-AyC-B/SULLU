@@ -32,7 +32,7 @@ export function SeleccionExamenView() {
   };
 
   return (
-    <div className="w-full pb-20 lg:pb-8 animate-in fade-in duration-300">
+    <div className="w-full pb-20 md:pb-8 animate-in fade-in duration-300">
       {/* Header Superior según Mockup */}
       <div className="mb-6">
         <p className="hidden md:block text-[11px] font-bold tracking-wider text-slate-500 uppercase mb-1">
@@ -54,9 +54,9 @@ export function SeleccionExamenView() {
       </div>
 
       {/* Contenido Principal a 2 Columnas (Desktop) / 1 Columna (Mobile) */}
-      <div className="flex flex-col lg:flex-row items-start gap-6 lg:gap-8">
+      <div className="flex flex-col md:flex-row items-start gap-6 md:gap-8">
         {/* Columna Izquierda: Lista de Exámenes */}
-        <div className="flex-1 w-full">
+        <div className="flex-1 min-w-0 w-full">
           {isLoading && <ExamenesSkeleton />}
 
           {!isLoading && error && (

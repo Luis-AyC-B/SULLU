@@ -1,26 +1,11 @@
-import { IsEmail, IsNotEmpty, IsString, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class SolicitarColaboradorDto {
-  @IsOptional()
-  @IsEmail({}, { message: 'Formato de correo electrónico inválido' })
-  email?: string;
-
-  @IsOptional()
-  @IsEmail({}, { message: 'Formato de correo electrónico inválido' })
-  correo?: string;
-
-  @IsNotEmpty({ message: 'Los nombres son obligatorios' })
-  @IsString({ message: 'Los nombres deben ser texto' })
-  nombres!: string;
-
-  @IsNotEmpty({ message: 'Los apellidos son obligatorios' })
-  @IsString({ message: 'Los apellidos deben ser texto' })
-  apellidos!: string;
-
   /**
-   * Helper para obtener el email normalizado independientemente de si vino como 'email' o 'correo'
+   * Código SIS del estudiante registrado en el sistema.
+   * El docente lo selecciona desde el autocompletado del modal.
    */
-  getEmail(): string {
-    return (this.email || this.correo || '').trim().toLowerCase();
-  }
+  @IsNotEmpty({ message: 'El código SIS es obligatorio' })
+  @IsString({ message: 'El código SIS debe ser texto' })
+  codSis!: string;
 }

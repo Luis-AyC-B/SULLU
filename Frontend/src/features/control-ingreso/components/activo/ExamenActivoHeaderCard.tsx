@@ -23,11 +23,18 @@ export function ExamenActivoHeaderCard({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 shrink-0">
               <ClipboardCheck className="h-5 w-5 text-white" />
             </div>
-            <div className="flex items-center gap-2 min-w-0">
-              <h2 className="text-base font-bold truncate text-white">
-                {examen.asignatura}
-              </h2>
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <h2 className="text-base font-bold truncate text-white">
+                  {examen.asignatura}
+                </h2>
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+              </div>
+              {examen.docente && (
+                <p className="text-xs text-white/80 truncate">
+                  Docente: {examen.docente}
+                </p>
+              )}
             </div>
           </div>
 
@@ -67,6 +74,11 @@ export function ExamenActivoHeaderCard({
                   {isEnCurso ? "En curso" : "Próximo"}
                 </span>
               </div>
+              {examen.docente && (
+                <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5">
+                  Docente: {examen.docente}
+                </p>
+              )}
             </div>
           </div>
 
@@ -80,16 +92,16 @@ export function ExamenActivoHeaderCard({
         </div>
 
         {/* Fila de metadatos: Ambiente, Horario y Habilitados */}
-        <div className="flex items-center gap-8 text-sm text-slate-600 pl-14.5">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-slate-400" />
-            <span>{examen.ambiente}</span>
+        <div className="flex flex-wrap items-center gap-4 lg:gap-8 text-sm text-slate-600 pl-14.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <BookOpen className="h-4 w-4 text-slate-400 shrink-0" />
+            <span className="truncate">{examen.ambiente}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Clock className="h-4 w-4 text-slate-400" />
             <span>{examen.horario}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <GraduationCap className="h-4 w-4 text-slate-400" />
             <span>{examen.totalEstudiantes} habilitados</span>
           </div>

@@ -46,6 +46,16 @@ export function useIncidenciasExamen(examenId: string | null) {
     setRecarga((n) => n + 1);
   }, []);
 
+  // Escuchar evento de actualización offline para refrescar en vivo
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleUpdate = () => recargar();
+    window.addEventListener("sullu_incidencias_offline_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("sullu_incidencias_offline_updated", handleUpdate);
+    };
+  }, [recargar]);
+
   const isLoading = examenId !== null && incidencias === null && error === null;
 
   return { incidencias, isLoading, error, recargar };

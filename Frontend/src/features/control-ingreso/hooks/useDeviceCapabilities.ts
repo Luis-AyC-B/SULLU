@@ -5,12 +5,12 @@ import type { DeviceCapabilities } from "../types/control-ingreso.types";
 
 export function useDeviceCapabilities(): DeviceCapabilities {
   const [capabilities, setCapabilities] = useState<DeviceCapabilities>({
-    canScanQr: false,
+    canScanQr: true,
     isMobile: false,
-    hasCamera: false,
-    helperText: "No se detectó una cámara disponible en este dispositivo.",
-    isQrBlocked: true,
-    blockedMessage: "No se detectó una cámara disponible en este dispositivo.",
+    hasCamera: true,
+    helperText: "Cámara disponible para escaneo de códigos QR.",
+    isQrBlocked: false,
+    blockedMessage: "",
   });
 
   useEffect(() => {
@@ -31,51 +31,32 @@ export function useDeviceCapabilities(): DeviceCapabilities {
 
       const isMobile = isTouch || isNarrowScreen;
 
-      // 2. Detección de cámara física disponible
-      let hasCamera = false;
+      // 2. Detección de soporte de MediaDevices
+      let hasCamera = true;
       try {
         if (
           typeof navigator !== "undefined" &&
           navigator.mediaDevices &&
-          typeof navigator.mediaDevices.enumerateDevices === "function"
+          typeof navigator.mediaDevices.getUserMedia === "function"
         ) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const videoDevices = devices.filter(
-            (device) => device.kind === "videoinput"
-          );
-
-          // Filtrar dispositivos virtuales comunes (OBS Virtual Camera, ManyCam, etc.)
-          const nonVirtualDevices = videoDevices.filter(
-            (device) =>
-              !device.label ||
-              !/obs|virtual|dummy|v4l2loopback|fake|manycam|droidcam|iriun/i.test(
-                device.label
-              )
-          );
-
-          if (isMobile) {
-            // En móviles/tablets se cuenta con cámara integrada
-            hasCamera = nonVirtualDevices.length > 0;
-          } else {
-            // En equipos de escritorio (PC): solo si hay una cámara real etiquetada no virtual
-            hasCamera = videoDevices.some(
-              (d) =>
-                Boolean(d.label) &&
-                !/obs|virtual|dummy|v4l2loopback|fake|manycam|droidcam|iriun/i.test(
-                  d.label
-                )
+          if (typeof navigator.mediaDevices.enumerateDevices === "function") {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(
+              (device) => device.kind === "videoinput"
             );
+            // Permitir cámaras físicas y virtuales (DroidCam, Iriun, webcams USB)
+            hasCamera = videoDevices.length > 0 || devices.length === 0;
           }
         }
       } catch {
-        hasCamera = false;
+        hasCamera = true;
       }
 
-      const canScanQr = hasCamera;
-      const isQrBlocked = !canScanQr;
+      const canScanQr = true; // Permitir siempre el intento para que el navegador solicite permisos
+      const isQrBlocked = false;
 
       const blockedMessage = !hasCamera
-        ? "No se detectó una cámara disponible en este dispositivo."
+        ? "No se detectó una cámara activa. Puedes conectar una webcam o utilizar una imagen de prueba."
         : "Cámara disponible para escaneo de códigos QR.";
 
       if (isMounted) {

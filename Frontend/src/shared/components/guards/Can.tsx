@@ -2,6 +2,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { obtenerPermisosOffline } from "@/shared/lib/offline-auth";
 
 interface CanProps {
   permission: string;
@@ -10,12 +11,15 @@ interface CanProps {
 }
 
 export function Can({ permission, fallback = null, children }: CanProps) {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
 
-  if (status === "loading") return null;
+  const permisosSession = session?.user?.permisos as string[] | undefined;
+  const permisos =
+    permisosSession && permisosSession.length > 0
+      ? permisosSession
+      : obtenerPermisosOffline();
 
-  const permisos = session?.user?.permisos as string[] | undefined;
-  const allowed = !!permisos?.includes(permission);
+  const allowed = permisos.includes(permission);
 
   return allowed ? <>{children}</> : <>{fallback}</>;
 }

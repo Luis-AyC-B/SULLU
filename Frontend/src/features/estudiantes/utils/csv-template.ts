@@ -1,5 +1,7 @@
 /**
  * Genera y descarga un archivo CSV de ejemplo listo para que el docente complete los datos.
+ * Las columnas requeridas son: nombre, apellidos, codigo y ci (ci opcional).
+ * El correo institucional ({codigo}@est.umss.edu.bo) se genera automáticamente.
  */
 export function descargarPlantillaCsv(): void {
   const contenido =

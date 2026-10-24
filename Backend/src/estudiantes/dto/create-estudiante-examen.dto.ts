@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsEmail } from 'class-validator';
 
 export class CreateEstudianteExamenDto {
   @IsNotEmpty({ message: 'El nombre es obligatorio' })
@@ -16,4 +16,8 @@ export class CreateEstudianteExamenDto {
   @IsOptional()
   @IsString()
   ci?: string;
+
+  @IsOptional()
+  @IsEmail({}, { message: 'El correo institucional debe ser válido' })
+  correo?: string;
 }

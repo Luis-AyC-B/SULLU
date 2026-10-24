@@ -1,8 +1,19 @@
 "use client";
 
+import { offlineIngresosService } from "@/features/control-ingreso/services/offline-ingresos.service";
+import { offlineIncidenciasService } from "@/features/incidencias/services/offline-incidencias.service";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import {
+  limpiarCacheOfflineEstudiante,
+  obtenerUsuarioOffline,
+} from "@/features/portal/lib/offline-portal";
+import {
+  guardarSesionOffline,
+  obtenerUsuarioOperadorOffline,
+  limpiarSesionOffline,
+} from "@/shared/lib/offline-auth";
 import { User, LogOut } from "lucide-react";
 
 /**
@@ -49,10 +60,6 @@ interface HeaderProps {
 
 /**
  * Header de la aplicación (cuando el usuario ya inició sesión)
- * Basado en los mockups oficiales (media_1789864393611.png y media_1789917596801.png).
- * Extremo izquierdo: LogoUMSSDarkMode.png + LogoExaControlSinNombre.png + ExaControl en rojo.
- * Extremo derecho: Sección de usuario con rol, nombre y avatar que abre el
- * menú flotante para "Perfil" y "Cerrar sesión" funcional.
  */
 export function Header({ showProfile = true }: HeaderProps = {}) {
   const { data: session } = useSession();
@@ -60,11 +67,37 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [cached, setCached] = useState<{ nombre: string; rol: string } | null>(null);
 
-  // Nombre del usuario con fallback representativo del mockup
-  const nombre = session?.user?.name || "Prof. Luis Medina";
-  const rol = getRolDisplayName(session);
+  // Guardar en caché local cuando hay sesión activa
+  useEffect(() => {
+    if (session?.user) {
+      const rolName = getRolDisplayName(session);
+      guardarSesionOffline({
+        nombre: session.user.name || "Usuario",
+        rol: rolName,
+        email: session.user.email,
+        permisos: (session.user.permisos as string[]) || [],
+      });
+    }
+  }, [session]);
 
+  // Recuperar usuario en caché para modo offline
+  useEffect(() => {
+    const operador = obtenerUsuarioOperadorOffline();
+    if (operador) {
+      setCached({ nombre: operador.nombre, rol: operador.rol });
+    } else {
+      setCached(obtenerUsuarioOffline());
+    }
+  }, [session]);
+
+  // Nombre del usuario con fallback representativo
+  const nombre = session?.user?.name || cached?.nombre || "Usuario";
+  const rol = session
+    ? getRolDisplayName(session)
+    : (cached?.rol ?? "Usuario").toUpperCase();
+  
   // Iniciales para el avatar circular
   const iniciales = nombre
     .split(" ")
@@ -104,9 +137,23 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
     router.push("/perfil");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const pendIngresos = offlineIngresosService?.contarPendientesSync?.() ?? 0;
+    const pendIncidencias = offlineIncidenciasService?.contarPendientesSync?.() ?? 0;
+    const total = pendIngresos + pendIncidencias;
+
+    if (total > 0) {
+      const confirmar = window.confirm(
+        `Tienes ${total} evento(s) pendiente(s) de sincronizar en este dispositivo.\n\nSi cierras sesión ahora, la cola se conservará para sincronizarse la próxima vez que inicies sesión.\n\n¿Deseas continuar y cerrar sesión?`
+      );
+      if (!confirmar) return;
+    }
+
     setIsMenuOpen(false);
-    signOut({ callbackUrl: "/login" });
+    limpiarCacheOfflineEstudiante();
+    limpiarSesionOffline();
+    await signOut({ redirect: false });
+    router.push("/login");
   };
 
   return (
@@ -133,69 +180,68 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
         </div>
       </div>
 
-      {/* Extremo Superior Derecho: Sección de usuario interactiva con menú flotante */}
-      <div className="relative shrink-0" ref={menuRef}>
+      {/* Extremo Superior Derecho: Sección Usuario (Rol, Nombre y Avatar interactivo) */}
+      <div className="relative flex items-center gap-2 md:gap-3 shrink-0" ref={menuRef}>
+        {/* Rol Badge (diseño oficial: azul oscuro, borde sutil, texto blanco en mayúsculas) */}
+        <div className="hidden sm:inline-flex items-center justify-center rounded-full bg-[#001f45]/70 border border-white/20 px-3 py-1 text-xs font-bold tracking-wider text-white shadow-inner uppercase">
+          {rol}
+        </div>
+
+        {/* Nombre del Usuario (oculto en pantallas muy angostas) */}
+        <span className="hidden md:block max-w-[150px] lg:max-w-[200px] truncate text-sm font-medium text-white/95">
+          {nombre}
+        </span>
+
+        {/* Avatar circular interactivo con iniciales */}
         <button
           type="button"
-          onClick={() => setIsMenuOpen((prev) => !prev)}
-          className="flex items-center gap-2.5 sm:gap-3 rounded-xl p-1.5 hover:bg-white/10 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          aria-haspopup="true"
           aria-expanded={isMenuOpen}
-          aria-haspopup="menu"
+          aria-label="Abrir menú de usuario"
+          onClick={() => setIsMenuOpen((prev) => !prev)}
+          className="relative flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded-full bg-[#E30613] text-white font-bold text-sm shadow-md ring-2 ring-white/20 transition-all duration-200 hover:ring-white/50 hover:brightness-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#E30613] focus:ring-offset-2 focus:ring-offset-[#002D62]"
         >
-          {/* Píldora del Rol asignado: se oculta en mobile */}
-          <span className="hidden sm:inline-flex items-center rounded-full bg-[#0c3b6f] px-3 py-1 text-[11px] font-semibold tracking-wider text-slate-100 border border-white/10 uppercase shadow-2xs">
-            {rol}
-          </span>
-
-          {/* Nombre del Usuario */}
-          <span className="hidden sm:inline-block text-xs sm:text-sm font-medium text-white leading-tight">
-            {nombre}
-          </span>
-
-          {/* Avatar Circular Rojo con Iniciales */}
-          <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full bg-[#D3101E] text-xs font-bold text-white shadow-xs ring-2 ring-[#003875]">
-            {iniciales}
-          </div>
+          {iniciales}
         </button>
 
-        {/* Menú flotante desplegable de Usuario */}
+        {/* Menú Flotante Dropdown */}
         {isMenuOpen && (
-          <div
-            role="menu"
-            aria-orientation="vertical"
-            className="absolute right-0 top-full mt-2 z-50 w-56 rounded-2xl border border-white/15 bg-[#002D62] p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
-          >
-            {showProfile && (
-              <>
-                {/* Opción 1: Perfil */}
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleGoToProfile}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <User className="h-5 w-5 text-white" />
-                  <span>Perfil</span>
-                </button>
+          <div className="absolute right-0 top-full mt-2 w-56 rounded-md bg-white py-1.5 shadow-xl ring-1 ring-black/10 focus:outline-none z-50 text-slate-800 animate-in fade-in-0 zoom-in-95 duration-100">
+            {/* Header del Menú (visible siempre en el popup) */}
+            <div className="px-4 py-2.5 border-b border-slate-100 mb-1">
+              <p className="text-sm font-semibold text-slate-900 truncate">{nombre}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-[#E30613]"></span>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                  {rol}
+                </p>
+              </div>
+            </div>
 
-                {/* Separador sutil */}
-                <div className="my-1.5 h-px w-full bg-white/15" />
-              </>
+            {/* Opción 1: Perfil (oculta en el portal del estudiante) */}
+            {showProfile && (
+              <button
+                type="button"
+                onClick={handleGoToProfile}
+                className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 text-left"
+              >
+                <User className="h-4 w-4 text-slate-400" />
+                <span>Perfil</span>
+              </button>
             )}
 
-            {/* Opción 2: Cerrar sesión (Color rojo coral según mockup) */}
+            {/* Separador */}
+            {showProfile && <div className="my-1 border-t border-slate-100" />}
+
+            {/* Opción 2: Cerrar Sesión */}
             <button
               type="button"
-              role="menuitem"
               onClick={handleLogout}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#FF5252] hover:bg-white/10 transition-colors cursor-pointer"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-[#E30613] transition-colors hover:bg-red-50 text-left font-medium"
             >
-              <LogOut className="h-5 w-5 text-[#FF5252]" />
+              <LogOut className="h-4 w-4 text-[#E30613]" />
               <span>Cerrar sesión</span>
             </button>
-
-            {/* Indicador inferior redondeado según mockup */}
-            <div className="mx-auto mt-2 mb-0.5 h-1 w-8 rounded-full bg-white/20" />
           </div>
         )}
       </div>
