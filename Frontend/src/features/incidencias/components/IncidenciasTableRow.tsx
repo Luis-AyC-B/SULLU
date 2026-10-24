@@ -17,7 +17,12 @@ export function IncidenciasTableRow({ incidencia }: IncidenciasTableRowProps) {
           {formatHoraIncidencia(incidencia.fechaHora)}
         </time>
       </TableCell>
-      <TableCell className="tabular-nums">{incidencia.codigoSis}</TableCell>
+      <TableCell
+        className="tabular-nums max-w-[150px] truncate"
+        title={incidencia.codigoSis}
+      >
+        {incidencia.codigoSis}
+      </TableCell>
       <TableCell>
         <p className="text-body font-medium">{incidencia.estudianteNombre}</p>
         {/* Las observaciones se muestran como texto plano: React escapa el
