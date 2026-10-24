@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Plus, Search, X, ShieldAlert, Loader2 } from "lucide-react";
+import { PageContainer } from "@/shared/components/layout/PageContainer";
 import { Colaborador, SolicitudColaboradorInput } from "../schemas/colaborador.schema";
 import { useColaboradores } from "../hooks/useColaboradores";
 import { ColaboradorCard } from "./ColaboradorCard";
@@ -10,12 +11,10 @@ import { SolicitarColaboradorModal } from "./SolicitarColaboradorModal";
 import { GestionarExamenesModal } from "./GestionarExamenesModal";
 import { DarDeBajaDialog } from "./DarDeBajaDialog";
 import { AdminColaboradoresView } from "./AdminColaboradoresView";
-import { PageContainer } from "@/shared/components/layout/PageContainer";
 
 export function ColaboradoresPageContainer() {
   const { data: session, status } = useSession();
   const {
-    colaboradores,
     colaboradoresFiltrados,
     solicitudesPendientes,
     todosAdmin,
@@ -105,6 +104,7 @@ export function ColaboradoresPageContainer() {
       }
     >
       <div className="space-y-6">
+        {/* RENDERIZADO CONDICIONAL POR ROL */}
         {isAdmin ? (
           /* VISTA DE ADMINISTRADOR: Pestañas Solicitudes / Todos, tabla y modales de aprobación/rechazo */
           <AdminColaboradoresView
