@@ -61,7 +61,7 @@ export function ReservaCancelarDialog({
             onClick={onClose}
             className="border border-gray-300 text-gray-700 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-50 text-sm transition-colors cursor-pointer"
           >
-            Conservar reserva
+            Volver
           </button>
           <button
             type="button"

@@ -161,14 +161,14 @@ export function EditarAmbienteModal({
               type="button"
               disabled={isProcessing}
               onClick={onClose}
-              className="px-4 py-2.5 rounded-lg text-sm font-medium text-foreground/80 hover:bg-muted transition-colors"
+              className="border border-gray-300 text-gray-700 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-50 text-sm transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isProcessing}
-              className="px-5 py-2.5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 active:bg-primary/95 transition-colors shadow-xs disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[#003770] hover:bg-[#002a57] transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
             >
               {isProcessing ? "Guardando..." : "Guardar cambios"}
             </button>
