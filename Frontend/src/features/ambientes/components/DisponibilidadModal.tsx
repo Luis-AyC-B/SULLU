@@ -60,11 +60,11 @@ export function DisponibilidadModal({
       onClick={onClose}
     >
       <div
-        className="bg-card w-full max-w-lg rounded-2xl shadow-xl border border-border/80 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+        className="bg-card w-full max-w-lg rounded-2xl shadow-xl border border-border/80 overflow-hidden flex flex-col h-[575px] max-h-[90vh] animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabecera */}
-        <div className="flex items-start justify-between p-5 border-b border-border/60">
+        <div className="flex items-start justify-between p-5 border-b border-border/60 shrink-0">
           <div>
             <h3 className="text-lg font-bold text-foreground">
               Disponibilidad · {ambiente.nombre}
@@ -83,8 +83,8 @@ export function DisponibilidadModal({
           </button>
         </div>
 
-        {/* Cuerpo con Scroll */}
-        <div className="p-5 overflow-y-auto space-y-6">
+        {/* Cuerpo con Scroll y tamaño constante */}
+        <div className="p-5 overflow-y-auto space-y-6 flex-1 min-h-0">
           <FechaSelector
             fechaSeleccionada={fecha}
             onSelectFecha={setFecha}
