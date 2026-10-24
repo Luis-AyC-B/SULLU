@@ -13,6 +13,31 @@ export function ExamenActivoHeaderCard({
   onCambiarExamen,
 }: ExamenActivoHeaderCardProps) {
   const isEnCurso = examen.estado === "EN_CURSO";
+  const isFinalizado = examen.estado === "FINALIZADO";
+
+  const getBadgeConfig = () => {
+    if (isEnCurso) {
+      return {
+        label: "En curso",
+        className: "bg-[#eafaf1] text-[#0e8a55] border border-[#a3e6c3]/50",
+        dotColor: "bg-emerald-400",
+      };
+    }
+    if (isFinalizado) {
+      return {
+        label: "Finalizado",
+        className: "bg-slate-100 text-slate-600 border border-slate-200/60",
+        dotColor: "bg-slate-400",
+      };
+    }
+    return {
+      label: "Próximo",
+      className: "bg-blue-50 text-blue-700 border border-blue-200/60",
+      dotColor: "bg-blue-400",
+    };
+  };
+
+  const badge = getBadgeConfig();
 
   return (
     <>
@@ -28,7 +53,7 @@ export function ExamenActivoHeaderCard({
                 <h2 className="text-base font-bold truncate text-white">
                   {examen.asignatura}
                 </h2>
-                <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                <span className={`h-2 w-2 rounded-full ${badge.dotColor} shrink-0`} />
               </div>
               {examen.docente && (
                 <p className="text-xs text-white/80 truncate">
@@ -65,13 +90,9 @@ export function ExamenActivoHeaderCard({
                   {examen.asignatura}
                 </h2>
                 <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold ${
-                    isEnCurso
-                      ? "bg-[#eafaf1] text-[#0e8a55] border border-[#a3e6c3]/50"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold ${badge.className}`}
                 >
-                  {isEnCurso ? "En curso" : "Próximo"}
+                  {badge.label}
                 </span>
               </div>
               {examen.docente && (

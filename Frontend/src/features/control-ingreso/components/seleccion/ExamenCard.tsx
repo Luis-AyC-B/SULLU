@@ -11,6 +11,28 @@ interface ExamenCardProps {
 
 export function ExamenCard({ examen, isSelected, onSelect }: ExamenCardProps) {
   const isEnCurso = examen.estado === "EN_CURSO";
+  const isFinalizado = examen.estado === "FINALIZADO";
+
+  const getBadgeConfig = () => {
+    if (isEnCurso) {
+      return {
+        label: "En curso",
+        className: "bg-[#eafaf1] text-[#0e8a55] border border-[#a3e6c3]/50",
+      };
+    }
+    if (isFinalizado) {
+      return {
+        label: "Finalizado",
+        className: "bg-slate-100 text-slate-600 border border-slate-200/60",
+      };
+    }
+    return {
+      label: "Próximo",
+      className: "bg-blue-50 text-blue-700 border border-blue-200/60",
+    };
+  };
+
+  const badge = getBadgeConfig();
 
   return (
     <div
@@ -34,13 +56,9 @@ export function ExamenCard({ examen, isSelected, onSelect }: ExamenCardProps) {
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
           <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${
-              isEnCurso
-                ? "bg-[#eafaf1] text-[#0e8a55] border border-[#a3e6c3]/50"
-                : "bg-slate-100 text-slate-600 border border-slate-200/60"
-            }`}
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${badge.className}`}
           >
-            {isEnCurso ? "En curso" : "Próximo"}
+            {badge.label}
           </span>
           <span className="text-xs sm:text-sm text-slate-600 font-normal">
             {examen.totalEstudiantes} estudiantes
@@ -79,9 +97,9 @@ export function ExamenCard({ examen, isSelected, onSelect }: ExamenCardProps) {
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <BookOpen className="h-4 w-4 text-slate-500 shrink-0" />
-          <span className="truncate">{examen.ambiente}</span>
+          <span>{examen.ambiente}</span>
         </div>
       </div>
     </div>
