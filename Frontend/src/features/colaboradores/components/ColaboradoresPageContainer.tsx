@@ -15,7 +15,6 @@ import { AdminColaboradoresView } from "./AdminColaboradoresView";
 export function ColaboradoresPageContainer() {
   const { data: session, status } = useSession();
   const {
-    colaboradores,
     colaboradoresFiltrados,
     solicitudesPendientes,
     todosAdmin,
