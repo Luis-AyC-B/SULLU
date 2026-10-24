@@ -13,8 +13,8 @@ export function ReservaCard({ reserva, onCancelar, canCancelar = false }: Reserv
   const tieneExamen = Boolean(reserva.tieneExamenAsignado || reserva.examenAsociado);
 
   return (
-    <div className="bg-card text-card-foreground rounded-xl border border-border/60 p-5 shadow-sm flex flex-col justify-between">
-      <div>
+    <div className="bg-card text-card-foreground rounded-2xl border border-border/60 p-5 shadow-xs flex flex-col justify-between h-full">
+      <div className="flex-1 flex flex-col">
         <div className="flex items-center gap-1.5 mb-3">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -26,7 +26,7 @@ export function ReservaCard({ reserva, onCancelar, canCancelar = false }: Reserv
           {reserva.facultad || "FCyT"}
         </p>
 
-        <h3 className="text-xl font-bold text-foreground mb-3">
+        <h3 className="text-xl font-bold text-foreground mb-3 min-h-[1.75rem] line-clamp-1">
           {reserva.ambienteNombre}
         </h3>
 
@@ -39,39 +39,43 @@ export function ReservaCard({ reserva, onCancelar, canCancelar = false }: Reserv
           </p>
         </div>
 
-        <div className="text-xs text-muted-foreground pt-2 border-t border-border/50 mb-5">
+        <div className="text-xs text-muted-foreground pt-3 border-t border-border/50 mt-auto mb-2">
           <p className="font-medium text-foreground/70">Examen asociado:</p>
-          <p className={tieneExamen ? "text-foreground font-semibold" : "text-muted-foreground"}>
+          <p className={`min-h-[1.25rem] ${tieneExamen ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
             {reserva.examenAsociado || "Sin examen asignado"}
           </p>
         </div>
       </div>
 
-      <div>
+      <div className="mt-4 pt-2">
         {/* TASK-15.6: Botón cancelar deshabilitado si tiene examen asignado */}
         {tieneExamen ? (
-          <div>
-            <button
-              type="button"
-              disabled
-              className="w-full py-2.5 px-4 rounded-lg font-medium text-sm border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-            >
-              Cancelar reserva
-            </button>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              No se puede cancelar: el ambiente tiene un examen asignado
-            </p>
-          </div>
+          <button
+            type="button"
+            disabled
+            className="w-full py-2.5 px-4 rounded-xl font-medium text-sm border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+          >
+            Cancelar reserva
+          </button>
         ) : (
           <button
             type="button"
             onClick={() => onCancelar(reserva)}
             disabled={!canCancelar}
-            className="w-full py-2.5 px-4 rounded-lg font-medium text-sm border border-red-200 text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors cursor-pointer"
+            className="w-full py-2.5 px-4 rounded-xl font-medium text-sm border border-red-300 text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors cursor-pointer shadow-2xs"
           >
             Cancelar reserva
           </button>
         )}
+
+        {/* Contenedor con altura reservada para que todos los botones queden perfectamente nivelados */}
+        <div className="min-h-[32px] mt-2 flex items-center justify-center">
+          {tieneExamen && (
+            <p className="text-xs text-muted-foreground text-center">
+              No se puede cancelar: el ambiente tiene un examen asignado
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
