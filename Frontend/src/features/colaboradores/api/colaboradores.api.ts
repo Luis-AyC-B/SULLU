@@ -1,147 +1,135 @@
 import { apiClient } from "@/shared/lib/api-client";
-import { Colaborador, ExamenItem, SolicitudColaboradorInput } from "../schemas/colaborador.schema";
+import {
+  Colaborador,
+  ExamenItem,
+  SolicitudColaboradorInput,
+  EstudianteRegistrado,
+} from "../schemas/colaborador.schema";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTOCOMPLETADO — búsqueda de estudiantes por código SIS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Búsqueda predictiva de estudiantes registrados por código SIS parcial o completo.
+ * GET /colaboradores/buscar?codSis=<query>
+ */
+export async function buscarEstudiantesPorCodSis(
+  codSisQuery: string
+): Promise<EstudianteRegistrado[]> {
+  const q = codSisQuery.trim();
+  if (!q) return [];
+  const { data } = await apiClient.get<EstudianteRegistrado[]>(
+    "/colaboradores/buscar",
+    { params: { codSis: q } }
+  );
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NÓMINA DEL DOCENTE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Obtener nómina de colaboradores del docente autenticado.
+ * GET /colaboradores/nomina
+ */
+export async function getColaboradores(): Promise<Colaborador[]> {
+  const { data } = await apiClient.get<Colaborador[]>("/colaboradores/nomina");
+  return data;
+}
+
+/**
+ * Enviar solicitud de colaborador por código SIS.
+ * POST /colaboradores/solicitar
+ */
+export async function solicitarColaborador(
+  input: SolicitudColaboradorInput
+): Promise<Colaborador> {
+  const { data } = await apiClient.post<Colaborador>(
+    "/colaboradores/solicitar",
+    { codSis: input.codSis }
+  );
+  return data;
+}
+
+/**
+ * Dar de baja a un colaborador de la nómina (pasa a INACTIVO).
+ * PATCH /colaboradores/:id/baja
+ */
+export async function darDeBajaColaborador(
+  id: string | number
+): Promise<Colaborador> {
+  const { data } = await apiClient.patch<Colaborador>(
+    `/colaboradores/${id}/baja`
+  );
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PANEL ADMINISTRADOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Obtener solicitudes PENDIENTES para el panel del administrador.
+ * GET /colaboradores/solicitudes
+ */
+export async function getSolicitudesPendientesAdmin(): Promise<Colaborador[]> {
+  const { data } = await apiClient.get<Colaborador[]>(
+    "/colaboradores/solicitudes"
+  );
+  return data;
+}
+
+/**
+ * Obtener TODOS los registros de colaboradores (todos los estados).
+ * GET /colaboradores/todos
+ */
+export async function getTodosAdmin(): Promise<Colaborador[]> {
+  const { data } = await apiClient.get<Colaborador[]>("/colaboradores/todos");
+  return data;
+}
+
+/**
+ * Aprobar una solicitud pendiente.
+ * El estudiante recibe el rol "Personal de control" además de su rol Estudiante.
+ * PATCH /colaboradores/solicitudes/:id/aprobar
+ */
+export async function aprobarSolicitud(
+  id: string | number
+): Promise<Colaborador> {
+  const { data } = await apiClient.patch<Colaborador>(
+    `/colaboradores/solicitudes/${id}/aprobar`
+  );
+  return data;
+}
+
+/**
+ * Rechazar una solicitud pendiente.
+ * El estudiante conserva únicamente su rol Estudiante.
+ * PATCH /colaboradores/solicitudes/:id/rechazar
+ */
+export async function rechazarSolicitud(
+  id: string | number
+): Promise<Colaborador> {
+  const { data } = await apiClient.patch<Colaborador>(
+    `/colaboradores/solicitudes/${id}/rechazar`
+  );
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GESTIÓN DE EXÁMENES
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ExamenDisponibleItem extends ExamenItem {
   tieneChoque: boolean;
   motivoChoque?: string;
 }
 
-interface SolicitudBackendResult {
-  id: number | string;
-  colaboradorId?: number | null;
-  nombresSolicitados?: string;
-  apellidosSolicitados?: string;
-  correoSolicitado?: string;
-  estadoSolicitud?: "APROBADO" | "PENDIENTE" | "RECHAZADO" | "INACTIVO";
-}
-
-function extractErrorMessage(error: unknown, defaultMsg: string): string {
-  if (
-    error &&
-    typeof error === "object" &&
-    "response" in error &&
-    error.response &&
-    typeof error.response === "object" &&
-    "data" in error.response &&
-    error.response.data &&
-    typeof error.response.data === "object" &&
-    "message" in error.response.data
-  ) {
-    const rawMsg = (error.response.data as { message: unknown }).message;
-    if (Array.isArray(rawMsg)) return String(rawMsg[0]);
-    if (typeof rawMsg === "string") return rawMsg;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return defaultMsg;
-}
-
 /**
- * HU13: Consulta nómina del docente autenticado o solicitudes pendientes de admin.
- */
-export async function getColaboradores(params?: {
-  docenteEmail?: string;
-  isAdmin?: boolean;
-}): Promise<Colaborador[]> {
-  try {
-    const url = params?.isAdmin ? "/colaboradores/solicitudes" : "/colaboradores/nomina";
-    const res = await apiClient.get<Colaborador[]>(url);
-    return res.data || [];
-  } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Error al cargar la nómina de colaboradores"));
-  }
-}
-
-/**
- * HU13: Envía una solicitud de vinculación de colaborador (Docente).
- */
-export async function solicitarColaborador(
-  input: SolicitudColaboradorInput,
-  userEmail: string,
-  userNombre?: string
-): Promise<Colaborador> {
-  const cleanEmail = input.email.trim().toLowerCase();
-  const currentEmail = (userEmail || "").trim().toLowerCase();
-
-  // Validación previa en cliente alineada con el criterio de aceptación
-  if (cleanEmail === currentEmail) {
-    throw new Error("No puedes agregarte a ti mismo como colaborador.");
-  }
-
-  try {
-    const res = await apiClient.post<SolicitudBackendResult>("/colaboradores/solicitar", {
-      email: cleanEmail,
-      correo: cleanEmail,
-      nombres: input.nombres.trim(),
-      apellidos: input.apellidos.trim(),
-    });
-
-    const d = res.data;
-    const hoy = new Date();
-    const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-    const fechaStr = `${String(hoy.getDate()).padStart(2, "0")} ${meses[hoy.getMonth()]} ${hoy.getFullYear()}`;
-
-    return {
-      id: d.id,
-      colaboradorId: d.colaboradorId,
-      nombres: d.nombresSolicitados || input.nombres.trim(),
-      apellidos: d.apellidosSolicitados || input.apellidos.trim(),
-      nombreCompleto: `${d.nombresSolicitados || input.nombres.trim()} ${d.apellidosSolicitados || input.apellidos.trim()}`.trim(),
-      email: d.correoSolicitado || cleanEmail,
-      estado: d.estadoSolicitud || "PENDIENTE",
-      fechaSolicitud: fechaStr,
-      examenesAsignadosIds: [],
-      docenteEmail: currentEmail,
-      docenteNombre: userNombre || "Docente",
-      aprobadoPor: "—",
-      fechaRespuesta: "—",
-      usuarioExiste: Boolean(d.colaboradorId),
-      rol: "Personal de control",
-    };
-  } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Error al enviar la solicitud de colaborador"));
-  }
-}
-
-/**
- * HU13: Da de baja a un colaborador de la nómina del docente.
- */
-export async function darDeBajaColaborador(id: string | number): Promise<Colaborador> {
-  try {
-    const res = await apiClient.patch<Colaborador>(`/colaboradores/${id}/baja`);
-    return res.data;
-  } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Error al dar de baja al colaborador"));
-  }
-}
-
-/**
- * HU13: Aprueba una solicitud de colaborador (Administrador).
- */
-export async function aprobarSolicitud(id: string | number): Promise<Colaborador> {
-  try {
-    const res = await apiClient.patch<Colaborador>(`/colaboradores/solicitudes/${id}/aprobar`);
-    return res.data;
-  } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Error al aprobar la solicitud"));
-  }
-}
-
-/**
- * HU13: Rechaza una solicitud de colaborador (Administrador).
- */
-export async function rechazarSolicitud(id: string | number): Promise<Colaborador> {
-  try {
-    const res = await apiClient.patch<Colaborador>(`/colaboradores/solicitudes/${id}/rechazar`);
-    return res.data;
-  } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Error al rechazar la solicitud"));
-  }
-}
-
-/**
- * HU13: Obtiene los exámenes asignados y disponibles de un colaborador para el docente autenticado.
+ * Obtener exámenes asignados y disponibles de un colaborador.
+ * GET /colaboradores/:colaboradorId/examenes
  */
 export async function getExamenesColaborador(
   colaboradorId: string | number
@@ -150,48 +138,36 @@ export async function getExamenesColaborador(
   asignados: ExamenItem[];
   disponibles: ExamenDisponibleItem[];
 }> {
-  try {
-    const res = await apiClient.get<{
-      colaborador: Colaborador;
-      asignados: ExamenItem[];
-      disponibles: ExamenDisponibleItem[];
-    }>(`/colaboradores/${colaboradorId}/examenes`);
-    return res.data;
-  } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Error al cargar los exámenes del colaborador"));
-  }
+  const { data } = await apiClient.get(
+    `/colaboradores/${colaboradorId}/examenes`
+  );
+  return data;
 }
 
 /**
- * HU13: Asigna un colaborador aprobado a un examen programado del docente.
+ * Asignar un colaborador a un examen programado.
+ * POST /colaboradores/asignar-examen
  */
 export async function asignarExamen(
   colaboradorId: string | number,
   examenId: string | number
 ): Promise<void> {
-  try {
-    await apiClient.post("/colaboradores/asignar-examen", {
-      colaboradorId: Number(colaboradorId),
-      examenId: Number(examenId),
-    });
-  } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Error al asignar examen al colaborador"));
-  }
+  await apiClient.post("/colaboradores/asignar-examen", {
+    colaboradorId: Number(colaboradorId),
+    examenId: Number(examenId),
+  });
 }
 
 /**
- * HU13: Retira a un colaborador de un examen que aún no ha iniciado.
+ * Retirar un colaborador de un examen (solo si no ha iniciado).
+ * POST /colaboradores/desasignar-examen
  */
 export async function quitarExamen(
   colaboradorId: string | number,
   examenId: string | number
 ): Promise<void> {
-  try {
-    await apiClient.post("/colaboradores/desasignar-examen", {
-      colaboradorId: Number(colaboradorId),
-      examenId: Number(examenId),
-    });
-  } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Error al retirar colaborador del examen"));
-  }
+  await apiClient.post("/colaboradores/desasignar-examen", {
+    colaboradorId: Number(colaboradorId),
+    examenId: Number(examenId),
+  });
 }

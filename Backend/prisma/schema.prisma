@@ -26,6 +26,8 @@ model Usuario {
   telefono  String?
   sessionId String?   @map("session_id")
   deletedAt DateTime? @map("deleted_at") @db.Timestamp()
+  debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
+  debeConfigurarPerfil Boolean @default(true) @map("debe_configurar_perfil")
 
   roles              Usuario_Rol[]
   alcances           Usuario_Alcance[]
@@ -286,6 +288,7 @@ model Examen {
   ingresos          Ingreso[]
   controladores     ExamenControlador[]     // HU7/HU13
   incidencias       IncidenciaIngreso[]     // HU12
+    codigosQr         CodigoQr[]              // HU6: QR por examen
 
   @@map("examenes")
 }
@@ -327,6 +330,10 @@ model Estudiante {
   ci       String?
   cargaId  Int?    @map("carga_id")
   usuarioId Int?   @unique @map("usuario_id") // Sprint 2: FK 1:1 con Usuario — permite login por SIS+CI
+  perfilCompleto Boolean @default(false) @map("perfil_completo")
+  fotoUrl  String? @map("foto_url")
+  qrVersion Int     @default(1) @map("qr_version")
+  telefono String?
 
   carga     CargaEstudiantes?   @relation(fields: [cargaId], references: [id])
   usuario   Usuario?            @relation("UsuarioEstudiante", fields: [usuarioId], references: [id])
@@ -334,15 +341,34 @@ model Estudiante {
   codigosQr CodigoQr[]
   ingresos  Ingreso[]
   incidencias IncidenciaIngreso[] // HU12: incidencias asociadas al estudiante
+  
+  fotos     FotoEstudiante[]
 
   @@map("estudiantes")
 }
+
+model FotoEstudiante {
+  id           Int      @id @default(autoincrement())
+  estudianteId Int      @map("estudiante_id")
+  archivo      String   // nombre generado por el servidor
+  hashSha256   String   @map("hash_sha256")
+  estado       String   @default("ACTIVA") // ACTIVA | REEMPLAZADA | RECHAZADA | PENDIENTE
+  similitud    Float?   // puntaje de la comparación (sprint 3)
+  creadaEn     DateTime @default(now()) @map("creada_en")
+
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+
+  @@index([estudianteId, estado])
+  @@map("fotos_estudiante")
+}
+
 
 model Examen_Estudiante {
   estudianteId          Int     @map("id_estudiante")
   examenId              Int     @map("id_examen")
   estado_habilitado     Boolean @default(true)
   motivo_inhabilitacion String? @db.Text
+    
 
   estudiante Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
   examen     Examen     @relation(fields: [examenId], references: [id], onDelete: Cascade)
@@ -357,9 +383,13 @@ model CodigoQr {
   token        String   @unique
   generadoEn   DateTime @map("generado_en") @db.Timestamp()
   expiraEn     DateTime @map("expira_en") @db.Timestamp()
+  tipo         String   @default("personal") @db.VarChar(50)
+  examenId     Int?     @map("examen_id")
 
   estudiante Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  examen     Examen?    @relation(fields: [examenId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  @@index([estudianteId, examenId, tipo], map: "codigos_qr_estudiante_id_examen_id_tipo_idx")
   @@map("codigos_qr")
 }
 
@@ -450,6 +480,7 @@ model IncidenciaIngreso {
   tipoIncidencia     TipoIncidencia @map("tipo_incidencia")
   descripcion        String?        @db.Text
   fechaHora          DateTime       @default(now()) @map("fecha_hora") @db.Timestamp()
+  clienteSyncId      String?        @unique @map("cliente_sync_id") // UUID generado offline para idempotencia
 
   examen      Examen      @relation(fields: [examenId], references: [id])
   controlador Usuario     @relation("ControlRegistraIncidencia", fields: [registradoPor], references: [id])

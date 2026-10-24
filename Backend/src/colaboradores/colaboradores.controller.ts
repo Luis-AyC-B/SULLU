@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseIntPipe,
   UseGuards,
   HttpCode,
@@ -15,6 +16,7 @@ import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -37,6 +39,25 @@ export class ColaboradoresController {
     private readonly examenControladorService: ExamenControladorService,
   ) {}
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // AUTOCOMPLETADO
+  // ─────────────────────────────────────────────────────────────────────────
+
+  @Get('buscar')
+  @Permissions('colaboradores.solicitar')
+  @ApiOperation({
+    summary:
+      'Búsqueda predictiva de estudiantes por código SIS (autocompletado del modal - HU13)',
+  })
+  @ApiQuery({ name: 'codSis', required: true, description: 'Código SIS parcial o completo' })
+  async buscarEstudiantes(@Query('codSis') codSis: string) {
+    return this.docenteColaboradorService.buscarEstudiantesPorCodSis(codSis ?? '');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // NÓMINA DOCENTE
+  // ─────────────────────────────────────────────────────────────────────────
+
   @Get(['nomina', ''])
   @Permissions('colaboradores.ver')
   @ApiOperation({
@@ -48,11 +69,8 @@ export class ColaboradoresController {
 
   @Post('solicitar')
   @Permissions('colaboradores.solicitar')
-  @ApiOperation({ summary: 'Enviar solicitud de colaborador (Docente - HU13)' })
-  @ApiResponse({
-    status: 201,
-    description: 'Solicitud creada en estado PENDIENTE',
-  })
+  @ApiOperation({ summary: 'Enviar solicitud de colaborador por código SIS (Docente - HU13)' })
+  @ApiResponse({ status: 201, description: 'Solicitud creada en estado PENDIENTE' })
   async solicitar(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SolicitarColaboradorDto,
@@ -72,20 +90,35 @@ export class ColaboradoresController {
     return this.docenteColaboradorService.darDeBajaColaborador(user.id, id);
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // PANEL ADMINISTRADOR
+  // ─────────────────────────────────────────────────────────────────────────
+
   @Get('solicitudes')
   @Permissions('colaboradores.ver_solicitudes', 'colaboradores.aprobar')
   @ApiOperation({
     summary:
-      'Listar solicitudes pendientes de colaboradores (Administrador - HU13)',
+      'Listar solicitudes PENDIENTES de colaboradores (Administrador - HU13)',
   })
   async getSolicitudes() {
     return this.docenteColaboradorService.getSolicitudesPendientesAdmin();
   }
 
+  @Get('todos')
+  @Permissions('colaboradores.ver_solicitudes', 'colaboradores.aprobar')
+  @ApiOperation({
+    summary:
+      'Listar TODOS los colaboradores de todos los docentes (Administrador - HU13)',
+  })
+  async getTodos() {
+    return this.docenteColaboradorService.getTodosAdmin();
+  }
+
   @Patch('solicitudes/:id/aprobar')
   @Permissions('colaboradores.aprobar')
   @ApiOperation({
-    summary: 'Aprobar solicitud de colaborador (Administrador - HU13)',
+    summary:
+      'Aprobar solicitud: agrega rol Personal de control al estudiante (Administrador - HU13)',
   })
   async aprobarSolicitud(
     @CurrentUser() user: AuthenticatedUser,
@@ -97,7 +130,8 @@ export class ColaboradoresController {
   @Patch('solicitudes/:id/rechazar')
   @Permissions('colaboradores.aprobar')
   @ApiOperation({
-    summary: 'Rechazar solicitud de colaborador (Administrador - HU13)',
+    summary:
+      'Rechazar solicitud: el estudiante conserva solo rol Estudiante (Administrador - HU13)',
   })
   async rechazarSolicitud(
     @CurrentUser() user: AuthenticatedUser,
@@ -105,6 +139,10 @@ export class ColaboradoresController {
   ) {
     return this.docenteColaboradorService.rechazarSolicitud(id, user.id);
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GESTIÓN DE EXÁMENES
+  // ─────────────────────────────────────────────────────────────────────────
 
   @Get(':colaboradorId/examenes')
   @Permissions('colaboradores.ver', 'colaboradores.asignar_examen')
@@ -142,23 +180,20 @@ export class ColaboradoresController {
   @HttpCode(HttpStatus.OK)
   @Permissions('colaboradores.desasignar_examen')
   @ApiOperation({
-    summary: 'Retirar colaborador de un examen futuro (Docente - HU13)',
+    summary: 'Retirar colaborador de un examen futuro vía DELETE (Docente - HU13)',
   })
   async desasignarExamen(
     @Param('examenId', ParseIntPipe) examenId: number,
     @Param('colaboradorId', ParseIntPipe) colaboradorId: number,
   ) {
-    return this.examenControladorService.desasignarControlador(
-      examenId,
-      colaboradorId,
-    );
+    return this.examenControladorService.desasignarControlador(examenId, colaboradorId);
   }
 
   @Post('desasignar-examen')
   @HttpCode(HttpStatus.OK)
   @Permissions('colaboradores.desasignar_examen')
   @ApiOperation({
-    summary: 'Retirar colaborador de un examen vía POST (Docente - HU13)',
+    summary: 'Retirar colaborador de un examen vía POST body (Docente - HU13)',
   })
   async desasignarExamenBody(@Body() dto: AsignarExamenDto) {
     return this.examenControladorService.desasignarControlador(

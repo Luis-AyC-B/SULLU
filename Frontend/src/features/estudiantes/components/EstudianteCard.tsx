@@ -17,6 +17,8 @@ export function EstudianteCard({
   onHabilitarClick,
 }: EstudianteCardProps) {
   const isHabilitado = estudiante.estado_habilitado;
+  const correoInstitucional =
+    estudiante.correo || `${estudiante.cod_sis.toLowerCase()}@est.umss.edu.bo`;
 
   return (
     <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs space-y-3">
@@ -33,9 +35,14 @@ export function EstudianteCard({
               <span className="text-xs text-slate-600">CI: {estudiante.ci}</span>
             )}
           </div>
+          <div className="mt-1">
+            <span className="text-xs text-slate-500 font-mono">
+              {correoInstitucional}
+            </span>
+          </div>
         </div>
 
-        {/* Botón de acción (solo si tiene permisos y el examen no ha concluido) */}
+        {/* Botón de acción */}
         {canHabilitar && (
           <div>
             {isHabilitado ? (
@@ -52,7 +59,7 @@ export function EstudianteCard({
               <button
                 type="button"
                 onClick={() => onHabilitarClick(estudiante)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 transition-colors cursor-pointer"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
                 title={`Habilitar a ${estudiante.nombre}`}
                 aria-label={`Habilitar a ${estudiante.nombre}`}
               >
@@ -63,26 +70,19 @@ export function EstudianteCard({
         )}
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-        <div>
-          {isHabilitado ? (
-            <span className="inline-flex items-center rounded-full bg-[#EBFDF3] px-2 py-0.5 text-[10px] font-semibold text-[#027A48] border border-[#ABEFC6]">
-              Habilitado
-            </span>
-          ) : estudiante.motivo_inhabilitacion ? (
-            <span className="inline-flex items-center rounded-full bg-[#FEF3F2] px-2 py-0.5 text-[10px] font-semibold text-[#B42318] border border-[#FECDCA]">
-              Inhabilitado
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-full bg-[#F8F9FA] px-2 py-0.5 text-[10px] font-semibold text-slate-600 border border-slate-200">
-              No habilitado
-            </span>
-          )}
-        </div>
-
-        {estudiante.motivo_inhabilitacion && (
-          <span className="text-[#D92D20] text-xs font-medium text-right truncate max-w-[200px]">
-            {estudiante.motivo_inhabilitacion}
+      <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
+        <span className="text-xs text-slate-600">Estado</span>
+        {isHabilitado ? (
+          <span className="inline-flex items-center rounded-full bg-[#EBFDF3] px-2.5 py-0.5 text-[11px] font-semibold text-[#027A48] border border-[#ABEFC6]">
+            Habilitado
+          </span>
+        ) : estudiante.motivo_inhabilitacion ? (
+          <span className="inline-flex items-center rounded-full bg-[#FEF3F2] px-2.5 py-0.5 text-[11px] font-semibold text-[#B42318] border border-[#FECDCA]">
+            Inhabilitado
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full bg-[#F8F9FA] px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 border border-slate-200">
+            No habilitado
           </span>
         )}
       </div>

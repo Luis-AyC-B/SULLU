@@ -1,6 +1,6 @@
 "use client";
 
-import { UserCheck, UserPlus } from "lucide-react";
+import { UserCheck } from "lucide-react";
 import { Colaborador } from "../schemas/colaborador.schema";
 
 interface AdminSolicitudAprobarModalProps {
@@ -43,39 +43,28 @@ export function AdminSolicitudAprobarModal({
         </p>
 
         {/* Caja de detalles */}
-        <div className="bg-gray-50/80 border border-gray-100 rounded-2xl p-4 space-y-3 text-left mb-4">
+        <div className="bg-gray-50/80 border border-gray-100 rounded-2xl p-4 space-y-3 text-left mb-6">
           <div>
             <span className="block text-xs text-gray-500">Docente</span>
             <span className="font-bold text-[#003770] text-sm">
               {colaborador.docenteNombre || "Docente"}
             </span>
           </div>
+          {colaborador.codSis && (
+            <div>
+              <span className="block text-xs text-gray-500">Código SIS</span>
+              <span className="font-mono font-bold text-[#003770] text-sm">
+                {colaborador.codSis}
+              </span>
+            </div>
+          )}
           <div>
             <span className="block text-xs text-gray-500">Colaborador</span>
             <span className="font-bold text-[#003770] text-sm">
               {colaborador.nombreCompleto}
             </span>
           </div>
-          <div>
-            <span className="block text-xs text-gray-500">Correo</span>
-            <span className="font-bold text-[#003770] text-sm break-all">
-              {colaborador.email}
-            </span>
-          </div>
         </div>
-
-        {/* Tag oficial de tipo de usuario (amarillo/durazno para nuevo, verde para existente) */}
-        {!colaborador.usuarioExiste ? (
-          <div className="bg-[#fef3c7] border border-[#fde68a] text-[#92400e] rounded-xl p-2.5 text-xs font-semibold flex items-center gap-2 mb-6">
-            <UserPlus className="h-4 w-4 shrink-0" />
-            <span>Usuario nuevo: se creará la cuenta</span>
-          </div>
-        ) : (
-          <div className="bg-[#f0fdf4] border border-[#bbf7d0] text-[#166534] rounded-xl p-2.5 text-xs font-semibold flex items-center gap-2 mb-6">
-            <UserCheck className="h-4 w-4 shrink-0" />
-            <span>Usuario existente: se vinculará al docente</span>
-          </div>
-        )}
 
         {/* Botones de acción */}
         <div className="flex items-center gap-3">

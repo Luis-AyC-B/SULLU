@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { X, Info, AlertCircle } from "lucide-react";
-import { SolicitudColaboradorInput, SolicitudColaboradorSchema } from "../schemas/colaborador.schema";
+import { useState, useEffect, useRef } from "react";
+import { X, Info, AlertCircle, Search, Loader2 } from "lucide-react";
+import {
+  SolicitudColaboradorInput,
+  EstudianteRegistrado,
+} from "../schemas/colaborador.schema";
+import { buscarEstudiantesPorCodSis } from "../api/colaboradores.api";
 
 interface SolicitarColaboradorModalProps {
   isOpen: boolean;
@@ -17,48 +21,129 @@ export function SolicitarColaboradorModal({
   onSubmit,
   userEmail,
 }: SolicitarColaboradorModalProps) {
-  const [email, setEmail] = useState("");
-  const [nombres, setNombres] = useState("");
-  const [apellidos, setApellidos] = useState("");
+  const [codSisInput, setCodSisInput] = useState("");
+  const [estudianteSeleccionado, setEstudianteSeleccionado] =
+    useState<EstudianteRegistrado | null>(null);
+
+  const [coincidencias, setCoincidencias] = useState<EstudianteRegistrado[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [campoFaltante, setCampoFaltante] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Cerrar dropdown al hacer click afuera
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Búsqueda de códigos SIS a medida que el docente escribe
+  useEffect(() => {
+    const query = codSisInput.trim();
+
+    if (!query) {
+      setCoincidencias([]);
+      setShowDropdown(false);
+      setIsSearching(false);
+      return;
+    }
+
+    // Si ya coincide con el estudiante seleccionado, no hace falta buscar de nuevo
+    if (estudianteSeleccionado && estudianteSeleccionado.codSis === query) {
+      return;
+    }
+
+    let isMounted = true;
+    setIsSearching(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const results = await buscarEstudiantesPorCodSis(query);
+        if (isMounted) {
+          setCoincidencias(results);
+          setShowDropdown(true);
+        }
+      } finally {
+        if (isMounted) setIsSearching(false);
+      }
+    }, 150);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [codSisInput, estudianteSeleccionado]);
 
   if (!isOpen) return null;
 
   const handleClose = () => {
     if (isSubmitting) return;
-    setEmail("");
-    setNombres("");
-    setApellidos("");
+    setCodSisInput("");
+    setEstudianteSeleccionado(null);
+    setCoincidencias([]);
     setErrorMsg(null);
+    setCampoFaltante(false);
+    setShowDropdown(false);
     onClose();
+  };
+
+  const handleCodSisChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, ""); // Solo números para código SIS
+    setCodSisInput(val);
+    setErrorMsg(null);
+    setCampoFaltante(false);
+
+    // Si modifica el texto, se invalida la selección previa para exigir seleccionar de la lista
+    if (estudianteSeleccionado && estudianteSeleccionado.codSis !== val) {
+      setEstudianteSeleccionado(null);
+    }
+  };
+
+  const handleSelectEstudiante = (est: EstudianteRegistrado) => {
+    setCodSisInput(est.codSis);
+    setEstudianteSeleccionado(est);
+    setShowDropdown(false);
+    setCampoFaltante(false);
+    setErrorMsg(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (cleanEmail === userEmail.trim().toLowerCase()) {
-      setErrorMsg("No puedes agregarte a ti mismo como colaborador.");
-      return;
-    }
-
-    const validation = SolicitudColaboradorSchema.safeParse({
-      email: cleanEmail,
-      nombres,
-      apellidos,
-    });
-
-    if (!validation.success) {
-      setErrorMsg(validation.error.issues[0]?.message || "Datos incompletos o inválidos");
+    // Criterio: Sin seleccionar un código de la lista no se puede enviar la solicitud
+    if (!estudianteSeleccionado || codSisInput.trim() !== estudianteSeleccionado.codSis) {
+      setCampoFaltante(true);
+      setErrorMsg(
+        codSisInput.trim()
+          ? "Debes seleccionar un código SIS válido de la lista desplegable."
+          : "El campo de Código SIS es obligatorio."
+      );
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const res = await onSubmit(validation.data);
+      const res = await onSubmit({
+        codSis: estudianteSeleccionado.codSis,
+        nombre: estudianteSeleccionado.nombre,
+        apellido: estudianteSeleccionado.apellido,
+        email: estudianteSeleccionado.email,
+        estudianteId: estudianteSeleccionado.id,
+      });
+
       if (!res.success) {
         setErrorMsg(res.error || "Error al enviar la solicitud");
       } else {
@@ -108,56 +193,97 @@ export function SolicitarColaboradorModal({
 
         {/* Formulario */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          {/* 1. CAMPO CÓDIGO SIS CON BÚSQUEDA Y AUTOCOMPLETADO */}
+          <div className="relative" ref={dropdownRef}>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              CORREO ELECTRÓNICO
+              CÓDIGO SIS
             </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="nombre@umss.edu.bo"
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-slate-800 placeholder-gray-400 focus:outline-none focus:border-[#003770] focus:ring-1 focus:ring-[#003770] transition-colors"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={codSisInput}
+                onChange={handleCodSisChange}
+                onFocus={() => {
+                  if (codSisInput.trim().length > 0) {
+                    setShowDropdown(true);
+                  }
+                }}
+                placeholder="Ingresa el código SIS"
+                disabled={isSubmitting}
+                className={`w-full rounded-xl border px-4 py-2.5 text-sm text-slate-800 placeholder-gray-400 focus:outline-none transition-colors ${
+                  campoFaltante
+                    ? "border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-rose-50/20"
+                    : "border-gray-200 focus:border-[#003770] focus:ring-1 focus:ring-[#003770]"
+                }`}
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                {isSearching ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-[#003770]" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </div>
+            </div>
+
+            {/* Lista de coincidencias con códigos SIS (sin nombre ni apellido, según criterio) */}
+            {showDropdown && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 max-h-48 overflow-y-auto animate-in fade-in duration-150">
+                {coincidencias.length === 0 ? (
+                  <div className="p-3 text-xs text-rose-600 font-medium text-center">
+                    No se encontraron estudiantes con ese código SIS
+                  </div>
+                ) : (
+                  <div className="py-1 divide-y divide-gray-100">
+                    {coincidencias.map((est) => (
+                      <button
+                        key={est.id}
+                        type="button"
+                        onClick={() => handleSelectEstudiante(est)}
+                        className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-blue-50/80 hover:text-[#003770] transition-colors cursor-pointer flex items-center justify-between"
+                      >
+                        <span className="font-mono tracking-wider">{est.codSis}</span>
+                        <span className="text-[11px] text-gray-400 font-normal">
+                          Seleccionar
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
+          {/* 2. CAMPO NOMBRE (Autocompletado, no se edita a mano) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              NOMBRES
+              NOMBRE
             </label>
             <input
               type="text"
-              value={nombres}
-              onChange={(e) => setNombres(e.target.value)}
-              placeholder="Ingresa los nombres"
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-slate-800 placeholder-gray-400 focus:outline-none focus:border-[#003770] focus:ring-1 focus:ring-[#003770] transition-colors"
+              value={estudianteSeleccionado?.nombre || ""}
+              readOnly
+              tabIndex={-1}
+              placeholder="Se autocompleta con el código SIS"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-2.5 text-sm text-slate-700 placeholder-gray-400 cursor-not-allowed select-none focus:outline-none"
             />
           </div>
 
+          {/* 3. CAMPO APELLIDO (Autocompletado, no se edita a mano) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              APELLIDOS
+              APELLIDO
             </label>
             <input
               type="text"
-              value={apellidos}
-              onChange={(e) => setApellidos(e.target.value)}
-              placeholder="Ingresa los apellidos"
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-slate-800 placeholder-gray-400 focus:outline-none focus:border-[#003770] focus:ring-1 focus:ring-[#003770] transition-colors"
+              value={estudianteSeleccionado?.apellido || ""}
+              readOnly
+              tabIndex={-1}
+              placeholder="Se autocompleta con el código SIS"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-2.5 text-sm text-slate-700 placeholder-gray-400 cursor-not-allowed select-none focus:outline-none"
             />
           </div>
 
-          {/* Nota informativa */}
-          <div className="flex items-start gap-2 pt-1 text-xs text-gray-500">
-            <Info className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
-            <span>La solicitud será revisada antes de activar al colaborador.</span>
-          </div>
+
 
           {/* Botones de acción */}
           <div className="flex items-center justify-end gap-3 pt-4">

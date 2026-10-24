@@ -49,7 +49,6 @@ export function getLandingRoute(permisos?: string[]): string {
     if (tienePermisoDe(permisos, prefijo)) return ruta;
   }
 
-  // Fallback: primer módulo configurado en el sistema que coincida con algún permiso
   const firstMatch = modules.find((m) => tienePermisoDe(permisos, m.clave));
   return firstMatch ? firstMatch.ruta : '/usuarios';
 }

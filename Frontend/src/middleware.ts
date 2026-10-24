@@ -7,6 +7,7 @@ const redirectsPorModulo: [string, string][] = [
   ['roles', '/roles'],
   ['examenes', '/examenes'],
   ['estudiantes', '/estudiantes'],
+  ['reportes', '/reportes'],
   ['ambientes', '/ambientes'],
   ['control_ingreso', '/control-ingreso'],
   ['registro_ingresos', '/ingresos'],
@@ -33,8 +34,6 @@ export default withAuth(
     }
 
     // 2. Control de Acceso Basado en Roles / Permisos (Escenario Negativo 4)
-    // "Dado que el usuario ya inició sesión, cuando intenta acceder a una función que no corresponde a su rol,
-    // entonces el sistema bloquea el acceso a esa función."
     if (token) {
       const permisos = (token.permisos as string[]) || [];
 
@@ -82,8 +81,16 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         const pathname = req.nextUrl.pathname;
-        // La pantalla de login y unauthorized son públicas
-        if (pathname.startsWith('/login') || pathname.startsWith('/unauthorized') || pathname.startsWith('/recuperar-password')) {
+        // Rutas públicas accesibles sin autenticación previa y recursos estáticos
+        if (
+          pathname.startsWith('/login') ||
+          pathname.startsWith('/unauthorized') ||
+          pathname.startsWith('/recuperar-password') ||
+          pathname.startsWith('/validar-qr') ||
+          pathname === '/qr/v' || // NUEVO: vista pública del QR (HU6)
+          pathname.startsWith('/qr/v/') || // NUEVO: vista pública del QR (HU6)
+          /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$/.test(pathname)
+        ) {
           return true;
         }
         // El resto de rutas protegidas del dashboard requieren sesión activa
@@ -98,6 +105,6 @@ export const config = {
     /*
      * Aplica el middleware a todas las rutas excepto archivos estáticos, api auth e imágenes
      */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.svg|.*\\.png|.*\\.jpg).*)',
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

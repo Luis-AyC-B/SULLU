@@ -14,7 +14,7 @@ export function DesktopAccionesPanel({
   const isEnabled = selectedExam !== null;
 
   return (
-    <div className="hidden lg:block w-80 xl:w-96 shrink-0">
+    <div className="hidden md:block w-60 lg:w-72 xl:w-80 shrink-0">
       <div className="sticky top-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs">
         <h2 className="text-base font-semibold text-slate-900 mb-4">
           Acciones de registro
@@ -25,6 +25,11 @@ export function DesktopAccionesPanel({
             <p className="font-bold text-slate-900 text-sm">
               {selectedExam.asignatura}
             </p>
+            {selectedExam.docente && (
+              <p className="text-xs font-medium text-slate-500 mt-0.5">
+                Docente: {selectedExam.docente}
+              </p>
+            )}
             <p className="text-xs text-slate-600 mt-1">
               {selectedExam.ambiente} · {selectedExam.horario}
             </p>

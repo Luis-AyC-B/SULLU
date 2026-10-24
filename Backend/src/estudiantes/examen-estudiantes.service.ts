@@ -1,23 +1,30 @@
 import {
-  BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
+  BadRequestException,
+  ConflictException,
   PayloadTooLargeException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service'; // AJUSTAR si tu ruta es otra
+import { PrismaService } from '../prisma/prisma.service';
+import { CargasEstudiantesService } from '../cargas-estudiantes/cargas-estudiantes.service';
+import {
+  parsearCsvEstudiantes,
+  DOMINIOS_ESTUDIANTE,
+  esCorreoInstitucionalValido,
+} from '../cargas-estudiantes/cargas-estudiantes.parser';
 import { QueryEstudiantesExamenDto } from './dto/query-estudiantes-examen.dto';
 import { CreateEstudianteExamenDto } from './dto/create-estudiante-examen.dto';
 import { UpdateEstadoEstudianteDto } from './dto/update-estado-estudiante.dto';
-import { parsearCsvEstudiantes } from '../cargas-estudiantes/cargas-estudiantes.parser';
-import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ExamenEstudiantesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cargasEstudiantesService: CargasEstudiantesService,
+  ) {}
 
   // ==========================================
-  // Task 7 - GET listar estudiantes por examen
+  // Task 7 - GET lista paginada de estudiantes por examen
   // ==========================================
   async findByExamen(examenId: number, query: QueryEstudiantesExamenDto) {
     const examen = await this.prisma.examen.findUnique({
@@ -26,7 +33,6 @@ export class ExamenEstudiantesService {
     if (!examen) {
       throw new NotFoundException('Examen no encontrado');
     }
-    // TODO: validación 403 "responsable del examen o Administrador"
 
     const { q, estado, page, limit } = query;
 
@@ -49,7 +55,13 @@ export class ExamenEstudiantesService {
       this.prisma.examen_Estudiante.count({ where }),
       this.prisma.examen_Estudiante.findMany({
         where,
-        include: { estudiante: true },
+        include: {
+          estudiante: {
+            include: {
+              usuario: true,
+            },
+          },
+        },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { estudiante: { apellido: 'asc' } },
@@ -66,10 +78,21 @@ export class ExamenEstudiantesService {
         nombre: ee.estudiante.nombre,
         apellido: ee.estudiante.apellido,
         ci: ee.estudiante.ci,
+        correo:
+          ee.estudiante.usuario?.correo ??
+          `${ee.estudiante.cod_sis.toLowerCase()}@est.umss.edu.bo`,
         estado_habilitado: ee.estado_habilitado,
         motivo_inhabilitacion: ee.motivo_inhabilitacion,
       })),
     };
+  }
+
+  // Alias para compatibilidad
+  listarEstudiantesPorExamen(
+    examenId: number,
+    query: QueryEstudiantesExamenDto,
+  ) {
+    return this.findByExamen(examenId, query);
   }
 
   // ==========================================
@@ -82,75 +105,63 @@ export class ExamenEstudiantesService {
     if (!examen) {
       throw new NotFoundException('Examen no encontrado');
     }
-    // TODO: validación 403 "responsable del examen o Administrador"
 
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Buscar o crear en el catálogo global por cod_sis
-      let estudiante = await tx.estudiante.findUnique({
-        where: { cod_sis: dto.cod_sis },
-      });
+    const codSisLimpio = dto.cod_sis.trim();
+    const correoGenerado = `${codSisLimpio.toLowerCase()}@est.umss.edu.bo`;
+    let correoFinal = correoGenerado;
 
-      let advertencia: string | undefined;
-      let estudiante_reutilizado = false;
-
-      if (!estudiante) {
-        estudiante = await tx.estudiante.create({
-          data: {
-            cod_sis: dto.cod_sis,
-            nombre: dto.nombre,
-            apellido: dto.apellido,
-            ci: dto.ci,
-          },
-        });
-      } else {
-        estudiante_reutilizado = true;
-        // Si el código existe con otro nombre: se reutiliza SIN modificar
-        const nombreDistinto =
-          estudiante.nombre !== dto.nombre ||
-          estudiante.apellido !== dto.apellido;
-        if (nombreDistinto) {
-          advertencia = `El código ${dto.cod_sis} ya existe registrado como "${estudiante.nombre} ${estudiante.apellido ?? ''}". Se usó el registro existente sin modificarlo.`;
-        }
-      }
-
-      // 2. Verificar si ya está vinculado a este examen
-      const yaVinculado = await tx.examen_Estudiante.findUnique({
-        where: {
-          estudianteId_examenId: {
-            estudianteId: estudiante.id,
-            examenId,
-          },
-        },
-      });
-
-      if (yaVinculado) {
-        throw new ConflictException(
-          'El estudiante ya está registrado en este examen',
+    if (dto.correo) {
+      const correoLimpio = dto.correo.trim().toLowerCase();
+      if (!esCorreoInstitucionalValido(correoLimpio)) {
+        throw new BadRequestException(
+          `El correo debe pertenecer a un dominio institucional válido (${DOMINIOS_ESTUDIANTE.join(', ')})`,
         );
       }
+      correoFinal = correoLimpio;
+    }
 
-      // 3. Vincular al examen con estado inicial Habilitado
-      const vinculo = await tx.examen_Estudiante.create({
-        data: {
-          estudianteId: estudiante.id,
-          examenId,
-          estado_habilitado: true,
-        },
-      });
+    const resultado =
+      await this.cargasEstudiantesService.procesarEstudiantesParaExamen(
+        examenId,
+        [
+          {
+            fila: 1,
+            nombre: dto.nombre.trim(),
+            apellido: dto.apellido.trim(),
+            cod_sis: codSisLimpio,
+            ci: dto.ci?.trim() || null,
+            correo: correoFinal,
+          },
+        ],
+        1,
+        [],
+        [],
+      );
 
-      return {
-        estudiante: {
-          estudiante_id: estudiante.id,
-          cod_sis: estudiante.cod_sis,
-          nombre: estudiante.nombre,
-          apellido: estudiante.apellido,
-          ci: estudiante.ci,
-          estado_habilitado: vinculo.estado_habilitado,
-        },
-        estudiante_reutilizado,
-        ...(advertencia && { advertencia }),
-      };
-    });
+    if (resultado.rechazados.length > 0) {
+      throw new BadRequestException(resultado.rechazados[0].motivo);
+    }
+
+    const info = resultado.resultadosPorSis.get(codSisLimpio);
+    if (info?.ya_vinculado) {
+      throw new ConflictException(
+        'El estudiante ya está registrado en este examen',
+      );
+    }
+
+    return {
+      estudiante: {
+        estudiante_id: info?.estudianteId,
+        cod_sis: dto.cod_sis,
+        nombre: dto.nombre,
+        apellido: dto.apellido,
+        ci: dto.ci ?? null,
+        correo: correoFinal,
+        estado_habilitado: info?.estado_habilitado ?? true,
+      },
+      estudiante_reutilizado: resultado.resumen.estudiantes_reutilizados > 0,
+      ...(resultado.avisos[0] && { advertencia: resultado.avisos[0].motivo }),
+    };
   }
 
   // ==========================================
@@ -163,7 +174,6 @@ export class ExamenEstudiantesService {
     if (!examen) {
       throw new NotFoundException('Examen no encontrado');
     }
-    // TODO: validación 403 "responsable del examen o Administrador"
 
     if (!archivo) {
       throw new BadRequestException('No se recibió ningún archivo');
@@ -181,140 +191,61 @@ export class ExamenEstudiantesService {
       throw new BadRequestException('Formato de archivo no soportado');
     }
 
-    const { totalFilas, validas, rechazados } = parsearCsvEstudiantes(
+    const { totalFilas, validas, rechazados, avisos } = parsearCsvEstudiantes(
       archivo.buffer,
     );
 
-    let estudiantes_creados = 0;
-    let estudiantes_reutilizados = 0;
-    let vinculados_nuevos = 0;
-    let ya_vinculados = 0;
-
-    if (validas.length > 0) {
-      await this.prisma.$transaction(async (tx) => {
-        for (const fila of validas) {
-          const estudianteExistente = await tx.estudiante.findUnique({
-            where: { cod_sis: fila.cod_sis },
-          });
-
-          const estudiante = await tx.estudiante.upsert({
-            where: { cod_sis: fila.cod_sis },
-            update: {},
-            create: {
-              cod_sis: fila.cod_sis,
-              nombre: fila.nombre,
-              apellido: fila.apellido,
-              ci: fila.ci,
-            },
-          });
-
-          if (estudianteExistente) {
-            estudiantes_reutilizados++;
-          } else {
-            estudiantes_creados++;
-          }
-
-          const vinculoExistente = await tx.examen_Estudiante.findUnique({
-            where: {
-              estudianteId_examenId: {
-                estudianteId: estudiante.id,
-                examenId,
-              },
-            },
-          });
-
-          if (vinculoExistente) {
-            ya_vinculados++;
-            continue; // no pisar estado existente (ej. un Inhabilitado)
-          }
-
-          try {
-            await tx.examen_Estudiante.create({
-              data: {
-                estudianteId: estudiante.id,
-                examenId,
-                estado_habilitado: true,
-              },
-            });
-            vinculados_nuevos++;
-          } catch (err: unknown) {
-            if (
-              err instanceof Prisma.PrismaClientKnownRequestError &&
-              err.code === 'P2002'
-            ) {
-              ya_vinculados++;
-            } else {
-              throw err;
-            }
-          }
-        }
-      });
-    }
-
-    return {
-      resumen: {
-        total_filas: totalFilas,
-        procesadas: validas.length,
-        rechazadas: rechazados.length,
-        estudiantes_creados,
-        estudiantes_reutilizados,
-        vinculados_nuevos,
-        ya_vinculados,
-      },
+    return this.cargasEstudiantesService.procesarEstudiantesParaExamen(
+      examenId,
+      validas,
+      totalFilas,
       rechazados,
-    };
+      avisos,
+    );
   }
 
   // ==========================================
-  // Task 10 - PATCH actualizar estado de habilitación
+  // Task 10 - PATCH inhabilitar / habilitar estudiante
   // ==========================================
   async actualizarEstado(
     examenId: number,
     estudianteId: number,
     dto: UpdateEstadoEstudianteDto,
   ) {
-    const examen = await this.prisma.examen.findUnique({
-      where: { id: examenId },
-    });
-    if (!examen) {
-      throw new NotFoundException('Examen no encontrado');
-    }
-    // TODO: validación 403 "responsable del examen o Administrador"
-
     const vinculo = await this.prisma.examen_Estudiante.findUnique({
       where: {
-        estudianteId_examenId: {
-          estudianteId,
-          examenId,
-        },
+        estudianteId_examenId: { estudianteId, examenId },
       },
     });
 
     if (!vinculo) {
-      throw new NotFoundException('Estudiante no registrado en el examen');
+      throw new NotFoundException('Estudiante no encontrado en este examen');
     }
 
-    const actualizado = await this.prisma.examen_Estudiante.update({
+    if (!dto.estado_habilitado && !dto.motivo_inhabilitacion?.trim()) {
+      throw new BadRequestException(
+        'El motivo es obligatorio al inhabilitar a un estudiante',
+      );
+    }
+
+    return this.prisma.examen_Estudiante.update({
       where: {
-        estudianteId_examenId: {
-          estudianteId,
-          examenId,
-        },
+        estudianteId_examenId: { estudianteId, examenId },
       },
       data: {
         estado_habilitado: dto.estado_habilitado,
-        // Si se habilita, el motivo se borra; si se inhabilita, se guarda el motivo recibido
         motivo_inhabilitacion: dto.estado_habilitado
           ? null
-          : dto.motivo_inhabilitacion,
+          : dto.motivo_inhabilitacion?.trim(),
       },
     });
+  }
 
-    return {
-      estudiante_id: actualizado.estudianteId,
-      examen_id: actualizado.examenId,
-      estado_habilitado: actualizado.estado_habilitado,
-      motivo_inhabilitacion: actualizado.motivo_inhabilitacion,
-    };
+  cambiarEstado(
+    examenId: number,
+    estudianteId: number,
+    dto: UpdateEstadoEstudianteDto,
+  ) {
+    return this.actualizarEstado(examenId, estudianteId, dto);
   }
 }

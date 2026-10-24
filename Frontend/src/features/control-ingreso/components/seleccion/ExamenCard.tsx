@@ -24,7 +24,7 @@ export function ExamenCard({ examen, isSelected, onSelect }: ExamenCardProps) {
           onSelect(examen);
         }
       }}
-      className={`relative w-full rounded-2xl bg-white p-5 md:p-6 transition-all duration-200 cursor-pointer select-none text-left shadow-xs outline-none ${
+      className={`relative w-full rounded-2xl bg-white p-5 md:p-6 transition-all duration-200 cursor-pointer select-none text-left shadow-xs outline-none overflow-hidden ${
         isSelected
           ? "border-2 border-[#002D62] ring-1 ring-[#002D62]/10 shadow-sm"
           : "border border-slate-200 hover:border-slate-300 hover:shadow-xs"
@@ -60,22 +60,28 @@ export function ExamenCard({ examen, isSelected, onSelect }: ExamenCardProps) {
       </div>
 
       {/* Nombre de la asignatura */}
-      <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-3 tracking-tight">
+      <h3 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
         {examen.asignatura}
       </h3>
+      {examen.docente && (
+        <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5 mb-3">
+          Docente: {examen.docente}
+        </p>
+      )}
+      {!examen.docente && <div className="mb-3" />}
 
       {/* Fila inferior: Fecha, Horario y Ambiente */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs md:text-sm text-slate-600">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs md:text-sm text-slate-600">
         <div className="flex items-center gap-1.5 shrink-0">
           <Clock className="h-4 w-4 text-slate-500 shrink-0" />
           <span>
-            {examen.fecha} &nbsp;{examen.horario}
+            {examen.fecha}&nbsp;{examen.horario}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           <BookOpen className="h-4 w-4 text-slate-500 shrink-0" />
-          <span>{examen.ambiente}</span>
+          <span className="truncate">{examen.ambiente}</span>
         </div>
       </div>
     </div>
