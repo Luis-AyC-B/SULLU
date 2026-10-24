@@ -165,6 +165,7 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
       <div className="flex flex-col gap-4">
         <ResumenEnVivoCard resumen={resumen} isLoading={isLoading} />
         <AccionesOperativasGrid
+          examen={examen}
           onAbrirRegistroManual={() => setIsModalManualOpen(true)}
           onAbrirScanner={() => setIsScannerOpen(true)}
         />
