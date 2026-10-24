@@ -59,7 +59,7 @@ export function ReservaCancelarDialog({
             type="button"
             disabled={isProcessing}
             onClick={onClose}
-            className="px-4 py-2.5 rounded-lg text-sm font-medium text-foreground/80 hover:bg-muted transition-colors"
+            className="border border-gray-300 text-gray-700 font-medium px-5 py-2.5 rounded-xl hover:bg-gray-50 text-sm transition-colors cursor-pointer"
           >
             Volver
           </button>
@@ -67,7 +67,7 @@ export function ReservaCancelarDialog({
             type="button"
             disabled={isProcessing}
             onClick={() => onConfirm(reserva)}
-            className="px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 active:bg-red-800 transition-colors shadow-xs disabled:opacity-50"
+            className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 active:bg-red-800 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {isProcessing ? "Cancelando..." : "Sí, cancelar reserva"}
           </button>
