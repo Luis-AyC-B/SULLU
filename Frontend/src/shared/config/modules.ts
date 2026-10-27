@@ -52,7 +52,7 @@ export const modules: Modulo[] = [
   },
   {
     clave: "registro_ingresos",
-    label: "Registro de ingresos",
+    label: "Lista de ingresos",
     ruta: "/ingresos",
     icon: ListChecks,
   },
