@@ -72,7 +72,7 @@ export class IngresosService {
     estadoExamen: EstadoExamen,
     fecha: Date,
     horaIni?: Date | null,
-    _horaFin?: Date | null,
+    horaFin?: Date | null,
   ): 'EN_CURSO' | 'PROXIMO' | 'FINALIZADO' {
     if (
       estadoExamen === EstadoExamen.FINALIZADO ||
@@ -94,6 +94,10 @@ export class IngresosService {
       return 'PROXIMO';
     }
 
+    if (fechaYMD < hoyYMD) {
+      return 'FINALIZADO';
+    }
+
     if (fechaYMD === hoyYMD && horaIni) {
       const ahora = new Date();
       const horaStr = ahora.toLocaleTimeString('en-US', {
@@ -105,8 +109,17 @@ export class IngresosService {
       const [h, m] = horaStr.split(':').map(Number);
       const ahoraMinutos = h * 60 + m;
       const iniMinutos = horaIni.getUTCHours() * 60 + horaIni.getUTCMinutes();
-      if (ahoraMinutos < iniMinutos) {
+      // Permitido desde 15 minutos antes del inicio del examen
+      const ventanaAperturaMinutos = iniMinutos - 15;
+      if (ahoraMinutos < ventanaAperturaMinutos) {
         return 'PROXIMO';
+      }
+
+      if (horaFin) {
+        const finMinutos = horaFin.getUTCHours() * 60 + horaFin.getUTCMinutes();
+        if (ahoraMinutos > finMinutos) {
+          return 'FINALIZADO';
+        }
       }
     }
 
@@ -537,6 +550,11 @@ export class IngresosService {
   ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: dto.examenId },
+      include: {
+        reservaAmbiente: {
+          include: { horarioFijo: true },
+        },
+      },
     });
 
     if (!examen) {
@@ -549,6 +567,25 @@ export class IngresosService {
 
     if (examen.estado === EstadoExamen.FINALIZADO) {
       throw new BadRequestException('El examen ya ha finalizado');
+    }
+
+    if (examen.reservaAmbiente?.fecha && examen.reservaAmbiente?.horarioFijo) {
+      const estadoCalculado = this.calcularEstado(
+        examen.estado,
+        examen.reservaAmbiente.fecha,
+        examen.reservaAmbiente.horarioFijo.horaIni,
+        examen.reservaAmbiente.horarioFijo.horaFin,
+      );
+
+      if (estadoCalculado === 'PROXIMO') {
+        throw new BadRequestException(
+          'El registro de ingreso se habilita 15 minutos antes del inicio del examen',
+        );
+      }
+
+      if (estadoCalculado === 'FINALIZADO') {
+        throw new BadRequestException('El examen ya ha finalizado');
+      }
     }
 
     const esAdmin = await this.verificarEsAdmin(registradoPorId);
@@ -708,6 +745,11 @@ export class IngresosService {
   ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: dto.examenId },
+      include: {
+        reservaAmbiente: {
+          include: { horarioFijo: true },
+        },
+      },
     });
 
     if (!examen) {
@@ -720,6 +762,25 @@ export class IngresosService {
 
     if (examen.estado === EstadoExamen.FINALIZADO) {
       throw new BadRequestException('El examen ya ha finalizado');
+    }
+
+    if (examen.reservaAmbiente?.fecha && examen.reservaAmbiente?.horarioFijo) {
+      const estadoCalculado = this.calcularEstado(
+        examen.estado,
+        examen.reservaAmbiente.fecha,
+        examen.reservaAmbiente.horarioFijo.horaIni,
+        examen.reservaAmbiente.horarioFijo.horaFin,
+      );
+
+      if (estadoCalculado === 'PROXIMO') {
+        throw new BadRequestException(
+          'El registro de ingreso se habilita 15 minutos antes del inicio del examen',
+        );
+      }
+
+      if (estadoCalculado === 'FINALIZADO') {
+        throw new BadRequestException('El examen ya ha finalizado');
+      }
     }
 
     const esAdmin = await this.verificarEsAdmin(registradoPorId);

@@ -33,7 +33,7 @@ export function ControlIngresosPageContainer() {
 
   return (
     <PageContainer
-      title="Registro de ingresos"
+      title="Lista de ingresos"
       subtitle="Lista en tiempo real por examen"
       headerExtra={
         <EnVivoBadge
