@@ -1,7 +1,7 @@
 "use client";
 
 import { offlineIngresosService } from "@/features/control-ingreso/services/offline-ingresos.service";
-import { offlineIncidenciasService } from "@/features/incidencias/services/offline-incidencias.service";
+import { offlineIncidenciasService } from "@/features/ingresos-rechazados/services/offline-incidencias.service";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";

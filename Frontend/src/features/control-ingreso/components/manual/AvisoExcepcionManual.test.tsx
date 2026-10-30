@@ -62,7 +62,7 @@ describe('UT4-HU8: AvisoExcepcionManual (aviso de excepción del flujo manual)',
 
     expect(defaultProps.onCerrar).toHaveBeenCalledTimes(1);
     expect(mockPush).toHaveBeenCalledWith(
-      expect.stringContaining('/incidencias?examenId=1')
+      expect.stringContaining('/ingresos-rechazados?examenId=1')
     );
     expect(mockPush).toHaveBeenCalledWith(
       expect.stringContaining('sis=2021-10234')

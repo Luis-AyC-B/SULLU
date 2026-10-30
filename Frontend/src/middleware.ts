@@ -11,7 +11,7 @@ const redirectsPorModulo: [string, string][] = [
   ['ambientes', '/ambientes'],
   ['control_ingreso', '/control-ingreso'],
   ['registro_ingresos', '/ingresos'],
-  ['incidencias', '/incidencias'],
+  ['incidencias', '/ingresos-rechazados'],
   ['colaboradores', '/colaboradores'],
   ['portal_estudiante', '/portal'],
 ];
@@ -50,7 +50,7 @@ export default withAuth(
         '/ambientes': 'ambientes',
         '/control-ingreso': 'control_ingreso',
         '/ingresos': 'registro_ingresos',
-        '/incidencias': 'incidencias',
+        '/ingresos-rechazados': 'incidencias',
         '/colaboradores': 'colaboradores',
         '/portal': 'portal_estudiante',
       };
