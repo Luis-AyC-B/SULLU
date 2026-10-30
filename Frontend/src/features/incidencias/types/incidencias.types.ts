@@ -12,7 +12,7 @@ export const MOTIVOS_EXPULSION = [
 
 export type MotivoExpulsion = (typeof MOTIVOS_EXPULSION)[number];
 
-export const MOTIVO_EXPULSION_LABEL: Record<MotivoExpulsion, string> = {
+export const ETIQUETA_MOTIVO_EXPULSION: Record<MotivoExpulsion, string> = {
   MATERIAL_NO_AUTORIZADO: "Material no autorizado",
   USO_CELULAR: "Uso de celular",
   COMUNICACION_ENTRE_ESTUDIANTES: "Comunicación entre estudiantes",
@@ -20,12 +20,12 @@ export const MOTIVO_EXPULSION_LABEL: Record<MotivoExpulsion, string> = {
   OTRO: "Otro",
 };
 
-export const MOTIVO_EXPULSION_OPCIONES = MOTIVOS_EXPULSION.map((value) => ({
-  value,
-  label: MOTIVO_EXPULSION_LABEL[value],
+export const OPCIONES_MOTIVO_EXPULSION = MOTIVOS_EXPULSION.map((valor) => ({
+  valor,
+  etiqueta: ETIQUETA_MOTIVO_EXPULSION[valor],
 }));
 
-export const DETALLE_MAX = 500;
+export const DETALLE_MAXIMO = 500;
 
 /* Respuestas del backend */
 
@@ -38,7 +38,7 @@ export const examenExpulsionSchema = z.object({
 export type ExamenExpulsion = z.infer<typeof examenExpulsionSchema>;
 export const examenesExpulsionSchema = z.array(examenExpulsionSchema);
 
-export const incidentSchema = z.object({
+export const incidenciaSchema = z.object({
   id: z.coerce.string(),
   examenId: z.coerce.string(),
   // ISO asignado por el servidor
@@ -49,8 +49,8 @@ export const incidentSchema = z.object({
   detalle: z.string(),
   registradoPor: z.string(),
 });
-export type Incident = z.infer<typeof incidentSchema>;
-export const incidentsSchema = z.array(incidentSchema);
+export type Incidencia = z.infer<typeof incidenciaSchema>;
+export const incidenciasSchema = z.array(incidenciaSchema);
 
 export const estudianteExpulsableSchema = z.object({
   codigoSis: z.string(),
@@ -61,7 +61,7 @@ export const estudiantesExpulsablesSchema = z.array(estudianteExpulsableSchema);
 
 /* Formulario */
 
-export const registrarExpulsionFormSchema = z.object({
+export const formularioExpulsionSchema = z.object({
   estudiante: z.object(
     { codigoSis: z.string(), nombre: z.string() },
     { error: "Selecciona un estudiante" },
@@ -71,43 +71,43 @@ export const registrarExpulsionFormSchema = z.object({
     .string()
     .trim()
     .min(1, "El detalle es obligatorio")
-    .max(DETALLE_MAX, `Máximo ${DETALLE_MAX} caracteres`),
+    .max(DETALLE_MAXIMO, `Máximo ${DETALLE_MAXIMO} caracteres`),
 });
 
-export type RegistrarExpulsionFormValues = z.infer<
-  typeof registrarExpulsionFormSchema
+export type ValoresFormularioExpulsion = z.infer<
+  typeof formularioExpulsionSchema
 >;
 
 // La hora y el docente NUNCA viajan desde el cliente.
-export interface RegistrarExpulsionPayload {
+export interface PayloadRegistrarExpulsion {
   examenId: string;
   codigoSis: string;
   motivo: MotivoExpulsion;
   detalle: string;
 }
 
-export function toRegistrarExpulsionPayload(
+export function aPayloadRegistrarExpulsion(
   examenId: string,
-  values: RegistrarExpulsionFormValues,
-): RegistrarExpulsionPayload {
+  valores: ValoresFormularioExpulsion,
+): PayloadRegistrarExpulsion {
   return {
     examenId,
-    codigoSis: values.estudiante.codigoSis,
-    motivo: values.motivo,
-    detalle: values.detalle.trim(),
+    codigoSis: valores.estudiante.codigoSis,
+    motivo: valores.motivo,
+    detalle: valores.detalle.trim(),
   };
 }
 
-/* Helpers de formato */
+/* Utilidades de formato */
 
-export function formatHoraIncidencia(fechaHora: string): string {
+export function formatearHoraIncidencia(fechaHora: string): string {
   const fecha = new Date(fechaHora);
   if (Number.isNaN(fecha.getTime())) return "--:--:--";
   const dos = (n: number) => String(n).padStart(2, "0");
   return `${dos(fecha.getHours())}:${dos(fecha.getMinutes())}:${dos(fecha.getSeconds())}`;
 }
 
-export function labelContadorIncidents(total: number): string {
+export function etiquetaContadorIncidencias(total: number): string {
   return total === 1
     ? "1 incidencia registrada para este examen"
     : `${total} incidencias registradas para este examen`;
