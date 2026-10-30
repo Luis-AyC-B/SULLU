@@ -6,6 +6,7 @@ import {
   Patch,
   Put,
   Param,
+  ParseIntPipe,
   Delete,
   Query,
   Req,
@@ -18,6 +19,13 @@ import { QueryExamenDto } from './dto/query-examen.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
+import { DashboardAsistenciaResponseDto } from './dto/dashboard-asistencia-response.dto';
 
 interface RequestWithUser {
   user?: {
@@ -44,6 +52,8 @@ function normalizarIds<T extends Record<string, any>>(body: T): T {
   return out as T;
 }
 
+@ApiTags('examenes')
+@ApiBearerAuth()
 @Controller('examenes')
 export class ExamenesController {
   constructor(private readonly examenesService: ExamenesService) {}
@@ -149,6 +159,38 @@ export class ExamenesController {
   @Patch(':id/desactivar')
   desactivar(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.examenesService.remove(+id, req.user!.id);
+  }
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('examenes.ver')
+  @Get(':id/asistencia')
+  @ApiOperation({
+    summary: 'Dashboard de asistencia en tiempo real del examen (HU16)',
+    description:
+      'Retorna cantidad de estudiantes habilitados, presentes y ausentes para el docente responsable.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Métricas de asistencia del examen en tiempo real',
+    type: DashboardAsistenciaResponseDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'No autorizado para ver la asistencia de este examen',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Examen no localizado',
+  })
+  getDashboardAsistencia(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: RequestWithUser,
+  ) {
+    const userId = req.user?.id || 2;
+    return this.examenesService.getDashboardAsistencia(
+      id,
+      userId,
+      esAdmin(req),
+    );
   }
 }
 
