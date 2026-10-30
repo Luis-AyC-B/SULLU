@@ -22,7 +22,6 @@ describe('UT3-HU8: ConfirmarIngresoStep (pantalla de confirmación de registro m
     ambiente: 'Sala 204',
     horario: '08:15–09:45',
     fecha: '23 oct',
-    ingresados: 15,
     totalEstudiantes: 40,
     estado: 'EN_CURSO',
   };
