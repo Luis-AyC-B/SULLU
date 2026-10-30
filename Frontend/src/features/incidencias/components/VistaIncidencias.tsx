@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { FileText, Plus, Search } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -27,6 +27,7 @@ import { TablaIncidencias } from "./TablaIncidencias";
 import { ListaIncidenciasMovil } from "./ListaIncidenciasMovil";
 import { ModalRegistrarIncidencia } from "./ModalRegistrarIncidencia";
 import { ModalConfirmarExpulsion } from "./ModalConfirmarExpulsion";
+import { ModalGenerarReporte } from "./ModalGenerarReporte";
 
 function EsqueletoCarga() {
   return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
@@ -89,6 +90,9 @@ export function VistaIncidencias() {
   );
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
 
+  // --- Reporte de expulsiones ---
+  const [modalReporteAbierto, setModalReporteAbierto] = useState(false);
+
   async function confirmarExpulsion() {
     if (!pendiente || !examenId) return;
     setErrorEnvio(null);
@@ -114,22 +118,35 @@ export function VistaIncidencias() {
           </p>
         </div>
 
-        {puedeRegistrar && (
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <Button
-            type="button"
-            onClick={() => setModalRegistroAbierto(true)}
-            disabled={!examen || !examen.enCurso}
-            title={
-              examen && !examen.enCurso
-                ? "Solo se puede expulsar en un examen en curso"
-                : undefined
-            }
-            className="h-11 w-full gap-2 px-5 text-base sm:w-auto"
-          >
-            <Plus className="h-5 w-5" />
-            Registrar incidencia
-          </Button>
-        )}
+  type="button"
+  variant="outline"
+  onClick={() => setModalReporteAbierto(true)}
+  disabled={examenes.length === 0}
+  className="h-11 w-full gap-2 border-primary bg-card px-5 text-base font-medium text-primary hover:bg-muted sm:w-auto"
+>
+  <FileText className="h-5 w-5" />
+  Generar reporte
+</Button>
+
+          {puedeRegistrar && (
+            <Button
+              type="button"
+              onClick={() => setModalRegistroAbierto(true)}
+              disabled={!examen || !examen.enCurso}
+              title={
+                examen && !examen.enCurso
+                  ? "Solo se puede expulsar en un examen en curso"
+                  : undefined
+              }
+              className="h-11 w-full gap-2 px-5 text-base sm:w-auto"
+            >
+              <Plus className="h-5 w-5" />
+              Registrar incidencia
+            </Button>
+          )}
+        </div>
       </div>
 
       {errorExamenes && (
@@ -236,6 +253,15 @@ export function VistaIncidencias() {
           />
         </>
       )}
+
+      <ModalGenerarReporte
+        abierto={modalReporteAbierto}
+        onAbiertoChange={setModalReporteAbierto}
+        examenes={examenes}
+        examenInicialId={examenId}
+        // TODO: reemplazar por el nombre del usuario logueado
+        generadoPor={USAR_MOCKS_INCIDENCIAS ? MOCK_DOCENTE : undefined}
+      />
     </div>
   );
 }
