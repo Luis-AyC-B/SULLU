@@ -58,8 +58,8 @@ export const modules: Modulo[] = [
   },
   {
     clave: "incidencias",
-    label: "Incidencias",
-    ruta: "/incidencias",
+    label: "Ingresos rechazados",
+    ruta: "/ingresos-rechazados",
     icon: AlertTriangle,
   },
   {
