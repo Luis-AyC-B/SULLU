@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ArrowLeft, ArrowUpLeft, Search, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { useEstudiantesExpulsables } from "../hooks/useEstudiantesExpulsables";
+import { coincideBusqueda } from "../lib/filtrarIncidencias";
 import {
   OPCIONES_MOTIVO_EXPULSION,
   formularioExpulsionSchema,
@@ -28,9 +30,8 @@ import {
 interface ModalRegistrarIncidenciaProps {
   abierto: boolean;
   onAbiertoChange: (abierto: boolean) => void;
+  examenId: string;
   examenNombre: string;
-  // Solo estudiantes que ya ingresaron al examen y no están expulsados.
-  estudiantes: EstudianteExpulsable[];
   // Se llama con los datos ya validados; el padre abre la confirmación encima.
   onContinuar: (valores: ValoresFormularioExpulsion) => void;
 }
@@ -38,19 +39,11 @@ interface ModalRegistrarIncidenciaProps {
 type Campo = "estudiante" | "motivo" | "detalle";
 type Errores = Partial<Record<Campo, string>>;
 
-function normalizar(texto: string): string {
-  return texto
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
 export function ModalRegistrarIncidencia({
   abierto,
   onAbiertoChange,
+  examenId,
   examenNombre,
-  estudiantes,
   onContinuar,
 }: ModalRegistrarIncidenciaProps) {
   const idBase = useId();
@@ -69,6 +62,21 @@ export function ModalRegistrarIncidencia({
   const [detalle, setDetalle] = useState("");
   const [errores, setErrores] = useState<Errores>({});
 
+  // Búsqueda en el servidor (solo estudiantes que ingresaron y no están expulsados).
+  const hayConsulta = busqueda.trim() !== "";
+  const { resultados: resultadosServidor, cargando } =
+    useEstudiantesExpulsables(
+      examenId,
+      busqueda,
+      abierto && estudiante === null && hayConsulta,
+    );
+  // Solo coincidencias con lo escrito; sin texto no se muestra nada.
+  const resultados = hayConsulta
+    ? resultadosServidor.filter((e) =>
+        coincideBusqueda(e.nombre, e.codigoSis, busqueda),
+      )
+    : [];
+
   // Al cerrar el modal se limpia todo; mientras la confirmación está encima
   // el modal sigue abierto y conserva los datos.
   useEffect(() => {
@@ -81,16 +89,6 @@ export function ModalRegistrarIncidencia({
     setDetalle("");
     setErrores({});
   }, [abierto]);
-
-  const resultados = useMemo(() => {
-    const termino = normalizar(busqueda);
-    if (!termino) return estudiantes;
-    return estudiantes.filter(
-      (e) =>
-        normalizar(e.nombre).includes(termino) ||
-        e.codigoSis.toLowerCase().includes(termino),
-    );
-  }, [busqueda, estudiantes]);
 
   function limpiarError(campo: Campo) {
     setErrores((previos) => ({ ...previos, [campo]: undefined }));
@@ -148,7 +146,9 @@ export function ModalRegistrarIncidencia({
 
   return (
     <Dialog open={abierto} onOpenChange={onAbiertoChange}>
-      <DialogContent className="flex flex-col gap-0 overflow-y-auto max-md:left-0 max-md:top-0 max-md:h-dvh max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none md:max-h-[90dvh] md:max-w-xl">
+      <DialogContent
+        showCloseButton={false}
+        className="flex flex-col gap-0 overflow-y-auto max-md:left-0 max-md:top-0 max-md:h-dvh max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none md:max-h-[90dvh] md:max-w-xl">
         <Button
           type="button"
           variant="ghost"
@@ -160,7 +160,7 @@ export function ModalRegistrarIncidencia({
         </Button>
 
         <DialogHeader className="mb-6 text-left">
-          <DialogTitle className="text-page-title text-primary">
+          <DialogTitle className="text-3xl font-bold text-primary">
             Registrar incidencia
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -214,7 +214,7 @@ export function ModalRegistrarIncidencia({
                     onFocus={() => setListaAbierta(true)}
                     onBlur={() => setListaAbierta(false)}
                     onKeyDown={alTeclear}
-                    className="pr-10"
+                    className="h-11 bg-card pr-10"
                   />
                   <Search
                     aria-hidden
@@ -222,7 +222,7 @@ export function ModalRegistrarIncidencia({
                   />
                 </div>
 
-                {listaAbierta && (
+                {listaAbierta && hayConsulta && (
                   <ul
                     id={idLista}
                     role="listbox"
@@ -231,7 +231,9 @@ export function ModalRegistrarIncidencia({
                   >
                     {resultados.length === 0 ? (
                       <li className="px-4 py-3 text-sm text-muted-foreground">
-                        No se encontraron estudiantes.
+                        {cargando
+                          ? "Buscando..."
+                          : "No se encontraron estudiantes."}
                       </li>
                     ) : (
                       resultados.map((e, indice) => (
@@ -288,7 +290,7 @@ export function ModalRegistrarIncidencia({
               <SelectTrigger
                 id={idMotivo}
                 aria-invalid={Boolean(errores.motivo)}
-                className="mt-2"
+                className="mt-2 w-full bg-card data-[size=default]:h-11"
               >
                 <SelectValue placeholder="Seleccionar motivo" />
               </SelectTrigger>
@@ -320,7 +322,7 @@ export function ModalRegistrarIncidencia({
                 setDetalle(e.target.value);
                 limpiarError("detalle");
               }}
-              className="mt-2 flex min-h-28 w-full rounded-lg border border-input bg-background px-3 py-2 text-body placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-destructive"
+              className="mt-2 flex min-h-28 w-full rounded-lg border border-input bg-card px-3 py-2 text-body placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-destructive"
             />
             {errores.detalle && (
               <p role="alert" className="mt-1.5 text-sm text-destructive">
@@ -345,11 +347,14 @@ export function ModalRegistrarIncidencia({
             <Button
               type="button"
               variant="outline"
+              className="h-11 border-primary bg-card px-6 text-primary hover:bg-muted"
               onClick={() => onAbiertoChange(false)}
             >
               Cancelar
             </Button>
-            <Button type="submit">Confirmar</Button>
+            <Button type="submit" className="h-11 px-6">
+              Confirmar
+            </Button>
           </div>
         </form>
       </DialogContent>

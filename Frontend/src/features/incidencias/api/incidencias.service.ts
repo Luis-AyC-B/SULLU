@@ -131,7 +131,7 @@ export async function registrarExpulsion(
 
 /* Mocks */
 
-const MOCK_DOCENTE = "Edgar";
+export const MOCK_DOCENTE = "Edgar";
 const esperar = (ms = 350) =>
   new Promise<void>((resolver) => setTimeout(resolver, ms));
 
