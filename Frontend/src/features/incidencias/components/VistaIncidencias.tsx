@@ -15,12 +15,18 @@ import { useDebouncedValue } from "@/features/registro-ingresos/hooks/useDebounc
 import { useExamenesExpulsion } from "../hooks/useExamenesExpulsion";
 import { useIncidenciasPorExamen } from "../hooks/useIncidenciasPorExamen";
 import { usePuedeRegistrarExpulsion } from "../hooks/usePuedeRegistrarExpulsion";
+import { MOCK_DOCENTE, USAR_MOCKS_INCIDENCIAS } from "../api/incidencias.service";
+import { useRegistrarExpulsion } from "../hooks/useRegistrarExpulsion";
 import { filtrarIncidencias } from "../lib/filtrarIncidencias";
 import {
-  ETIQUETA_MOTIVO_EXPULSION,
-  etiquetaContadorIncidencias,
-  formatearHoraIncidencia,
+  aPayloadRegistrarExpulsion,
+  type ValoresFormularioExpulsion,
 } from "../types/incidencias.types";
+import { EstadoVacioIncidencias } from "./EstadoVacioIncidencias";
+import { TablaIncidencias } from "./TablaIncidencias";
+import { ListaIncidenciasMovil } from "./ListaIncidenciasMovil";
+import { ModalRegistrarIncidencia } from "./ModalRegistrarIncidencia";
+import { ModalConfirmarExpulsion } from "./ModalConfirmarExpulsion";
 
 function EsqueletoCarga() {
   return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
@@ -75,6 +81,29 @@ export function VistaIncidencias() {
 
   const total = incidencias?.length ?? 0;
 
+  // --- Registro de expulsión ---
+  const { registrar, enviando } = useRegistrarExpulsion();
+  const [modalRegistroAbierto, setModalRegistroAbierto] = useState(false);
+  const [pendiente, setPendiente] = useState<ValoresFormularioExpulsion | null>(
+    null,
+  );
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+
+  async function confirmarExpulsion() {
+    if (!pendiente || !examenId) return;
+    setErrorEnvio(null);
+    const resultado = await registrar(
+      aPayloadRegistrarExpulsion(examenId, pendiente),
+    );
+    if (!resultado.ok) {
+      setErrorEnvio(resultado.error.message);
+      return;
+    }
+    setPendiente(null);
+    setModalRegistroAbierto(false); // al cerrar, el modal limpia sus datos
+    recargar();
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -88,7 +117,7 @@ export function VistaIncidencias() {
         {puedeRegistrar && (
           <Button
             type="button"
-            // TODO Tarea 6: abrir ModalRegistrarExpulsion
+            onClick={() => setModalRegistroAbierto(true)}
             disabled={!examen || !examen.enCurso}
             title={
               examen && !examen.enCurso
@@ -98,7 +127,7 @@ export function VistaIncidencias() {
             className="h-11 w-full gap-2 px-5 text-base sm:w-auto"
           >
             <Plus className="h-5 w-5" />
-            Registrar expulsión
+            Registrar incidencia
           </Button>
         )}
       </div>
@@ -155,44 +184,57 @@ export function VistaIncidencias() {
         </div>
       </div>
 
-      {examen?.ubicacion && (
-        <p className="-mt-3 text-xs text-muted-foreground">{examen.ubicacion}</p>
-      )}
-
       {(cargandoExamenes || cargando) && <EsqueletoCarga />}
 
       {!cargando && error && incidencias === null && (
         <AvisoError mensaje={error} alReintentar={recargar} />
       )}
 
-      {/* TEMPORAL: las Tareas 4 y 5 reemplazan este bloque por la tabla,
-          el estado vacío y la lista móvil. */}
       {!cargando && incidencias !== null && incidenciasFiltradas.length === 0 && (
-        <p className="rounded-xl border border-border bg-card px-6 py-12 text-center text-body text-muted-foreground">
-          {busquedaDiferida.trim() !== "" && total > 0
-            ? "No se encontraron incidencias para tu búsqueda."
-            : "Aún no hay incidencias en este examen"}
-        </p>
+        <EstadoVacioIncidencias
+          hayBusqueda={busquedaDiferida.trim() !== "" && total > 0}
+        />
       )}
 
       {!cargando && incidencias !== null && incidenciasFiltradas.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <ul className="flex flex-col gap-2">
-            {incidenciasFiltradas.map((i) => (
-              <li
-                key={i.id}
-                className="rounded-lg border border-border bg-card p-3 text-sm"
-              >
-                {formatearHoraIncidencia(i.fechaHora)} · {i.codigoSis} ·{" "}
-                {i.estudianteNombre} · {ETIQUETA_MOTIVO_EXPULSION[i.motivo]} ·{" "}
-                {i.detalle} · {i.registradoPor}
-              </li>
-            ))}
-          </ul>
-          <p className="text-sm text-muted-foreground">
-            {etiquetaContadorIncidencias(total)}
-          </p>
-        </div>
+        <>
+          <TablaIncidencias incidencias={incidenciasFiltradas} total={total} />
+          <ListaIncidenciasMovil
+            incidencias={incidenciasFiltradas}
+            total={total}
+          />
+        </>
+      )}
+
+      {examen && (
+        <>
+          <ModalRegistrarIncidencia
+            abierto={modalRegistroAbierto}
+            onAbiertoChange={setModalRegistroAbierto}
+            examenId={examen.id}
+            examenNombre={examen.nombre}
+            onContinuar={(valores) => {
+              setErrorEnvio(null);
+              setPendiente(valores);
+            }}
+          />
+          <ModalConfirmarExpulsion
+            abierto={pendiente !== null}
+            onAbiertoChange={(abierto) => {
+              if (!abierto) {
+                setPendiente(null);
+                setErrorEnvio(null);
+              }
+            }}
+            examenNombre={examen.nombre}
+            // TODO: reemplazar por el nombre del usuario logueado
+            registradoPor={USAR_MOCKS_INCIDENCIAS ? MOCK_DOCENTE : undefined}
+            valores={pendiente}
+            enviando={enviando}
+            error={errorEnvio}
+            onConfirmar={confirmarExpulsion}
+          />
+        </>
       )}
     </div>
   );
