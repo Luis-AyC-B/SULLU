@@ -12,9 +12,14 @@ const redirectsPorModulo: [string, string][] = [
   ['control_ingreso', '/control-ingreso'],
   ['registro_ingresos', '/ingresos'],
   ['incidencias', '/ingresos-rechazados'],
+  ['expulsiones', '/incidencias'],
   ['colaboradores', '/colaboradores'],
   ['portal_estudiante', '/portal'],
 ];
+
+// Mientras el módulo de expulsiones use datos mock, no se valida su permiso.
+const MOCKS_INCIDENCIAS =
+  process.env.NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS !== 'false';
 
 export default withAuth(
   function middleware(req) {
@@ -37,7 +42,9 @@ export default withAuth(
     if (token) {
       const permisos = (token.permisos as string[]) || [];
 
-      // Mapeo de rutas a prefijos de permisos requeridos
+      // Mapeo de rutas a prefijos de permisos requeridos.
+      // IMPORTANTE: las rutas más largas van antes que sus prefijos
+      // ('/ingresos-rechazados' antes que '/ingresos').
       if ((pathname === '/ambientes' || pathname.startsWith('/ambientes/')) && !permisos.includes('ambientes.ver')) {
         return NextResponse.redirect(new URL('/unauthorized?modulo=ambientes', req.url));
       }
@@ -49,8 +56,9 @@ export default withAuth(
         '/reportes': 'reportes',
         '/ambientes': 'ambientes',
         '/control-ingreso': 'control_ingreso',
-        '/ingresos': 'registro_ingresos',
         '/ingresos-rechazados': 'incidencias',
+        '/ingresos': 'registro_ingresos',
+        ...(MOCKS_INCIDENCIAS ? {} : { '/incidencias': 'expulsiones' }),
         '/colaboradores': 'colaboradores',
         '/portal': 'portal_estudiante',
       };
