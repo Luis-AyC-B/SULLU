@@ -27,6 +27,7 @@ const LANDING_POR_MODULO: [string, string][] = [
   ['control_ingreso', '/control-ingreso'],
   ['registro_ingresos', '/ingresos'],
   ['incidencias', '/ingresos-rechazados'],
+  ['expulsiones', '/incidencias'],
   ['colaboradores', '/colaboradores'],
   ['portal_estudiante', '/portal'],
 ];
