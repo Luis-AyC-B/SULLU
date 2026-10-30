@@ -23,7 +23,7 @@ export function useGenerarReporte() {
         const todas = await obtenerIncidenciasPorExamen(examen.id);
         const incidencias = filtrarParaReporte(todas, filtros);
         if (incidencias.length === 0) {
-          setError("No hay expulsiones que coincidan con los filtros.");
+          setError("No hay incidencias que coincidan con los filtros.");
           return false;
         }
         await generarReportePdf({ examen, incidencias, filtros, generadoPor });
