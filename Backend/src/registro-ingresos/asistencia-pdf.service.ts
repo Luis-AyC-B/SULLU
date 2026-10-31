@@ -506,7 +506,11 @@ export class AsistenciaPdfService {
     for (let i = range.start; i < range.start + totalPages; i++) {
       doc.switchToPage(i);
 
-      const y = doc.page.height - 30;
+      // Desactivamos el margen inferior momentáneamente para no disparar un salto de página accidental
+      const origBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+
+      const y = doc.page.height - 25;
       const width = doc.page.width - 80;
 
       doc
@@ -524,7 +528,7 @@ export class AsistenciaPdfService {
           `SULLU Sistema de Control de Asistencia • Generado el ${fechaGeneracion}`,
           40,
           y,
-          { width: width / 2, align: 'left' },
+          { width: width / 2, align: 'left', lineBreak: false },
         );
 
       doc
@@ -534,7 +538,10 @@ export class AsistenciaPdfService {
         .text(`Página ${i + 1} de ${totalPages}`, 40 + width / 2, y, {
           width: width / 2,
           align: 'right',
+          lineBreak: false,
         });
+
+      doc.page.margins.bottom = origBottom;
     }
   }
 }
