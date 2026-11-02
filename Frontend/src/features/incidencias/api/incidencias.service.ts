@@ -43,28 +43,59 @@ function aErrorServicio(error: unknown): ErrorServicioIncidencias {
   if (error instanceof ErrorServicioIncidencias) return error;
   if (isAxiosError(error)) {
     if (!error.response) return new ErrorServicioIncidencias("SIN_CONEXION");
-    if (error.response.status === 403) {
-      return new ErrorServicioIncidencias("SIN_PERMISO");
-    }
+
     const datos: unknown = error.response.data;
     const codigo =
       datos && typeof datos === "object" && "code" in datos
         ? (datos as { code: unknown }).code
         : undefined;
-    if (
-      codigo === "EXAMEN_NO_EN_CURSO" ||
-      codigo === "ESTUDIANTE_YA_EXPULSADO"
-    ) {
-      return new ErrorServicioIncidencias(codigo);
+
+    // Primero el código del backend: "examen no en curso" también llega como 403
+    if (codigo === "EXAMEN_NO_EN_CURSO") {
+      return new ErrorServicioIncidencias("EXAMEN_NO_EN_CURSO");
+    }
+    if (codigo === "YA_EXPULSADO" || codigo === "ESTUDIANTE_YA_EXPULSADO") {
+      return new ErrorServicioIncidencias("ESTUDIANTE_YA_EXPULSADO");
+    }
+    if (error.response.status === 403) {
+      return new ErrorServicioIncidencias("SIN_PERMISO");
     }
   }
   return new ErrorServicioIncidencias("DESCONOCIDO");
 }
 
-/* API (mock por defecto; NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS=false para usar el back) */
+/* Motivos: el front usa códigos, el back guarda y devuelve el texto */
 
-export const USAR_MOCKS_INCIDENCIAS =
-  process.env.NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS !== "false";
+const MOTIVO_A_ETIQUETA: Record<string, string> = {
+  MATERIAL_NO_AUTORIZADO: "Material no autorizado",
+  USO_CELULAR: "Uso de celular",
+  COMUNICACION_ENTRE_ESTUDIANTES: "Comunicación entre estudiantes",
+  SUPLANTACION_IDENTIDAD: "Suplantación de identidad",
+  OTRO: "Otro",
+};
+
+const ETIQUETA_A_MOTIVO: Record<string, string> = Object.fromEntries(
+  Object.entries(MOTIVO_A_ETIQUETA).map(([codigo, etiqueta]) => [
+    etiqueta,
+    codigo,
+  ]),
+);
+
+function normalizarIncidencia(fila: unknown): unknown {
+  if (fila && typeof fila === "object" && "motivo" in fila) {
+    const motivo = (fila as { motivo: unknown }).motivo;
+    return {
+      ...fila,
+      motivo:
+        typeof motivo === "string" ? (ETIQUETA_A_MOTIVO[motivo] ?? motivo) : motivo,
+    };
+  }
+  return fila;
+}
+
+/* API (FORZAMOS EL USO DEL BACKEND REAL ESTABLECIENDO LA VARIABLE EN FALSE) */
+
+export const USAR_MOCKS_INCIDENCIAS = false;
 
 function ordenarMasRecientes(incidencias: Incidencia[]): Incidencia[] {
   return [...incidencias].sort(
@@ -83,7 +114,7 @@ export async function obtenerExamenesExpulsion(): Promise<ExamenExpulsion[]> {
   }
 }
 
-// GET /examenes/:id/expulsiones  (más reciente primero)
+// GET /examenes/:id/expulsiones  -> { total, data: [...] } (más reciente primero)
 export async function obtenerIncidenciasPorExamen(
   examenId: string,
 ): Promise<Incidencia[]> {
@@ -92,7 +123,10 @@ export async function obtenerIncidenciasPorExamen(
     const { data } = await apiClient.get(
       `/examenes/${encodeURIComponent(examenId)}/expulsiones`,
     );
-    return ordenarMasRecientes(incidenciasSchema.parse(data));
+    const filas: unknown[] = Array.isArray(data) ? data : (data?.data ?? []);
+    return ordenarMasRecientes(
+      incidenciasSchema.parse(filas.map(normalizarIncidencia)),
+    );
   } catch (error) {
     throw aErrorServicio(error);
   }
@@ -122,8 +156,11 @@ export async function registrarExpulsion(
 ): Promise<Incidencia> {
   if (USAR_MOCKS_INCIDENCIAS) return mockRegistrarExpulsion(payload);
   try {
-    const { data } = await apiClient.post("/expulsiones", payload);
-    return incidenciaSchema.parse(data);
+    const { data } = await apiClient.post("/expulsiones", {
+      ...payload,
+      motivo: MOTIVO_A_ETIQUETA[payload.motivo] ?? payload.motivo,
+    });
+    return incidenciaSchema.parse(normalizarIncidencia(data));
   } catch (error) {
     throw aErrorServicio(error);
   }
