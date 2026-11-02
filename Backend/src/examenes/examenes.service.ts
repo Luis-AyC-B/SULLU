@@ -15,6 +15,7 @@ import { fechasPermitidas } from '../ambientes/ambientes.service';
 import { CreateExamenDto } from './dto/create-examen.dto';
 import { UpdateExamenDto } from './dto/update-examen.dto';
 import { QueryExamenDto } from './dto/query-examen.dto';
+import { estadoEfectivo } from '../common/estado-examen.util';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -78,6 +79,8 @@ export class ExamenesService {
     const cmDirect = e.carrerasMaterias?.[0];
     return {
       ...e,
+      // Estado real según fecha y hora (la BD solo guarda PROGRAMADO/CANCELADO)
+      estado: estadoEfectivo(e),
       normas: e.normasEx ?? '',
       materiaId: cm?.materia?.id ?? cmDirect?.materiaId ?? 0,
       materiaNombre: cm?.materia?.nombre ?? 'Materia',
@@ -176,7 +179,7 @@ export class ExamenesService {
         fecha: fechaISO(e.reservaAmbiente?.fecha),
         horaInicio: horaISO(e.reservaAmbiente?.horarioFijo?.horaIni, '08:00'),
         horaFin: horaISO(e.reservaAmbiente?.horarioFijo?.horaFin, '09:30'),
-        estado: e.estado,
+        estado: estadoEfectivo(e),
       };
     });
   }
@@ -585,16 +588,21 @@ export class ExamenesService {
   }
 
   async remove(id: number, usuarioId: number) {
-    const examen = await this.prisma.examen.findUnique({ where: { id } });
+    const examen = await this.prisma.examen.findUnique({
+      where: { id },
+      include: { reservaAmbiente: { include: { horarioFijo: true } } },
+    });
     if (!examen) throw new NotFoundException('Examen no localizado.');
     if (examen.usuarioId !== usuarioId)
       throw new ForbiddenException(
         'El examen no pertenece al usuario autenticado.',
       );
 
+    // Se usa el estado real (según fecha y hora), no el guardado en la BD
+    const estadoReal = estadoEfectivo(examen);
     if (
-      examen.estado === EstadoExamen.EN_CURSO ||
-      examen.estado === EstadoExamen.FINALIZADO
+      estadoReal === EstadoExamen.EN_CURSO ||
+      estadoReal === EstadoExamen.FINALIZADO
     ) {
       throw new BadRequestException(
         'Exámenes en curso o finalizados no admiten cancelación.',
