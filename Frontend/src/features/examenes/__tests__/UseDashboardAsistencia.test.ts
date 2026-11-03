@@ -1,4 +1,4 @@
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import { useDashboardAsistencia } from "../hooks/useDashboardAsistencia";
 import * as asistenciaApi from "../api/asistencia.api";
 import { DashboardAsistencia } from "../types/exam.types";

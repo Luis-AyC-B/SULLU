@@ -1,21 +1,16 @@
 "use client";
 
 import React from "react";
-import { RefreshCw } from "lucide-react";
 import { DashboardAsistencia } from "../../types/exam.types";
 
 interface AttendanceHeaderCardProps {
   data: DashboardAsistencia;
   lastUpdatedLabel: string;
-  isRefreshing?: boolean;
-  onRefresh?: () => void;
 }
 
 export function AttendanceHeaderCard({
   data,
   lastUpdatedLabel,
-  isRefreshing = false,
-  onRefresh,
 }: AttendanceHeaderCardProps) {
   // Normalizar badge según estado
   const getBadgeStyle = (estado: string) => {

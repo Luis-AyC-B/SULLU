@@ -143,8 +143,6 @@ export default function AsistenciaExamenPage() {
           <AttendanceHeaderCard
             data={data}
             lastUpdatedLabel={lastUpdatedLabel}
-            isRefreshing={isRefreshing}
-            onRefresh={refrescar}
           />
 
           {/* Fila secundaria en Mobile: Tiempo relativo a la izquierda, Botón Refrescar a la derecha */}

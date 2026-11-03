@@ -45,7 +45,7 @@ export function useDashboardAsistencia(
   dataRef.current = data;
 
   const fetchData = useCallback(
-    async (isManualRefresh = false) => {
+    async () => {
       if (!examenId) return;
 
       if (!dataRef.current) {
@@ -148,7 +148,7 @@ export function useDashboardAsistencia(
   }, [data?.estado, isForbidden, isNotFound, pollingIntervalMs, fetchData]);
 
   const refrescar = useCallback(() => {
-    return fetchData(true);
+    return fetchData();
   }, [fetchData]);
 
   return {
