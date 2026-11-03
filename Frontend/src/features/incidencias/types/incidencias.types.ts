@@ -10,11 +10,7 @@ export const MOTIVOS_INCIDENCIA = [
   "QR_OTRO_EXAMEN",
   "QR_NO_VALIDO",
   "QR_VENCIDO",
-  "QR_CADUCADO",
-  "DOCUMENTO_NO_PRESENTADO",
-  "FUERA_DE_HORARIO",
-  "NO_FIGURA_LISTA",
-  "NO_ENCONTRADO",
+  "NO_ASISTIO",
 ] as const;
 
 export type MotivoIncidencia = (typeof MOTIVOS_INCIDENCIA)[number];
@@ -25,11 +21,7 @@ export const MOTIVO_LABEL: Record<string, string> = {
   QR_OTRO_EXAMEN: "QR de otro examen",
   QR_NO_VALIDO: "Código QR no válido",
   QR_VENCIDO: "QR de examen vencido",
-  QR_CADUCADO: "QR caducado",
-  DOCUMENTO_NO_PRESENTADO: "Documento no presentado",
-  FUERA_DE_HORARIO: "Ingreso fuera de horario",
-  NO_FIGURA_LISTA: "No figura en la lista",
-  NO_ENCONTRADO: "No encontrado",
+  NO_ASISTIO: "No asistió",
 };
 
 export function getMotivoLabel(motivo: string): string {
@@ -57,9 +49,7 @@ export const MOTIVOS_FILTRO_OPCIONES = [
   { value: "QR_OTRO_EXAMEN", label: "QR de otro examen" },
   { value: "QR_NO_VALIDO", label: "Código QR no válido" },
   { value: "QR_VENCIDO", label: "QR de examen vencido" },
-  { value: "DOCUMENTO_NO_PRESENTADO", label: "Documento no presentado" },
-  { value: "FUERA_DE_HORARIO", label: "Ingreso fuera de horario" },
-  { value: "NO_FIGURA_LISTA", label: "No figura en la lista" },
+  { value: "NO_ASISTIO", label: "No asistió" },
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -160,17 +150,7 @@ export function filtrarIncidenciasPorMotivo(
   if (!motivoFiltro || motivoFiltro === "TODOS") {
     return incidencias;
   }
-  return incidencias.filter((item) => {
-    if (item.motivo === motivoFiltro) return true;
-    // Normalizaciones de nombres equivalentes
-    if (
-      (motivoFiltro === "QR_VENCIDO" || motivoFiltro === "QR_CADUCADO") &&
-      (item.motivo === "QR_VENCIDO" || item.motivo === "QR_CADUCADO")
-    ) {
-      return true;
-    }
-    return false;
-  });
+  return incidencias.filter((item) => item.motivo === motivoFiltro);
 }
 
 // "2026-09-06" -> "06/09/2026"

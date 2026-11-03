@@ -500,7 +500,7 @@ const mockIncidencias: Incidencia[] = [
   mockIncidencia("2", "1", "2026-10-19T09:02:15", "202003456", "DOBLE_MARCACION", "Carlos Mendoza"),
   mockIncidencia("3", "1", "2026-10-19T09:00:52", "201905678", "QR_NO_VALIDO", "Carlos Mendoza"),
   mockIncidencia("4", "1", "2026-10-19T08:59:18", "202102345", "NO_HABILITADO", "Carlos Mendoza"),
-  mockIncidencia("5", "3", "2026-09-08T10:15:30", "202002789", "DOCUMENTO_NO_PRESENTADO", "María López"),
+  mockIncidencia("5", "3", "2026-09-08T10:15:30", "202002789", "NO_ASISTIO", "Sistema"),
 ];
 
 async function mockGetExamenes(): Promise<ExamenIncidencia[]> {
