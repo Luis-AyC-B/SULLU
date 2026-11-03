@@ -16,6 +16,7 @@ import {
   formatearFechaYHora,
   formatearHora,
 } from '../lib/formato-fechas';
+import { obtenerIntentosExamen } from '../lib/offline-portal';
 
 export type ExamCardProps = {
   examen: Examen | ExamenEstudiante;
@@ -237,7 +238,22 @@ export function ExamCard({
 
         {estado === 'DISPONIBLE' && (
           <div className="flex flex-col justify-between gap-2.5 sm:flex-row sm:items-center">
-            {isOffline ? (
+            {obtenerIntentosExamen(examen.id) <= 0 ? (
+              <div className="flex flex-col gap-1 w-full sm:w-auto">
+                <Button
+                  type="button"
+                  disabled
+                  variant="outline"
+                  size="sm"
+                  className="w-full cursor-not-allowed border-destructive/30 bg-destructive/5 text-xs font-semibold text-destructive sm:w-auto"
+                >
+                  Generar QR bloqueado
+                </Button>
+                <span className="text-[11px] text-destructive">
+                  Intentos agotados. Acude al personal responsable.
+                </span>
+              </div>
+            ) : isOffline ? (
               <Button
                 type="button"
                 disabled
