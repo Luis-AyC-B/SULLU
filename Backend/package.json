@@ -9,6 +9,7 @@
     "node": ">=20.19.0 <21.0.0"
   },
   "scripts": {
+    "start:demo:hu23": "ts-node src/demo-hu23/main.ts",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

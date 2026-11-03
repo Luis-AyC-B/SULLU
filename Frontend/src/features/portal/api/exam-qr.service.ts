@@ -10,6 +10,7 @@ import {
   type ResultadoValidacionQr,
 } from '../types/qr-examen';
 import { adaptarRespuestaExamenes } from '../lib/adaptador-examenes';
+import { isHu23Demo } from './hu23-demo';
 
 export interface IExamQrService {
   getExamenes(): Promise<RespuestaExamenes>;
@@ -26,7 +27,7 @@ export class RealExamQrService implements IExamQrService {
       if (error instanceof ExamQrError) throw error;
       if (isAxiosError(error)) {
         const codigo = (error.response?.data?.codigo as CodigoErrorQrExamen) || CODIGOS_ERROR_QR_EXAMEN.ERROR_RED;
-        const mensaje = error.response?.data?.mensaje as string | undefined;
+        const mensaje = (error.response?.data?.mensaje || error.response?.data?.message) as string | undefined;
         throw new ExamQrError({
           codigo,
           mensaje,
@@ -61,7 +62,7 @@ export class RealExamQrService implements IExamQrService {
       if (error instanceof ExamQrError) throw error;
       if (isAxiosError(error)) {
         const codigo = (error.response?.data?.codigo as CodigoErrorQrExamen) || CODIGOS_ERROR_QR_EXAMEN.ERROR_RED;
-        const mensaje = error.response?.data?.mensaje as string | undefined;
+        const mensaje = (error.response?.data?.mensaje || error.response?.data?.message) as string | undefined;
         const intentosRestantes = error.response?.data?.intentosRestantes as number | undefined;
         throw new ExamQrError({
           codigo,
@@ -150,7 +151,7 @@ export async function getExamQrService(): Promise<IExamQrService> {
     process.env.NEXT_PUBLIC_USE_MOCKS === 'true' &&
     process.env.NODE_ENV !== 'production';
 
-  if (isMockEnabled) {
+  if (isMockEnabled && !(await isHu23Demo())) {
     const { MockExamQrService } = await import('./mock-exam-qr.service');
     return new MockExamQrService();
   }

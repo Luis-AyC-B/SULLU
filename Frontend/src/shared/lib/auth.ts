@@ -10,9 +10,14 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Contraseña', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         const email = credentials?.email?.trim().toLowerCase() || '';
         const password = credentials?.password || '';
+        if(email.endsWith('@hu23.local')) {
+          if(process.env.HU23_DEMO_MODE!=='true'||process.env.NODE_ENV==='production'||!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers?.host||''))throw new Error('INVALID_CREDENTIALS');
+          const res=await fetch('http://127.0.0.1:3003/demo/hu23/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password}),cache:'no-store'});
+          if(!res.ok)throw new Error('INVALID_CREDENTIALS'); return await res.json();
+        }
 
         // Caso de prueba para usuario inactivo o dado de baja (Escenario Negativo 3)
         if (email.includes('inactivo') || email.includes('baja')) {
@@ -141,6 +146,7 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
   callbacks: {
     async jwt({ token, user }) {
+      if(String(token.accessToken||'').startsWith('hu23-demo:')&&(process.env.HU23_DEMO_MODE!=='true'||process.env.NODE_ENV==='production'))return {};
       if (user) {
         token.accessToken = (user as any).accessToken;
         token.permisos = (user as any).permisos;

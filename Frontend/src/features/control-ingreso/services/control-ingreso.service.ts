@@ -1,4 +1,5 @@
 import { apiClient } from "../../../shared/lib/api-client";
+import { isHu23Demo } from '../../portal/api/hu23-demo';
 import {
   idbGetAll,
   idbPut,
@@ -224,6 +225,7 @@ export const controlIngresoService = {
    * Con fallback a IndexedDB y localStorage si no hay conexión.
    */
   async getMisExamenes(): Promise<ExamenAsignado[]> {
+    if(await isHu23Demo())return (await apiClient.get('/control-ingreso/mis-examenes')).data;
     try {
       const response = await apiClient.get<ExamenAsignado[]>(
         "/control-ingreso/mis-examenes"
@@ -274,6 +276,7 @@ export const controlIngresoService = {
    * Si no hay red, entrega el último snapshot guardado en cache.
    */
   async getResumenExamen(examenId: number): Promise<ResumenEnVivoData> {
+    if(await isHu23Demo())return (await apiClient.get(`/control-ingreso/examenes/${examenId}/resumen`)).data;
     try {
       const response = await apiClient.get<ResumenEnVivoData>(
         `/control-ingreso/examenes/${examenId}/resumen`
@@ -332,6 +335,7 @@ export const controlIngresoService = {
   async cargarNominaCompletaExamen(
     examenId: number
   ): Promise<EstudianteNominaCache[]> {
+    if(await isHu23Demo())return [];
     try {
       const response = await apiClient.get<EstudianteBusquedaItem[]>(
         `/ingresos/examen/${examenId}/estudiantes`,
@@ -665,6 +669,10 @@ export const controlIngresoService = {
       };
     }
 
+    if(await isHu23Demo()) {
+      try{return (await apiClient.post('/ingresos/qr',{examenId,token:rawToken})).data;}
+      catch(error){const e=error as {response?:{status:number}};return {success:false,excepcion:e.response?.status===409?'YA_REGISTRADO':'QR_INVALIDO'};}
+    }
     // 1. Decodificación e inspección estructural del código QR
     const tokenInfo = parsearTokenQr(rawToken);
 
