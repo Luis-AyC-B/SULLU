@@ -26,7 +26,9 @@ export function PageContainer({
           )}
         </div>
 
-        {headerExtra && <div className="self-start">{headerExtra}</div>}
+        {headerExtra && (
+          <div className="w-full sm:w-auto sm:self-start">{headerExtra}</div>
+        )}
 
         {actionLabel && (
           <button
@@ -35,7 +37,6 @@ export function PageContainer({
           >
             {actionLabel}
           </button>
-          
         )}
       </div>
 
