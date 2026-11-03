@@ -4,30 +4,63 @@ import { z } from "zod";
 /* Motivos                                                                    */
 /* -------------------------------------------------------------------------- */
 
-// Hoy solo existe "No habilitado". Para agregar más motivos basta con
-// sumarlos aquí y en MOTIVO_LABEL (el formulario y el listado se adaptan).
 export const MOTIVOS_INCIDENCIA = [
   "NO_HABILITADO",
   "DOBLE_MARCACION",
+  "QR_OTRO_EXAMEN",
+  "QR_NO_VALIDO",
+  "QR_VENCIDO",
   "QR_CADUCADO",
+  "DOCUMENTO_NO_PRESENTADO",
+  "FUERA_DE_HORARIO",
+  "NO_FIGURA_LISTA",
   "NO_ENCONTRADO",
 ] as const;
 
 export type MotivoIncidencia = (typeof MOTIVOS_INCIDENCIA)[number];
 
-export const MOTIVO_LABEL: Record<MotivoIncidencia, string> = {
+export const MOTIVO_LABEL: Record<string, string> = {
   NO_HABILITADO: "No habilitado",
   DOBLE_MARCACION: "Doble marcación",
+  QR_OTRO_EXAMEN: "QR de otro examen",
+  QR_NO_VALIDO: "Código QR no válido",
+  QR_VENCIDO: "QR de examen vencido",
   QR_CADUCADO: "QR caducado",
+  DOCUMENTO_NO_PRESENTADO: "Documento no presentado",
+  FUERA_DE_HORARIO: "Ingreso fuera de horario",
+  NO_FIGURA_LISTA: "No figura en la lista",
   NO_ENCONTRADO: "No encontrado",
 };
+
+export function getMotivoLabel(motivo: string): string {
+  if (motivo in MOTIVO_LABEL) {
+    return MOTIVO_LABEL[motivo];
+  }
+  return motivo
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
 
 export const MOTIVO_POR_DEFECTO: MotivoIncidencia = "NO_HABILITADO";
 
 export const MOTIVO_OPCIONES = MOTIVOS_INCIDENCIA.map((value) => ({
   value,
-  label: MOTIVO_LABEL[value],
+  label: MOTIVO_LABEL[value] || value,
 }));
+
+// Opciones para el filtro en la barra de herramientas (con "Todos los motivos" al inicio)
+export const MOTIVOS_FILTRO_OPCIONES = [
+  { value: "TODOS", label: "Todos los motivos" },
+  { value: "NO_HABILITADO", label: "No habilitado" },
+  { value: "DOBLE_MARCACION", label: "Doble marcación" },
+  { value: "QR_OTRO_EXAMEN", label: "QR de otro examen" },
+  { value: "QR_NO_VALIDO", label: "Código QR no válido" },
+  { value: "QR_VENCIDO", label: "QR de examen vencido" },
+  { value: "DOCUMENTO_NO_PRESENTADO", label: "Documento no presentado" },
+  { value: "FUERA_DE_HORARIO", label: "Ingreso fuera de horario" },
+  { value: "NO_FIGURA_LISTA", label: "No figura en la lista" },
+];
 
 /* -------------------------------------------------------------------------- */
 /* Respuestas del backend                                                     */
@@ -53,7 +86,7 @@ export const incidenciaSchema = z.object({
   fechaHora: z.string(),
   codigoSis: z.string(),
   estudianteNombre: z.string(),
-  motivo: z.enum(MOTIVOS_INCIDENCIA),
+  motivo: z.string(),
   observaciones: z.string().nullish(),
   registradoPor: z.string(),
 });
@@ -77,7 +110,7 @@ export const crearIncidenciaFormSchema = z.object({
     .regex(/^\d+$/, "El código SIS solo debe contener números")
     .max(15, "El código SIS es demasiado largo"),
   examenId: z.string().min(1, "Selecciona un examen"),
-  motivo: z.enum(MOTIVOS_INCIDENCIA, { error: "Selecciona un motivo" }),
+  motivo: z.string().min(1, "Selecciona un motivo"),
   observaciones: z
     .string()
     .trim()
@@ -100,7 +133,7 @@ export const CREAR_INCIDENCIA_DEFAULTS: CrearIncidenciaFormValues = {
 export interface CrearIncidenciaPayload {
   codigoSis: string;
   examenId: string;
-  motivo: MotivoIncidencia;
+  motivo: string;
   observaciones?: string;
 }
 
@@ -117,11 +150,30 @@ export function toCrearIncidenciaPayload(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Helpers de formato                                                         */
+/* Helpers de filtrado y presentación                                        */
 /* -------------------------------------------------------------------------- */
 
-// "2026-09-06" -> "06/09/2026". Se corta el texto en vez de usar Date para
-// evitar que la zona horaria (Bolivia, UTC-4) corra la fecha un día.
+export function filtrarIncidenciasPorMotivo(
+  incidencias: Incidencia[],
+  motivoFiltro: string
+): Incidencia[] {
+  if (!motivoFiltro || motivoFiltro === "TODOS") {
+    return incidencias;
+  }
+  return incidencias.filter((item) => {
+    if (item.motivo === motivoFiltro) return true;
+    // Normalizaciones de nombres equivalentes
+    if (
+      (motivoFiltro === "QR_VENCIDO" || motivoFiltro === "QR_CADUCADO") &&
+      (item.motivo === "QR_VENCIDO" || item.motivo === "QR_CADUCADO")
+    ) {
+      return true;
+    }
+    return false;
+  });
+}
+
+// "2026-09-06" -> "06/09/2026"
 export function formatFechaExamen(fecha: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
   if (!match) return fecha;
@@ -134,7 +186,7 @@ export function labelExamen(examen: ExamenIncidencia): string {
   return `${examen.nombre} · ${formatFechaExamen(examen.fecha)}`;
 }
 
-// ISO -> "09:03:44" (hora local del navegador).
+// ISO -> "09:03:44"
 export function formatHoraIncidencia(fechaHora: string): string {
   const fecha = new Date(fechaHora);
   if (Number.isNaN(fecha.getTime())) return "--:--:--";

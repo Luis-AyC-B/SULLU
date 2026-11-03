@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import type {
   ExamenIncidencia,
   Incidencia,
 } from "../types/incidencias.types";
-import { ExamenSelect } from "./ExamenSelect";
+import { filtrarIncidenciasPorMotivo } from "../types/incidencias.types";
+import { IncidenciasFiltrosToolbar } from "./IncidenciasFiltrosToolbar";
 import {
   IncidenciasError,
   IncidenciasSkeleton,
@@ -19,6 +21,9 @@ interface ControlIncidenciasViewProps {
   examenId: string | null;
   onExamenChange: (examenId: string) => void;
 
+  motivoSeleccionado?: string;
+  onMotivoChange?: (motivo: string) => void;
+
   incidencias: Incidencia[] | null;
   incidenciasLoading: boolean;
   incidenciasError: string | null;
@@ -32,11 +37,18 @@ export function ControlIncidenciasView({
   onReintentarExamenes,
   examenId,
   onExamenChange,
+  motivoSeleccionado = "TODOS",
+  onMotivoChange,
   incidencias,
   incidenciasLoading,
   incidenciasError,
   onReintentarIncidencias,
 }: ControlIncidenciasViewProps) {
+  const incidenciasFiltradas = useMemo(() => {
+    if (!incidencias) return null;
+    return filtrarIncidenciasPorMotivo(incidencias, motivoSeleccionado);
+  }, [incidencias, motivoSeleccionado]);
+
   if (examenesLoading) {
     return <IncidenciasSkeleton conSelector />;
   }
@@ -59,14 +71,18 @@ export function ControlIncidenciasView({
     );
   }
 
+  const hayFiltroActivo = motivoSeleccionado !== "TODOS";
+
   return (
     <div className="flex flex-col gap-6">
-      <ExamenSelect
-        id="incidencias-examen"
+      {/* HU-18: Barra con filtros combinables de Materia y Motivo */}
+      <IncidenciasFiltrosToolbar
         examenes={examenes}
-        value={examenId ?? ""}
-        onChange={onExamenChange}
-        className="md:max-w-xl"
+        examenId={examenId}
+        onExamenChange={onExamenChange}
+        motivoSeleccionado={motivoSeleccionado}
+        onMotivoChange={onMotivoChange ?? (() => {})}
+        disabled={incidenciasLoading}
       />
 
       {incidenciasLoading && <IncidenciasSkeleton />}
@@ -87,6 +103,7 @@ export function ControlIncidenciasView({
         />
       )}
 
+      {/* Caso sin incidencias en el examen */}
       {incidencias !== null && incidencias.length === 0 && (
         <IncidenciasVacio
           titulo="No hay incidencias registradas para este examen"
@@ -94,8 +111,20 @@ export function ControlIncidenciasView({
         />
       )}
 
-      {incidencias !== null && incidencias.length > 0 && (
-        <IncidenciasLista incidencias={incidencias} />
+      {/* Caso con incidencias pero ninguna coincide con el motivo filtrado */}
+      {incidencias !== null &&
+        incidencias.length > 0 &&
+        incidenciasFiltradas !== null &&
+        incidenciasFiltradas.length === 0 && (
+          <IncidenciasVacio
+            titulo="No se encontraron observaciones para el motivo seleccionado"
+            descripcion="Prueba seleccionando otro motivo o vuelve a 'Todos los motivos'."
+          />
+        )}
+
+      {/* Lista con los resultados filtrados */}
+      {incidenciasFiltradas !== null && incidenciasFiltradas.length > 0 && (
+        <IncidenciasLista incidencias={incidenciasFiltradas} />
       )}
     </div>
   );

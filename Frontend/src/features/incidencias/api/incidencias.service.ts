@@ -14,6 +14,10 @@ import {
   type Incidencia,
 } from "../types/incidencias.types";
 import { offlineIncidenciasService } from "../services/offline-incidencias.service";
+import {
+  generarPdfReporteObservaciones,
+  formatearNombreArchivoObservaciones,
+} from "../lib/generarPdfReporteObservaciones";
 
 /* -------------------------------------------------------------------------- */
 /* Errores                                                                    */
@@ -333,8 +337,6 @@ export async function getIncidenciasExamen(
       }
     }
 
-    // Si no hay conexión o no hay respuesta del servidor, no bloquear con error fatal:
-    // devolver las incidencias pendientes locales o lista vacía para permitir registrar nuevas offline.
     const sinConexion =
       (typeof navigator !== "undefined" && !navigator.onLine) ||
       (isAxiosError(error) && (!error.response || error.code === "ERR_NETWORK"));
@@ -373,6 +375,76 @@ export async function crearIncidencia(
   }
 }
 
+/**
+ * HU-18: Descargar Reporte de Observaciones de Ingreso en PDF.
+ * Permite al Docente generar y descargar las observaciones con los filtros aplicados.
+ */
+export async function descargarReporteObservacionesPdf(
+  examen: ExamenIncidencia,
+  incidencias: Incidencia[],
+  filtroMotivo: string,
+  generadoPor?: string
+): Promise<{ blob: Blob; filename: string }> {
+  const filename = formatearNombreArchivoObservaciones(
+    examen.nombre,
+    examen.fecha
+  );
+
+  if (USE_MOCKS) {
+    const blob = generarPdfReporteObservaciones({
+      examen,
+      incidencias,
+      filtroMotivo,
+      generadoPor,
+    });
+    return { blob, filename };
+  }
+
+  try {
+    const params =
+      filtroMotivo && filtroMotivo !== "TODOS"
+        ? { motivo: filtroMotivo }
+        : {};
+    const response = await apiClient.get(
+      `/examenes/${encodeURIComponent(examen.id)}/reporte-observaciones`,
+      {
+        params,
+        responseType: "blob",
+        timeout: 10000,
+      }
+    );
+    if (response.data) {
+      const blob =
+        response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], { type: "application/pdf" });
+      return { blob, filename };
+    }
+  } catch (error) {
+    if (
+      esRutaInexistente(error) ||
+      (isAxiosError(error) && (!error.response || error.response.status >= 500))
+    ) {
+      const blob = generarPdfReporteObservaciones({
+        examen,
+        incidencias,
+        filtroMotivo,
+        generadoPor,
+      });
+      return { blob, filename };
+    }
+    throw error;
+  }
+
+  const fallbackBlob = generarPdfReporteObservaciones({
+    examen,
+    incidencias,
+    filtroMotivo,
+    generadoPor,
+  });
+  return { blob: fallbackBlob, filename };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Mocks                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -385,8 +457,8 @@ const delay = (ms = MOCK_DELAY_MS) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const MOCK_EXAMENES: ExamenIncidencia[] = [
-  { id: "1", nombre: "Cálculo II – Examen Final", fecha: "2026-09-06" },
-  { id: "2", nombre: "Física I – Examen Parcial", fecha: "2026-09-07" },
+  { id: "1", nombre: "Bases de Datos I – Primer parcial", fecha: "2026-10-19" },
+  { id: "2", nombre: "Cálculo II – Examen Final", fecha: "2026-09-06" },
   { id: "3", nombre: "Programación II – Examen Final", fecha: "2026-09-08" },
 ];
 
@@ -407,7 +479,9 @@ function mockIncidencia(
   id: string,
   examenId: string,
   fechaHora: string,
-  codigoSis: string
+  codigoSis: string,
+  motivo = "NO_HABILITADO",
+  usuario = MOCK_USUARIO
 ): Incidencia {
   return {
     id,
@@ -415,18 +489,18 @@ function mockIncidencia(
     fechaHora,
     codigoSis,
     estudianteNombre: MOCK_ESTUDIANTES[codigoSis] ?? "Estudiante",
-    motivo: "NO_HABILITADO",
+    motivo,
     observaciones: null,
-    registradoPor: MOCK_USUARIO,
+    registradoPor: usuario,
   };
 }
 
 const mockIncidencias: Incidencia[] = [
-  mockIncidencia("1", "1", "2026-09-06T09:03:44", "202104321"),
-  mockIncidencia("2", "1", "2026-09-06T09:02:15", "202003456"),
-  mockIncidencia("3", "1", "2026-09-06T09:00:52", "201905678"),
-  mockIncidencia("4", "1", "2026-09-06T08:59:18", "202102345"),
-  mockIncidencia("5", "3", "2026-09-08T10:15:30", "202002789"),
+  mockIncidencia("1", "1", "2026-10-19T09:03:44", "202104321", "NO_HABILITADO", "Carlos Mendoza"),
+  mockIncidencia("2", "1", "2026-10-19T09:02:15", "202003456", "DOBLE_MARCACION", "Carlos Mendoza"),
+  mockIncidencia("3", "1", "2026-10-19T09:00:52", "201905678", "QR_NO_VALIDO", "Carlos Mendoza"),
+  mockIncidencia("4", "1", "2026-10-19T08:59:18", "202102345", "NO_HABILITADO", "Carlos Mendoza"),
+  mockIncidencia("5", "3", "2026-09-08T10:15:30", "202002789", "DOCUMENTO_NO_PRESENTADO", "María López"),
 ];
 
 async function mockGetExamenes(): Promise<ExamenIncidencia[]> {
