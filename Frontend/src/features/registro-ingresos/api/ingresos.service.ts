@@ -12,6 +12,8 @@ import {
   type ExamenControl,
   type Ingreso,
   type IngresosExamen,
+  type EstudianteExamenItem,
+  type RegistrarCasoExcepcionalPayload,
 } from '../types/ingresos.types';
 import {
   generarPdfReporteIngresos,
@@ -23,6 +25,7 @@ import {
    GET /examenes/control            -> [{ id, nombre, fecha }]
    GET /examenes/:id/ingresos       -> { examenId, ingresados, total, ingresos[] }
    GET /examenes/:id/reporte-asistencia -> PDF Blob
+   POST /ingresos/caso-excepcional   -> Ingreso (HU-20)
    ============================================================================= */
 
 const FORCE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
@@ -37,9 +40,9 @@ function isEndpointMissing(error: unknown): boolean {
 /* ---------- Mocks ---------- */
 
 const MOCK_EXAMENES: ExamenControl[] = [
-  { id: 1, nombre: 'Cálculo II – Examen Final', fecha: '2026-09-06' },
-  { id: 2, nombre: 'Física I – Examen Parcial', fecha: '2026-09-07' },
-  { id: 3, nombre: 'Programación II – Examen Final', fecha: '2026-09-08' },
+  { id: 1, nombre: 'Cálculo II – Examen Final', fecha: '2026-09-06', estado: 'EN_CURSO', ambiente: 'Laboratorio Informática 1', horario: '08:15-09:45' },
+  { id: 2, nombre: 'Física I – Examen Parcial', fecha: '2026-09-07', estado: 'PROGRAMADO', ambiente: 'Aula 691B', horario: '14:15-15:45' },
+  { id: 3, nombre: 'Programación II – Examen Final', fecha: '2026-09-08', estado: 'FINALIZADO', ambiente: 'Laboratorio 2', horario: '10:00-11:30' },
 ];
 
 const hora = (hms: string) => `2026-09-06T${hms}-04:00`;
@@ -377,4 +380,150 @@ export async function descargarReporteIngresosPdf(
     docenteNombre,
   });
   return { blob: fallbackBlob, filename };
+}
+
+/* =============================================================================
+   HU-20: Casos excepcionales (Nómina de estudiantes y Registro)
+   ============================================================================= */
+
+export const MOCK_ESTUDIANTES_EXAMEN: EstudianteExamenItem[] = [
+  {
+    id: 1,
+    codSis: "202100123",
+    ci: "7895432",
+    nombre: "Ana",
+    apellido: "Rojas Mamani",
+    estadoHabilitado: true,
+  },
+  {
+    id: 2,
+    codSis: "202100124",
+    ci: "8345612",
+    nombre: "Carlos",
+    apellido: "Mendoza Quispe",
+    estadoHabilitado: true,
+  },
+  {
+    id: 3,
+    codSis: "202100125",
+    ci: "9012387",
+    nombre: "Lucía",
+    apellido: "Vargas Salazar",
+    estadoHabilitado: true,
+  },
+  {
+    id: 4,
+    codSis: "202211582",
+    ci: "6543210",
+    nombre: "Mariana",
+    apellido: "Rojas",
+    estadoHabilitado: false,
+    motivoInhabilitacion: "Inscripción de la asignatura no confirmada",
+  },
+  {
+    id: 5,
+    codSis: "202001456",
+    ci: "8765432",
+    nombre: "Diego",
+    apellido: "Flores Vargas",
+    estadoHabilitado: true,
+  },
+  {
+    id: 6,
+    codSis: "201902345",
+    ci: "5432109",
+    nombre: "Valeria",
+    apellido: "López Quispe",
+    estadoHabilitado: true,
+  },
+  {
+    id: 7,
+    codSis: "202103678",
+    ci: "4321098",
+    nombre: "Mateo",
+    apellido: "Pérez Arce",
+    estadoHabilitado: true,
+  },
+  {
+    id: 8,
+    codSis: "202002789",
+    ci: "8765430",
+    nombre: "Lucía",
+    apellido: "Salazar Ríos",
+    estadoHabilitado: true,
+  },
+  {
+    id: 9,
+    codSis: "201901567",
+    ci: "7654328",
+    nombre: "Gabriel",
+    apellido: "Fernández Soto",
+    estadoHabilitado: true,
+  },
+];
+
+export async function buscarEstudiantesExamen(
+  examenId: string | number,
+  query: string
+): Promise<EstudianteExamenItem[]> {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  try {
+    const { data } = await apiClient.get<EstudianteExamenItem[]>(
+      `/ingresos/examen/${examenId}/estudiantes`,
+      { params: { q } }
+    );
+    if (Array.isArray(data)) return data;
+  } catch {
+    // Continuar con fallback
+  }
+
+  // Fallback local con los estudiantes del examen
+  return MOCK_ESTUDIANTES_EXAMEN.filter(
+    (e) =>
+      e.codSis.toLowerCase().includes(q) ||
+      e.nombre.toLowerCase().includes(q) ||
+      e.apellido.toLowerCase().includes(q) ||
+      e.ci.toLowerCase().includes(q)
+  );
+}
+
+export async function registrarCasoExcepcional(
+  payload: RegistrarCasoExcepcionalPayload
+): Promise<Ingreso> {
+  const { examenId, codigoSis, motivo } = payload;
+  const estudianteInfo = MOCK_ESTUDIANTES_EXAMEN.find(
+    (e) => e.codSis === codigoSis
+  );
+
+  const horaActual = new Date();
+  const isoHora = horaActual.toISOString();
+
+  const nuevoIngreso: Ingreso = {
+    id: `caso-${Date.now()}`,
+    hora: isoHora,
+    sis: codigoSis,
+    estudiante: estudianteInfo
+      ? `${estudianteInfo.nombre} ${estudianteInfo.apellido}`
+      : `Estudiante (${codigoSis})`,
+    metodo: "Manual",
+    estado: "Habilitado",
+    casoExcepcional: motivo,
+  };
+
+  try {
+    const { data } = await apiClient.post<Ingreso>(
+      "/ingresos/caso-excepcional",
+      payload
+    );
+    if (data && data.sis) return data;
+  } catch {
+    // Si el endpoint aún no está implementado en backend, usamos fallback
+  }
+
+  // Guardar en la lista mock en memoria para que se refleje de inmediato
+  MOCK_INGRESOS_EX1.unshift(nuevoIngreso);
+
+  return nuevoIngreso;
 }

@@ -1,7 +1,7 @@
 // src/features/registro-ingresos/components/ControlIngresosPageContainer.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
@@ -11,17 +11,20 @@ import { EnVivoBadge } from "./EnVivoBadge";
 import { IngresosTableToolbar } from "./IngresosTableToolbar";
 import { IngresosTable } from "./IngresosTable";
 import { BotonDescargarReportePdf } from "./BotonDescargarReportePdf";
+import { BotonCasoExcepcional } from "./BotonCasoExcepcional";
 import { ConfirmarDescargaModal } from "./ConfirmarDescargaModal";
+import { RegistrarCasoExcepcionalModal } from "./RegistrarCasoExcepcionalModal";
 import { useExamenesControl } from "../hooks/useExamenesControl";
 import { useIngresosExamen } from "../hooks/useIngresosExamen";
 import { filtrarIngresos } from "../lib/filtrarIngresos";
 import { descargarReporteIngresosPdf } from "../api/ingresos.service";
 import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
+import type { Ingreso } from "../types/ingresos.types";
 
 export function ControlIngresosPageContainer() {
   const { data: session } = useSession();
 
-  // HU-17 Criterio 13: El botón "Descargar PDF" solo se muestra para el rol Docente
+  // HU-17 Criterio 13 / HU-20: Los botones solo se muestran para el rol Docente
   const userRole = (session?.user?.rol || "").toLowerCase();
   const userEmail = (session?.user?.email || "").toLowerCase();
   const isDocente =
@@ -40,10 +43,21 @@ export function ControlIngresosPageContainer() {
   const { data, conexion } = useIngresosExamen(examenId);
   const [busqueda, setBusqueda] = useState("");
 
+  // Ingresos locales agregados en la sesión (HU-20 casos excepcionales)
+  const [ingresosAgregados, setIngresosAgregados] = useState<Ingreso[]>([]);
+
+  // Limpiar ingresos agregados al cambiar de examen
+  useEffect(() => {
+    setIngresosAgregados([]);
+  }, [examenId]);
+
   // Estado para la descarga del PDF (HU-17)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
+
+  // Estado para el modal de casos excepcionales (HU-20)
+  const [isCasoModalOpen, setIsCasoModalOpen] = useState(false);
 
   const examenSeleccionado = useMemo(
     () => examenes.find((e) => String(e.id) === String(examenId)) || null,
@@ -56,12 +70,45 @@ export function ControlIngresosPageContainer() {
       : "el examen";
   }, [examenSeleccionado]);
 
+  // Combinación de ingresos existentes + nuevos casos excepcionales
+  const todosLosIngresos = useMemo(() => {
+    const base = data?.ingresos ?? [];
+    if (ingresosAgregados.length === 0) return base;
+    const baseFiltrada = base.filter(
+      (b) => !ingresosAgregados.some((a) => a.sis === b.sis)
+    );
+    return [...ingresosAgregados, ...baseFiltrada];
+  }, [data?.ingresos, ingresosAgregados]);
+
+  const totalIngresados = useMemo(() => {
+    const baseCount = data?.ingresados ?? 0;
+    return baseCount + ingresosAgregados.length;
+  }, [data?.ingresados, ingresosAgregados.length]);
+
   const ingresosFiltrados = useMemo(
-    () => filtrarIngresos(data?.ingresos ?? [], busqueda),
-    [data, busqueda],
+    () => filtrarIngresos(todosLosIngresos, busqueda),
+    [todosLosIngresos, busqueda]
   );
 
   const cargandoIngresos = cargandoExamenes || (examenId !== null && data === null);
+
+  // HU-20: Clic en "Casos excepcionales"
+  const handleAbrirCasoExcepcional = () => {
+    if (!examenId || !examenSeleccionado) {
+      toast.error("Selecciona un examen para registrar un caso excepcional");
+      return;
+    }
+    if (examenSeleccionado.estado === "FINALIZADO") {
+      toast.error("El examen ya ha finalizado");
+      return;
+    }
+    setIsCasoModalOpen(true);
+  };
+
+  const handleCasoRegistrado = (nuevoIngreso: Ingreso) => {
+    setIngresosAgregados((prev) => [nuevoIngreso, ...prev]);
+    toast.success("Caso excepcional registrado");
+  };
 
   // HU-17: Clic en el botón "Descargar PDF"
   const handleSolicitarDescarga = () => {
@@ -81,8 +128,7 @@ export function ControlIngresosPageContainer() {
     }
 
     // Criterio 8: Examen sin ingresos registrados
-    const totalIngresos = data?.ingresados ?? data?.ingresos?.length ?? 0;
-    if (totalIngresos === 0) {
+    if (totalIngresados === 0) {
       toast.warning("No hay ingresos registrados para descargar");
       return;
     }
@@ -104,7 +150,12 @@ export function ControlIngresosPageContainer() {
       const docenteNombre = session?.user?.name || "Docente titular";
       const { blob, filename } = await descargarReporteIngresosPdf(
         examenSeleccionado,
-        data,
+        {
+          examenId: Number(examenId),
+          ingresados: totalIngresados,
+          total: data.total,
+          ingresos: todosLosIngresos,
+        },
         docenteNombre
       );
 
@@ -122,7 +173,6 @@ export function ControlIngresosPageContainer() {
       toast.success("Reporte descargado");
       setIsModalOpen(false);
     } catch (err) {
-      // Criterio 9: Manejo de errores con opción de reintentar
       console.error("Error al descargar reporte de asistencia:", err);
       setErrorDescarga(
         "Ocurrió un error al generar el reporte de asistencia. Por favor, reintenta la operación."
@@ -131,6 +181,8 @@ export function ControlIngresosPageContainer() {
       setIsDownloading(false);
     }
   };
+
+  const examenFinalizado = examenSeleccionado?.estado === "FINALIZADO";
 
   return (
     <PageContainer
@@ -141,23 +193,39 @@ export function ControlIngresosPageContainer() {
           <div className="flex justify-end">
             <EnVivoBadge
               conexion={conexion}
-              ingresados={data?.ingresados}
+              ingresados={totalIngresados}
               total={data?.total}
             />
           </div>
 
-          {/* HU-17: Botón visible solo para rol Docente */}
+          {/* HU-17 / HU-20: Botones visibles solo para rol Docente */}
           {isDocente && (
-            <BotonDescargarReportePdf
-              onClick={handleSolicitarDescarga}
-              disabled={!examenId}
-              disabledReason={
-                !examenId
-                  ? "Selecciona un examen para descargar el reporte"
-                  : undefined
-              }
-              isDownloading={isDownloading}
-            />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+              {/* Botón HU-20: Casos excepcionales (a la izquierda de Descargar PDF) */}
+              <BotonCasoExcepcional
+                onClick={handleAbrirCasoExcepcional}
+                disabled={!examenId || examenFinalizado}
+                disabledReason={
+                  !examenId
+                    ? "Selecciona un examen para registrar casos excepcionales"
+                    : examenFinalizado
+                    ? "El examen está finalizado"
+                    : undefined
+                }
+              />
+
+              {/* Botón HU-17: Descargar PDF */}
+              <BotonDescargarReportePdf
+                onClick={handleSolicitarDescarga}
+                disabled={!examenId}
+                disabledReason={
+                  !examenId
+                    ? "Selecciona un examen para descargar el reporte"
+                    : undefined
+                }
+                isDownloading={isDownloading}
+              />
+            </div>
           )}
         </div>
       }
@@ -198,7 +266,7 @@ export function ControlIngresosPageContainer() {
           ingresos={ingresosFiltrados}
           isLoading={cargandoIngresos}
           hayBusqueda={busqueda.trim() !== ""}
-          ingresados={data?.ingresados ?? 0}
+          ingresados={totalIngresados}
           total={data?.total ?? 0}
         />
 
@@ -211,6 +279,15 @@ export function ControlIngresosPageContainer() {
           isDownloading={isDownloading}
           errorDescarga={errorDescarga}
           onRetry={handleConfirmarDescarga}
+        />
+
+        {/* HU-20: Modal de registro de casos excepcionales */}
+        <RegistrarCasoExcepcionalModal
+          isOpen={isCasoModalOpen}
+          onClose={() => setIsCasoModalOpen(false)}
+          examen={examenSeleccionado}
+          ingresosActuales={todosLosIngresos}
+          onCasoRegistrado={handleCasoRegistrado}
         />
       </div>
     </PageContainer>
