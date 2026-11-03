@@ -18,6 +18,9 @@ export interface Exam {
   horaFin?: string;       
   duracionMinutos: number;
   habilitadosCount: number;
+  presentesCount?: number;
+  ausentesCount?: number | null;
+  estadoCalculado?: string;
   normas?: string;
   docenteId: string;
   docenteNombre: string;
@@ -48,4 +51,25 @@ export interface AmbienteOption {
   id: string;
   nombre: string;
   horarioDisponible: string;
+}
+
+export type BackendExamEstado = "EN_CURSO" | "PROXIMO" | "FINALIZADO" | "CANCELADO";
+
+export interface DashboardAsistencia {
+  examenId: number;
+  materia: string;
+  tipoExamen: string;
+  carrera: string;
+  ambiente: string;
+  fecha: string;
+  horario: string;
+  docente: string;
+  estado: BackendExamEstado | ExamStatus | string;
+  habilitados: number;
+  presentes: number;
+  ausentes: number | null;
+  porcentajePresentes: number;
+  porcentajeAusentes: number;
+  examenAunNoInicia: boolean;
+  ultimaActualizacion: string;
 }

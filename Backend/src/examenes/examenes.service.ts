@@ -15,6 +15,7 @@ import { fechasPermitidas } from '../ambientes/ambientes.service';
 import { CreateExamenDto } from './dto/create-examen.dto';
 import { UpdateExamenDto } from './dto/update-examen.dto';
 import { QueryExamenDto } from './dto/query-examen.dto';
+import { DashboardAsistenciaResponseDto } from './dto/dashboard-asistencia-response.dto';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -30,12 +31,13 @@ const EXAMEN_INCLUDE = {
       },
     },
   },
-  // Agregar esto para contar los estudiantes habilitados desde la BD
+  // Agregar esto para contar los estudiantes habilitados e ingresos desde la BD
   _count: {
     select: {
       estudiantes: {
         where: { estado_habilitado: true },
       },
+      ingresos: true,
     },
   },
 };
@@ -97,6 +99,25 @@ export class ExamenesService {
       createdAt: e.creadoEn?.toISOString() ?? new Date().toISOString(),
       // Extraemos el conteo que hizo Prisma
       habilitadosCount: e._count?.estudiantes ?? 0,
+      presentesCount: e._count?.ingresos ?? 0,
+      ausentesCount: (() => {
+        const hab = e._count?.estudiantes ?? 0;
+        const pres = e._count?.ingresos ?? 0;
+        const estadoCalc = this.calcularEstadoExamen(
+          e.estado,
+          e.reservaAmbiente?.fecha,
+          e.reservaAmbiente?.horarioFijo?.horaIni,
+          e.reservaAmbiente?.horarioFijo?.horaFin,
+        );
+        if (estadoCalc === 'PROXIMO') return null;
+        return Math.max(0, hab - pres);
+      })(),
+      estadoCalculado: this.calcularEstadoExamen(
+        e.estado,
+        e.reservaAmbiente?.fecha,
+        e.reservaAmbiente?.horarioFijo?.horaIni,
+        e.reservaAmbiente?.horarioFijo?.horaFin,
+      ),
     };
   }
 
@@ -726,5 +747,187 @@ export class ExamenesService {
       );
     if (reserva.examenes.some((e) => e.id !== examenId))
       throw new ConflictException('La reserva ya tiene un examen asociado.');
+  }
+  /**
+   * HU16: Calcula el estado dinámico del examen según la fecha y horario fijo asignado (Bolivia UTC-4).
+   */
+  calcularEstadoExamen(
+    estadoExamen: EstadoExamen,
+    fecha?: Date | null,
+    horaIni?: Date | null,
+    horaFin?: Date | null,
+  ): 'EN_CURSO' | 'PROXIMO' | 'FINALIZADO' | 'CANCELADO' {
+    if (estadoExamen === EstadoExamen.CANCELADO) {
+      return 'CANCELADO';
+    }
+    if (estadoExamen === EstadoExamen.FINALIZADO) {
+      return 'FINALIZADO';
+    }
+
+    if (!fecha) {
+      return 'PROXIMO';
+    }
+
+    const ahora = new Date();
+    const hoyYMD = ahora.toLocaleDateString('en-CA', {
+      timeZone: 'America/La_Paz',
+    });
+    const fechaYMD = new Date(fecha).toISOString().split('T')[0];
+
+    if (fechaYMD > hoyYMD) {
+      return 'PROXIMO';
+    }
+    if (fechaYMD < hoyYMD) {
+      return 'FINALIZADO';
+    }
+
+    // Mismo día: evaluar horas si existen
+    if (horaIni) {
+      const horaStr = ahora.toLocaleTimeString('en-US', {
+        timeZone: 'America/La_Paz',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const [h, m] = horaStr.split(':').map(Number);
+      const ahoraMinutos = h * 60 + m;
+
+      const iniMinutos = horaIni.getUTCHours() * 60 + horaIni.getUTCMinutes();
+
+      if (ahoraMinutos < iniMinutos) {
+        return 'PROXIMO';
+      }
+
+      if (horaFin) {
+        const finMinutos = horaFin.getUTCHours() * 60 + horaFin.getUTCMinutes();
+        if (ahoraMinutos > finMinutos) {
+          return 'FINALIZADO';
+        }
+      }
+    }
+
+    return 'EN_CURSO';
+  }
+
+  /**
+   * HU16: Obtiene las métricas de asistencia en tiempo real del examen para el dashboard docente.
+   */
+  async getDashboardAsistencia(
+    id: number,
+    usuarioId: number,
+    isAdmin = false,
+  ): Promise<DashboardAsistenciaResponseDto> {
+    const examen = await this.prisma.examen.findUnique({
+      where: { id },
+      include: {
+        reservaAmbiente: {
+          include: {
+            horarioFijo: true,
+            ambiente: true,
+          },
+        },
+        responsable: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+          },
+        },
+        carrerasMaterias: {
+          include: {
+            carrera_materia: {
+              include: {
+                materia: true,
+                carrera: { include: { facultad: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!examen) {
+      throw new NotFoundException('Examen no localizado.');
+    }
+
+    if (!isAdmin && examen.usuarioId !== usuarioId) {
+      throw new ForbiddenException(
+        'No tienes permiso para ver el dashboard de asistencia de este examen.',
+      );
+    }
+
+    const cm = examen.carrerasMaterias?.[0]?.carrera_materia;
+    const resAmb = examen.reservaAmbiente;
+    const horFijo = resAmb?.horarioFijo;
+
+    const fechaDate = resAmb?.fecha ? new Date(resAmb.fecha) : null;
+    const horaIni = horFijo?.horaIni ? new Date(horFijo.horaIni) : null;
+    const horaFin = horFijo?.horaFin ? new Date(horFijo.horaFin) : null;
+
+    const estado = this.calcularEstadoExamen(
+      examen.estado,
+      fechaDate,
+      horaIni,
+      horaFin,
+    );
+
+    // 1. Estudiantes habilitados para este examen
+    const habilitados = await this.prisma.examen_Estudiante.count({
+      where: {
+        examenId: id,
+        estado_habilitado: true,
+      },
+    });
+
+    // 2. Estudiantes presentes (habilitados que ya tienen al menos un ingreso registrado)
+    const presentes = await this.prisma.examen_Estudiante.count({
+      where: {
+        examenId: id,
+        estado_habilitado: true,
+        estudiante: {
+          ingresos: {
+            some: { examenId: id },
+          },
+        },
+      },
+    });
+
+    // 3. Ausentes (Criterio 3 y 13: si aún no inicia el examen, ausentes es null y flag activo)
+    const examenAunNoInicia = estado === 'PROXIMO';
+    const ausentes = examenAunNoInicia
+      ? null
+      : Math.max(0, habilitados - presentes);
+
+    // 4. Porcentajes (Criterio 12: con 0 habilitados, porcentajes en 0% sin división por cero ni NaN)
+    const porcentajePresentes =
+      habilitados > 0 ? Math.round((presentes / habilitados) * 100) : 0;
+    const porcentajeAusentes =
+      habilitados > 0 && ausentes !== null
+        ? Math.round((ausentes / habilitados) * 100)
+        : 0;
+
+    const horaInicioStr = horaIni ? horaISO(horaIni, '08:00') : '08:00';
+    const horaFinStr = horaFin ? horaISO(horaFin, '09:30') : '09:30';
+
+    return {
+      examenId: examen.id,
+      materia: cm?.materia?.nombre ?? 'Materia general',
+      tipoExamen: examen.tipoExamen ?? 'Examen programado',
+      carrera: cm?.carrera?.nombre ?? 'Carrera no especificada',
+      ambiente: resAmb?.ambiente?.nombre ?? 'Aula asignada',
+      fecha: fechaISO(fechaDate),
+      horario: `${horaInicioStr} - ${horaFinStr}`,
+      docente: examen.responsable
+        ? `${examen.responsable.nombre} ${examen.responsable.apellido ?? ''}`.trim()
+        : 'Docente no asignado',
+      estado,
+      habilitados,
+      presentes,
+      ausentes,
+      porcentajePresentes,
+      porcentajeAusentes,
+      examenAunNoInicia,
+      ultimaActualizacion: new Date().toISOString(),
+    };
   }
 }
