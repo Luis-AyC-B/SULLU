@@ -15,6 +15,7 @@ export const ingresoSchema = z.object({
   hora: z.string().min(1),
   sis: z.string().min(1),
   estudiante: z.string().min(1),
+  ci: z.string().nullish(),
   metodo: metodoIngresoSchema,
   estado: estadoIngresoSchema,
   casoExcepcional: z.string().nullish(),
