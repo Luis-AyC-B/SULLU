@@ -82,8 +82,10 @@ export function ControlIngresosPageContainer() {
 
   const totalIngresados = useMemo(() => {
     const baseCount = data?.ingresados ?? 0;
-    return baseCount + ingresosAgregados.length;
-  }, [data?.ingresados, ingresosAgregados.length]);
+    return baseCount + ingresosAgregados.filter(
+      (nuevo) => !data?.ingresos.some((ingreso) => ingreso.sis === nuevo.sis)
+    ).length;
+  }, [data?.ingresados, data?.ingresos, ingresosAgregados]);
 
   const ingresosFiltrados = useMemo(
     () => filtrarIngresos(todosLosIngresos, busqueda),
