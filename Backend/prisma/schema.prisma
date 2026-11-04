@@ -271,7 +271,7 @@ enum EstadoExamen {
 
 model Examen {
   id                Int          @id @default(autoincrement())
-  reservaAmbienteId Int          @unique @map("id_reservaAmbiente") // Sprint 2: @unique â€” 1 examen por reserva
+  reservaAmbienteId Int          @map("id_reservaAmbiente") // HU21: unicidad de reservas activas mediante índice parcial SQL
   usuarioId         Int          @map("id_usuario")
   tipoExamen        String       @map("tipo_examen")
   normasEx          String?      @map("normas_ex") @db.Text
@@ -449,6 +449,7 @@ model DocenteColaborador {
 // HU7/HU13: AsignaciÃ³n operativa puntual de colaborador a examen
 model ExamenControlador {
   id              Int      @id @default(autoincrement())
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamp()
   examenId        Int      @map("id_examen")
   colaboradorId   Int      @map("id_colaborador")
   asignadoPor     Int      @map("asignado_por")
@@ -524,6 +525,8 @@ model Bitacora_Auditoria {
   modulo           String   @db.VarChar(50)
   tablaAfectada    String?  @map("tabla_afectada") @db.VarChar(50)
   registroId       Int?     @map("registro_id")
+  registroClave    Json?    @map("registro_clave")
+  usuarioNombre    String?  @map("usuario_nombre")
   detallesAnterior Json?    @map("detalles_anterior")
   detallesNuevo    Json?    @map("detalles_nuevo")
   ipOrigen         String?  @map("ip_origen") @db.VarChar(45)
@@ -531,5 +534,9 @@ model Bitacora_Auditoria {
 
   usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
+  @@index([fechaHora, id])
+  @@index([usuarioId, fechaHora])
+  @@index([accion, fechaHora])
+  @@index([tablaAfectada, fechaHora])
   @@map("bitacora_auditoria")
 }
