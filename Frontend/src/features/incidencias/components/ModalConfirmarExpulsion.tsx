@@ -6,7 +6,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import type { ValoresFormularioExpulsion } from "../types/incidencias.types";
+import {
+  ETIQUETA_CASO_INCIDENCIA,
+  type ValoresFormularioExpulsion,
+} from "../types/incidencias.types";
+import { InsigniaCasoIncidencia } from "./InsigniaCasoIncidencia";
 import { InsigniaMotivoExpulsion } from "./InsigniaMotivoExpulsion";
 
 interface ModalConfirmarExpulsionProps {
@@ -39,6 +43,9 @@ export function ModalConfirmarExpulsion({
     onAbiertoChange(nuevo);
   }
 
+  const esExpulsion = valores?.caso === "EXPULSION";
+  const esSuplantacion = valores?.caso === "SUPLANTACION_IDENTIDAD";
+
   return (
     <Dialog open={abierto && valores !== null} onOpenChange={manejarCambio}>
       <DialogContent showCloseButton={false} className="md:max-w-lg">
@@ -46,11 +53,15 @@ export function ModalConfirmarExpulsion({
           <>
             <DialogHeader className="text-left">
               <DialogTitle className="text-3xl font-bold leading-tight text-primary">
-                ¿Expulsar a {valores.estudiante.nombre} del examen?
+                {esExpulsion
+                  ? `¿Expulsar a ${valores.estudiante.nombre} del examen?`
+                  : esSuplantacion
+                    ? `¿Registrar suplantación de identidad para ${valores.estudiante.nombre}?`
+                    : `¿Registrar ${ETIQUETA_CASO_INCIDENCIA[valores.caso].toLowerCase()} para ${valores.estudiante.nombre}?`}
               </DialogTitle>
               {/* El título ya describe la acción; se oculta la descripción visual. */}
               <DialogDescription className="sr-only">
-                Confirmación de expulsión en {examenNombre}
+                Confirmación de incidencia en {examenNombre}
               </DialogDescription>
             </DialogHeader>
 
@@ -63,18 +74,35 @@ export function ModalConfirmarExpulsion({
                 </span>{" "}
                 · {valores.estudiante.nombre}
               </p>
-              <InsigniaMotivoExpulsion motivo={valores.motivo} className="mt-3" />
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <InsigniaCasoIncidencia caso={valores.caso} />
+                <InsigniaMotivoExpulsion motivo={valores.motivo} />
+              </div>
+              {valores.detalle?.trim() ? (
+                <p className="mt-3 text-sm text-muted-foreground whitespace-pre-wrap break-words border-t border-border/60 pt-2">
+                  <span className="font-medium text-foreground">Detalle:</span>{" "}
+                  {valores.detalle}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs italic text-muted-foreground border-t border-border/60 pt-2">
+                  Sin observaciones en el detalle.
+                </p>
+              )}
             </div>
 
             <p className="mt-2 text-body">
               {registradoPor
-                ? `La expulsión quedará registrada por ${registradoPor}. `
-                : "La expulsión quedará registrada a tu nombre. "}
-              El estudiante no podrá reingresar a este examen.
+                ? `La incidencia quedará registrada por ${registradoPor}. `
+                : "La incidencia quedará registrada a tu nombre. "}
+              {esExpulsion
+                ? "El estudiante no podrá reingresar a este examen."
+                : esSuplantacion
+                  ? "El estudiante quedará inhabilitado de inmediato y se iniciará el informe disciplinario."
+                  : "La incidencia quedará asentada en el reporte del examen."}
             </p>
 
             <p className="text-sm text-muted-foreground">
-              La expulsión aún no se ha registrado. Revisa los datos antes de
+              La incidencia aún no se ha guardado. Revisa los datos antes de
               continuar.
             </p>
 
@@ -100,7 +128,13 @@ export function ModalConfirmarExpulsion({
                 disabled={enviando}
                 onClick={onConfirmar}
               >
-                {enviando ? "Expulsando..." : "Confirmar"}
+                {enviando
+                  ? "Registrando..."
+                  : esExpulsion
+                    ? "Confirmar expulsión"
+                    : esSuplantacion
+                      ? "Confirmar suplantación"
+                      : "Confirmar"}
               </Button>
             </div>
           </>

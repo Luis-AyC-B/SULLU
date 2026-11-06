@@ -3,6 +3,7 @@ import {
   formatearHoraIncidencia,
   type Incidencia,
 } from "../types/incidencias.types";
+import { InsigniaCasoIncidencia } from "./InsigniaCasoIncidencia";
 import { InsigniaMotivoExpulsion } from "./InsigniaMotivoExpulsion";
 
 interface ListaIncidenciasMovilProps {
@@ -38,15 +39,21 @@ export function ListaIncidenciasMovil({
 
             <p className="mt-3 font-semibold">{incidencia.estudianteNombre}</p>
 
-            <InsigniaMotivoExpulsion
-              motivo={incidencia.motivo}
-              className="mt-3 w-full"
-            />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <InsigniaCasoIncidencia caso={incidencia.caso} />
+              <InsigniaMotivoExpulsion motivo={incidencia.motivo} />
+            </div>
 
             {/* Texto plano: React escapa el contenido, no se ejecuta HTML. */}
-            <p className="mt-3 whitespace-pre-wrap break-words text-body text-muted-foreground">
-              {incidencia.detalle}
-            </p>
+            {incidencia.detalle?.trim() ? (
+              <p className="mt-3 whitespace-pre-wrap break-words text-body text-muted-foreground">
+                {incidencia.detalle}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs italic text-muted-foreground/60">
+                Sin observaciones adicionales.
+              </p>
+            )}
 
             <p className="mt-3 border-t border-border pt-3 text-sm text-muted-foreground">
               Registrado por {incidencia.registradoPor}

@@ -1,4 +1,5 @@
 import {
+  ETIQUETA_CASO_INCIDENCIA,
   ETIQUETA_MOTIVO_EXPULSION,
   formatearHoraIncidencia,
   type ExamenExpulsion,
@@ -52,7 +53,10 @@ async function cargarImagen(url: string): Promise<Imagen | null> {
 // Código corto derivado del contenido: si alguien edita los datos, cambia.
 function codigoDocumento(incidencias: Incidencia[], ahora: string): string {
   const texto = incidencias
-    .map((i) => `${i.fechaHora}|${i.codigoSis}|${i.motivo}|${i.detalle}`)
+    .map(
+      (i) =>
+        `${i.fechaHora}|${i.codigoSis}|${i.caso}|${i.motivo}|${i.detalle}`,
+    )
     .join("\n");
   let h = 5381;
   for (let k = 0; k < texto.length; k++) {
@@ -153,15 +157,16 @@ export async function generarReportePdf({
     startY: yTitulo + 8 + lineas.length * 5 + 2,
     margin: { top: ALTO_ENCABEZADO + 8, bottom: ALTO_PIE, left: MARGEN, right: MARGEN },
     head: [
-      ["Fecha", "Hora", "Código SIS", "Estudiante", "Motivo", "Detalle", "Registrado por"],
+      ["Fecha", "Hora", "Código SIS", "Estudiante", "Caso", "Motivo", "Detalle", "Registrado por"],
     ],
     body: incidencias.map((i) => [
       formatearFecha(i.fechaHora),
       formatearHoraIncidencia(i.fechaHora),
       i.codigoSis,
       i.estudianteNombre,
+      ETIQUETA_CASO_INCIDENCIA[i.caso ?? "EXPULSION"],
       ETIQUETA_MOTIVO_EXPULSION[i.motivo],
-      i.detalle,
+      i.detalle?.trim() ? i.detalle : "—",
       i.registradoPor,
     ]),
     styles: { fontSize: 9 },
