@@ -1,5 +1,34 @@
 import { z } from "zod";
 
+/* Casos de incidencia */
+
+export const CASOS_INCIDENCIA = [
+  "EXPULSION",
+  "SUPLANTACION_IDENTIDAD",
+  "AMONESTACION",
+  "PROBLEMA_MEDICO",
+  "RETIRO_VOLUNTARIO",
+  "INCIDENCIA_TECNICA",
+  "OTRO",
+] as const;
+
+export type CasoIncidencia = (typeof CASOS_INCIDENCIA)[number];
+
+export const ETIQUETA_CASO_INCIDENCIA: Record<CasoIncidencia, string> = {
+  EXPULSION: "Expulsión",
+  SUPLANTACION_IDENTIDAD: "Suplantación de identidad",
+  AMONESTACION: "Amonestación verbal",
+  PROBLEMA_MEDICO: "Problema de salud / médico",
+  RETIRO_VOLUNTARIO: "Retiro voluntario",
+  INCIDENCIA_TECNICA: "Incidencia técnica / material",
+  OTRO: "Otro caso",
+};
+
+export const OPCIONES_CASO_INCIDENCIA = CASOS_INCIDENCIA.map((valor) => ({
+  valor,
+  etiqueta: ETIQUETA_CASO_INCIDENCIA[valor],
+}));
+
 /* Motivos */
 
 export const MOTIVOS_EXPULSION = [
@@ -45,8 +74,9 @@ export const incidenciaSchema = z.object({
   fechaHora: z.string(),
   codigoSis: z.string(),
   estudianteNombre: z.string(),
+  caso: z.enum(CASOS_INCIDENCIA).default("EXPULSION"),
   motivo: z.enum(MOTIVOS_EXPULSION),
-  detalle: z.string(),
+  detalle: z.string().default(""),
   registradoPor: z.string(),
 });
 export type Incidencia = z.infer<typeof incidenciaSchema>;
@@ -66,12 +96,13 @@ export const formularioExpulsionSchema = z.object({
     { codigoSis: z.string(), nombre: z.string() },
     { error: "Selecciona un estudiante" },
   ),
+  caso: z.enum(CASOS_INCIDENCIA, { error: "Selecciona un caso" }),
   motivo: z.enum(MOTIVOS_EXPULSION, { error: "Selecciona un motivo" }),
   detalle: z
     .string()
     .trim()
-    .min(1, "El detalle es obligatorio")
-    .max(DETALLE_MAXIMO, `Máximo ${DETALLE_MAXIMO} caracteres`),
+    .max(DETALLE_MAXIMO, `Máximo ${DETALLE_MAXIMO} caracteres`)
+    .default(""),
 });
 
 export type ValoresFormularioExpulsion = z.infer<
@@ -82,6 +113,7 @@ export type ValoresFormularioExpulsion = z.infer<
 export interface PayloadRegistrarExpulsion {
   examenId: string;
   codigoSis: string;
+  caso: CasoIncidencia;
   motivo: MotivoExpulsion;
   detalle: string;
 }
@@ -93,8 +125,9 @@ export function aPayloadRegistrarExpulsion(
   return {
     examenId,
     codigoSis: valores.estudiante.codigoSis,
+    caso: valores.caso,
     motivo: valores.motivo,
-    detalle: valores.detalle.trim(),
+    detalle: (valores.detalle ?? "").trim(),
   };
 }
 
