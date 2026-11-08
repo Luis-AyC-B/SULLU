@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -43,17 +44,7 @@ export class RegistroIngresosService {
     };
   }
 
-  /** Verifica si el usuario es controlador asignado, docente responsable o administrador */
-  private async puedeControlarOAdmin(
-    usuarioId: number,
-    examenId: number,
-  ): Promise<boolean> {
-    const asignado = await this.prisma.examen.findFirst({
-      where: { id: examenId, ...this.puedeControlar(usuarioId) },
-      select: { id: true },
-    });
-    if (asignado) return true;
-
+  private async verificarEsAdmin(usuarioId: number): Promise<boolean> {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: usuarioId },
       include: {
@@ -94,12 +85,17 @@ export class RegistroIngresosService {
   async ingresos(examenId: number, usuarioId: number) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
-      select: { id: true },
+      select: { id: true, usuarioId: true },
     });
     if (!examen) throw new NotFoundException('El examen no existe');
 
-    const tienePermiso = await this.puedeControlarOAdmin(usuarioId, examenId);
-    if (!tienePermiso) {
+    const asignado = await this.prisma.examen.findFirst({
+      where: { id: examenId, ...this.puedeControlar(usuarioId) },
+      select: { id: true },
+    });
+    const esAdmin = await this.verificarEsAdmin(usuarioId);
+
+    if (!asignado && !esAdmin) {
       throw new ForbiddenException(
         'No tienes permiso para controlar este examen.',
       );
@@ -145,7 +141,8 @@ export class RegistroIngresosService {
   }
 
   /**
-   * HU17: Genera el documento PDF de reporte de asistencia del examen y retorna el Buffer y nombre de archivo.
+   * HU17: Genera el documento PDF con la nómina de ingresos del examen (solo ingresados).
+   * Restringido exclusivamente al docente responsable del examen o rol Administrador.
    */
   async generarReportePdf(
     examenId: number,
@@ -184,80 +181,98 @@ export class RegistroIngresosService {
       throw new NotFoundException('El examen no existe.');
     }
 
-    const tienePermiso = await this.puedeControlarOAdmin(usuarioId, examenId);
-    if (!tienePermiso) {
-      throw new ForbiddenException(
-        'No tienes permiso para generar el reporte de este examen.',
+    // Criterio 21 y 22: Acceso exclusivo para el docente responsable o admin (403 para colaboradores o ajenos)
+    const esDocenteResponsable = examen.usuarioId === usuarioId;
+    if (!esDocenteResponsable) {
+      const esAdmin = await this.verificarEsAdmin(usuarioId);
+      if (!esAdmin) {
+        throw new ForbiddenException(
+          'No tienes permiso para descargar el reporte de este examen.',
+        );
+      }
+    }
+
+    // Criterios 14, 15 y 16: Obtener solo los ingresos registrados, cruzados con habilitaciones e incidencias
+    const [ingresosDb, habilitaciones, incidencias] = await Promise.all([
+      this.prisma.ingreso.findMany({
+        where: { examenId },
+        orderBy: { fechaHora: 'asc' },
+        include: { estudiante: true },
+      }),
+      this.prisma.examen_Estudiante.findMany({
+        where: { examenId },
+        select: { estudianteId: true, estado_habilitado: true },
+      }),
+      this.prisma.incidenciaIngreso.findMany({
+        where: { examenId },
+        select: { estudianteId: true, descripcion: true },
+      }),
+    ]);
+
+    // Criterio 8 y Escenario Negativo 2: Si no hay ingresos, no se genera el archivo
+    if (ingresosDb.length === 0) {
+      throw new BadRequestException(
+        'No hay ingresos registrados para descargar.',
       );
     }
 
-    // 1. Obtener lista de estudiantes asignados al examen ordenados por apellido
-    const examenEstudiantes = await this.prisma.examen_Estudiante.findMany({
-      where: { examenId },
-      include: {
-        estudiante: true,
-      },
-      orderBy: [
-        { estudiante: { apellido: 'asc' } },
-        { estudiante: { nombre: 'asc' } },
-      ],
-    });
-
-    // 2. Obtener ingresos registrados para este examen
-    const ingresosDb = await this.prisma.ingreso.findMany({
-      where: { examenId },
-      orderBy: { fechaHora: 'asc' },
-    });
-
-    const primerIngresoMap = new Map<number, (typeof ingresosDb)[number]>();
-    for (const ing of ingresosDb) {
-      if (!primerIngresoMap.has(ing.estudianteId)) {
-        primerIngresoMap.set(ing.estudianteId, ing);
+    const incidenciaMap = new Map<number, string>();
+    for (const inc of incidencias) {
+      if (inc.estudianteId && inc.descripcion) {
+        incidenciaMap.set(inc.estudianteId, inc.descripcion);
       }
     }
 
-    // 3. Mapear nómina con detalle de asistencia
-    const estudiantesItems = examenEstudiantes.map((ee, idx) => {
-      const ingreso = primerIngresoMap.get(ee.estudianteId);
-      const asistio = !!ingreso;
+    const habilMap = new Map<number, boolean>(
+      habilitaciones.map((h) => [h.estudianteId, h.estado_habilitado]),
+    );
 
-      let horaIngreso = '-';
-      let metodo = '-';
+    // Un solo ingreso por estudiante: se conserva el primero registrado
+    const unicos = new Map<number, (typeof ingresosDb)[number]>();
+    for (const i of ingresosDb) {
+      if (!unicos.has(i.estudianteId)) unicos.set(i.estudianteId, i);
+    }
 
-      if (ingreso) {
-        const fechaIng = new Date(ingreso.fechaHora);
-        horaIngreso = fechaIng.toLocaleTimeString('en-US', {
-          timeZone: 'America/La_Paz',
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-        metodo = ingreso.metodo.toUpperCase() === 'QR' ? 'QR' : 'Manual';
-      }
+    const ingresosOrdenados = [...unicos.values()].sort((a, b) => {
+      const apA = (a.estudiante.apellido ?? '').toLowerCase();
+      const apB = (b.estudiante.apellido ?? '').toLowerCase();
+      if (apA !== apB) return apA.localeCompare(apB);
+      return a.estudiante.nombre
+        .toLowerCase()
+        .localeCompare(b.estudiante.nombre.toLowerCase());
+    });
+
+    const items = ingresosOrdenados.map((ing, idx) => {
+      const fechaIng = new Date(ing.fechaHora);
+      const horaStr = fechaIng.toLocaleTimeString('en-US', {
+        timeZone: 'America/La_Paz',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const esHabil = habilMap.get(ing.estudianteId) !== false;
+      const excepcion = incidenciaMap.get(ing.estudianteId) ?? '-';
 
       return {
         numero: idx + 1,
-        codSis: String(ee.estudiante.cod_sis),
+        hora: horaStr,
+        codSis: String(ing.estudiante.cod_sis),
         estudiante:
-          `${ee.estudiante.apellido ?? ''} ${ee.estudiante.nombre}`.trim(),
-        habilitado: ee.estado_habilitado,
-        asistio,
-        horaIngreso,
-        metodo,
+          `${ing.estudiante.apellido ?? ''} ${ing.estudiante.nombre}`.trim(),
+        metodo: ing.metodo.toUpperCase() === 'QR' ? 'QR' : 'Manual',
+        estado: esHabil ? 'Ingresado' : 'Inhabilitado',
+        casoExcepcional: excepcion,
       };
     });
 
-    // 4. Métricas globales
-    const totalHabilitados = examenEstudiantes.filter(
-      (e) => e.estado_habilitado,
+    const totalHabilitados = habilitaciones.filter(
+      (h) => h.estado_habilitado,
     ).length;
-    const totalPresentes = examenEstudiantes.filter(
-      (e) => e.estado_habilitado && primerIngresoMap.has(e.estudianteId),
-    ).length;
-    const totalAusentes = Math.max(0, totalHabilitados - totalPresentes);
+    const totalIngresos = items.length;
     const porcentajeAsistencia =
       totalHabilitados > 0
-        ? Math.round((totalPresentes / totalHabilitados) * 100)
+        ? Math.round((totalIngresos / totalHabilitados) * 100)
         : 0;
 
     const cm = examen.carrerasMaterias?.[0]?.carrera_materia;
@@ -298,18 +313,30 @@ export class RegistroIngresosService {
       fecha: fechaStr,
       horario: `${horaIniStr} - ${horaFinStr}`,
       totalHabilitados,
-      totalPresentes,
-      totalAusentes,
+      totalIngresos,
       porcentajeAsistencia,
       fechaGeneracion: ahoraBolivia,
-      estudiantes: estudiantesItems,
+      ingresos: items,
     };
 
     const buffer = await this.pdfService.generarPdf(pdfData);
-    const sanitizedMateria = (cm?.materia?.nombre ?? 'examen')
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-');
-    const filename = `reporte-asistencia-${sanitizedMateria}-${fechaStr}.pdf`;
+
+    // Criterio 23: Nombre en formato ingresos_[Materia]_[TipoExamen]_[DD-MM-YYYY].pdf en PascalCase
+    const aPascalCase = (str: string) =>
+      str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .split(/[^a-zA-Z0-9]+/)
+        .filter(Boolean)
+        .map((palabra) => palabra.charAt(0).toUpperCase() + palabra.slice(1))
+        .join('');
+
+    const mat = aPascalCase(cm?.materia?.nombre ?? 'Materia');
+    const tipo = aPascalCase(examen.tipoExamen ?? 'Examen');
+    const partes = fechaStr.split('-');
+    const fechaFormateada =
+      partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : fechaStr;
+    const filename = `ingresos_${mat}_${tipo}_${fechaFormateada}.pdf`;
 
     return { buffer, filename };
   }

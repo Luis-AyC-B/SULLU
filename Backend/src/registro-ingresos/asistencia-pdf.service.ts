@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 
-export interface ReporteEstudianteItem {
+export interface ReporteIngresoItem {
   numero: number;
+  hora: string;
   codSis: string;
   estudiante: string;
-  habilitado: boolean;
-  asistio: boolean;
-  horaIngreso: string;
   metodo: string;
+  estado: string;
+  casoExcepcional: string;
 }
 
 export interface ReporteAsistenciaPdfData {
@@ -21,11 +21,10 @@ export interface ReporteAsistenciaPdfData {
   fecha: string;
   horario: string;
   totalHabilitados: number;
-  totalPresentes: number;
-  totalAusentes: number;
+  totalIngresos: number;
   porcentajeAsistencia: number;
   fechaGeneracion: string;
-  estudiantes: ReporteEstudianteItem[];
+  ingresos: ReporteIngresoItem[];
 }
 
 @Injectable()
@@ -38,14 +37,24 @@ export class AsistenciaPdfService {
       try {
         const doc = new PDFDocument({
           size: 'LETTER',
-          margins: { top: 40, bottom: 45, left: 40, right: 40 },
+          margins: { top: 40, bottom: 35, left: 40, right: 40 },
           bufferPages: true,
         });
 
         const chunks: Buffer[] = [];
         doc.on('data', (chunk: Buffer) => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
-        doc.on('error', (err) => reject(err));
+        doc.on('error', (err) =>
+          reject(
+            err instanceof Error
+              ? err
+              : new Error(
+                  typeof err === 'string'
+                    ? err
+                    : 'Error en stream de generacion de PDF',
+                ),
+          ),
+        );
 
         const printableWidth = doc.page.width - 80; // 612 - 80 = 532
         const startX = 40;
@@ -63,7 +72,7 @@ export class AsistenciaPdfService {
           data,
         );
 
-        // 3. Tarjetas de métricas / resumen estadístico
+        // 3. Tarjetas de métricas / resumen de ingresos
         currentY = this.dibujarMetricas(
           doc,
           startX,
@@ -72,14 +81,8 @@ export class AsistenciaPdfService {
           data,
         );
 
-        // 4. Tabla de asistencia de estudiantes
-        this.dibujarTablaAsistencia(
-          doc,
-          startX,
-          currentY,
-          printableWidth,
-          data,
-        );
+        // 4. Tabla de ingresos de estudiantes
+        this.dibujarTablaIngresos(doc, startX, currentY, printableWidth, data);
 
         // 5. Pie de página en todas las páginas generadas
         this.aplicarPieDePagina(doc, data.fechaGeneracion);
@@ -163,7 +166,6 @@ export class AsistenciaPdfService {
   ): number {
     const cardHeight = 62;
 
-    // Fondo y borde de la ficha técnica
     doc
       .rect(startX, startY, width, cardHeight)
       .fillAndStroke('#f8fafc', '#e2e8f0');
@@ -243,9 +245,7 @@ export class AsistenciaPdfService {
       .fillColor('#475569')
       .font('Helvetica-Bold')
       .fontSize(8.5)
-      .text(label, x, y, {
-        continued: true,
-      });
+      .text(label, x, y, { continued: true });
     doc.fillColor('#0f172a').font('Helvetica').fontSize(8.5).text(`  ${value}`);
   }
 
@@ -256,6 +256,7 @@ export class AsistenciaPdfService {
     width: number,
     data: ReporteAsistenciaPdfData,
   ): number {
+    const ausentes = Math.max(0, data.totalHabilitados - data.totalIngresos);
     const metricas = [
       {
         titulo: 'HABILITADOS',
@@ -265,15 +266,15 @@ export class AsistenciaPdfService {
         bg: '#f0f9ff',
       },
       {
-        titulo: 'PRESENTES',
-        valor: String(data.totalPresentes),
+        titulo: 'INGRESADOS',
+        valor: String(data.totalIngresos),
         subtexto: `${data.porcentajeAsistencia}% asistencia`,
         color: '#16a34a',
         bg: '#f0fdf4',
       },
       {
         titulo: 'AUSENTES',
-        valor: String(data.totalAusentes),
+        valor: String(ausentes),
         subtexto: `${Math.max(0, 100 - data.porcentajeAsistencia)}% inasistencia`,
         color: '#dc2626',
         bg: '#fef2f2',
@@ -300,13 +301,19 @@ export class AsistenciaPdfService {
         .fillColor('#64748b')
         .font('Helvetica-Bold')
         .fontSize(6.5)
-        .text(m.titulo, x, startY + 6, { width: cardWidth, align: 'center' });
+        .text(m.titulo, x, startY + 6, {
+          width: cardWidth,
+          align: 'center',
+        });
 
       doc
         .fillColor(m.color)
         .font('Helvetica-Bold')
         .fontSize(13)
-        .text(m.valor, x, startY + 16, { width: cardWidth, align: 'center' });
+        .text(m.valor, x, startY + 16, {
+          width: cardWidth,
+          align: 'center',
+        });
 
       doc
         .fillColor('#64748b')
@@ -321,7 +328,7 @@ export class AsistenciaPdfService {
     return startY + cardHeight + 14;
   }
 
-  private dibujarTablaAsistencia(
+  private dibujarTablaIngresos(
     doc: PDFKit.PDFDocument,
     startX: number,
     startY: number,
@@ -329,37 +336,31 @@ export class AsistenciaPdfService {
     data: ReporteAsistenciaPdfData,
   ) {
     const columnas = [
-      { key: 'num', titulo: '#', width: 28, align: 'center' as const },
-      { key: 'sis', titulo: 'CÓDIGO SIS', width: 72, align: 'center' as const },
+      { key: 'num', titulo: '#', width: 24, align: 'center' as const },
+      { key: 'hora', titulo: 'HORA', width: 48, align: 'center' as const },
+      { key: 'sis', titulo: 'CÓDIGO SIS', width: 68, align: 'center' as const },
       {
         key: 'nombre',
-        titulo: 'APELLIDOS Y NOMBRES',
-        width: 185,
+        titulo: 'ESTUDIANTE',
+        width: 172,
         align: 'left' as const,
       },
+      { key: 'metodo', titulo: 'MÉTODO', width: 48, align: 'center' as const },
+      { key: 'estado', titulo: 'ESTADO', width: 62, align: 'center' as const },
       {
-        key: 'habil',
-        titulo: 'HABILITACIÓN',
-        width: 75,
-        align: 'center' as const,
+        key: 'excepcional',
+        titulo: 'CASO EXCEPCIONAL',
+        width: 110,
+        align: 'left' as const,
       },
-      {
-        key: 'estado',
-        titulo: 'ASISTENCIA',
-        width: 68,
-        align: 'center' as const,
-      },
-      { key: 'hora', titulo: 'HORA', width: 52, align: 'center' as const },
-      { key: 'metodo', titulo: 'MÉTODO', width: 52, align: 'center' as const },
     ];
 
     const headerHeight = 18;
     const rowHeight = 16;
-    const maxY = doc.page.height - 50;
+    const maxY = doc.page.height - 45;
 
     let currentY = startY;
 
-    // Encabezado de la tabla
     const dibujarHeaderTabla = (y: number) => {
       doc.rect(startX, y, width, headerHeight).fill('#1e293b');
 
@@ -381,14 +382,14 @@ export class AsistenciaPdfService {
 
     currentY = dibujarHeaderTabla(currentY);
 
-    if (data.estudiantes.length === 0) {
+    if (data.ingresos.length === 0) {
       doc.rect(startX, currentY, width, 30).fillAndStroke('#ffffff', '#e2e8f0');
       doc
         .fillColor('#64748b')
         .font('Helvetica-Oblique')
         .fontSize(8.5)
         .text(
-          'No existen estudiantes registrados para este examen.',
+          'No hay ingresos registrados para descargar.',
           startX,
           currentY + 10,
           {
@@ -399,7 +400,7 @@ export class AsistenciaPdfService {
       return;
     }
 
-    data.estudiantes.forEach((est, idx) => {
+    data.ingresos.forEach((ing, idx) => {
       if (currentY + rowHeight > maxY) {
         doc.addPage();
         currentY = dibujarHeaderTabla(40);
@@ -412,87 +413,85 @@ export class AsistenciaPdfService {
 
       let colX = startX;
 
-      // 1. Número
+      // 1. #
       doc
         .fillColor('#475569')
         .font('Helvetica')
         .fontSize(7.5)
-        .text(String(est.numero), colX, currentY + 4, {
+        .text(String(ing.numero), colX, currentY + 4, {
           width: columnas[0].width,
           align: 'center',
         });
       colX += columnas[0].width;
 
-      // 2. SIS
+      // 2. Hora
       doc
         .fillColor('#1e293b')
         .font('Helvetica-Bold')
-        .fontSize(7.5)
-        .text(est.codSis, colX, currentY + 4, {
+        .fontSize(7)
+        .text(ing.hora, colX, currentY + 4, {
           width: columnas[1].width,
           align: 'center',
         });
       colX += columnas[1].width;
 
-      // 3. Estudiante (Apellidos y Nombres)
+      // 3. Código SIS
+      doc
+        .fillColor('#1e293b')
+        .font('Helvetica-Bold')
+        .fontSize(7.5)
+        .text(ing.codSis, colX, currentY + 4, {
+          width: columnas[2].width,
+          align: 'center',
+        });
+      colX += columnas[2].width;
+
+      // 4. Estudiante
       doc
         .fillColor('#0f172a')
         .font('Helvetica')
         .fontSize(7.5)
-        .text(est.estudiante, colX + 4, currentY + 4, {
-          width: columnas[2].width - 8,
+        .text(ing.estudiante, colX + 4, currentY + 4, {
+          width: columnas[3].width - 8,
           align: 'left',
           lineBreak: false,
           ellipsis: true,
         });
-      colX += columnas[2].width;
-
-      // 4. Habilitación
-      doc
-        .fillColor(est.habilitado ? '#0284c7' : '#b91c1c')
-        .font('Helvetica-Bold')
-        .fontSize(7)
-        .text(
-          est.habilitado ? 'Habilitado' : 'Inhabilitado',
-          colX,
-          currentY + 4,
-          {
-            width: columnas[3].width,
-            align: 'center',
-          },
-        );
       colX += columnas[3].width;
 
-      // 5. Asistencia (PRESENTE / AUSENTE)
+      // 5. Método
       doc
-        .fillColor(est.asistio ? '#15803d' : '#b91c1c')
-        .font('Helvetica-Bold')
+        .fillColor('#475569')
+        .font('Helvetica')
         .fontSize(7)
-        .text(est.asistio ? 'PRESENTE' : 'AUSENTE', colX, currentY + 4, {
+        .text(ing.metodo, colX, currentY + 4, {
           width: columnas[4].width,
           align: 'center',
         });
       colX += columnas[4].width;
 
-      // 6. Hora
+      // 6. Estado
+      const esHabil = ing.estado === 'Ingresado' || ing.estado === 'Habilitado';
       doc
-        .fillColor('#475569')
-        .font('Helvetica')
+        .fillColor(esHabil ? '#15803d' : '#b91c1c')
+        .font('Helvetica-Bold')
         .fontSize(7)
-        .text(est.horaIngreso, colX, currentY + 4, {
+        .text(ing.estado, colX, currentY + 4, {
           width: columnas[5].width,
           align: 'center',
         });
       colX += columnas[5].width;
 
-      // 7. Método
+      // 7. Caso Excepcional
       doc
-        .fillColor('#475569')
-        .font('Helvetica')
+        .fillColor(ing.casoExcepcional !== '-' ? '#b45309' : '#94a3b8')
+        .font(ing.casoExcepcional !== '-' ? 'Helvetica-Bold' : 'Helvetica')
         .fontSize(7)
-        .text(est.metodo, colX, currentY + 4, {
-          width: columnas[6].width,
-          align: 'center',
+        .text(ing.casoExcepcional, colX + 4, currentY + 4, {
+          width: columnas[6].width - 8,
+          align: 'left',
+          lineBreak: false,
+          ellipsis: true,
         });
 
       currentY += rowHeight;
