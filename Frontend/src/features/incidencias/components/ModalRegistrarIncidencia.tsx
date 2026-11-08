@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { ArrowLeft, ArrowUpLeft, Search, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, Info, Search, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -20,8 +20,10 @@ import {
 import { useEstudiantesExpulsables } from "../hooks/useEstudiantesExpulsables";
 import { coincideBusqueda } from "../lib/filtrarIncidencias";
 import {
+  OPCIONES_CASO_INCIDENCIA,
   OPCIONES_MOTIVO_EXPULSION,
   formularioExpulsionSchema,
+  type CasoIncidencia,
   type EstudianteExpulsable,
   type MotivoExpulsion,
   type ValoresFormularioExpulsion,
@@ -36,7 +38,7 @@ interface ModalRegistrarIncidenciaProps {
   onContinuar: (valores: ValoresFormularioExpulsion) => void;
 }
 
-type Campo = "estudiante" | "motivo" | "detalle";
+type Campo = "estudiante" | "caso" | "motivo" | "detalle";
 type Errores = Partial<Record<Campo, string>>;
 
 export function ModalRegistrarIncidencia({
@@ -49,6 +51,7 @@ export function ModalRegistrarIncidencia({
   const idBase = useId();
   const idEstudiante = `${idBase}-estudiante`;
   const idLista = `${idBase}-lista`;
+  const idCaso = `${idBase}-caso`;
   const idMotivo = `${idBase}-motivo`;
   const idDetalle = `${idBase}-detalle`;
 
@@ -58,6 +61,7 @@ export function ModalRegistrarIncidencia({
   );
   const [listaAbierta, setListaAbierta] = useState(false);
   const [indiceActivo, setIndiceActivo] = useState(0);
+  const [caso, setCaso] = useState<CasoIncidencia | "">("");
   const [motivo, setMotivo] = useState<MotivoExpulsion | "">("");
   const [detalle, setDetalle] = useState("");
   const [errores, setErrores] = useState<Errores>({});
@@ -85,6 +89,7 @@ export function ModalRegistrarIncidencia({
     setEstudiante(null);
     setListaAbierta(false);
     setIndiceActivo(0);
+    setCaso("");
     setMotivo("");
     setDetalle("");
     setErrores({});
@@ -123,6 +128,7 @@ export function ModalRegistrarIncidencia({
     evento.preventDefault();
     const resultado = formularioExpulsionSchema.safeParse({
       estudiante: estudiante ?? undefined,
+      caso: caso || undefined,
       motivo: motivo || undefined,
       detalle,
     });
@@ -131,7 +137,10 @@ export function ModalRegistrarIncidencia({
       for (const problema of resultado.error.issues) {
         const campo = problema.path[0];
         if (
-          (campo === "estudiante" || campo === "motivo" || campo === "detalle") &&
+          (campo === "estudiante" ||
+            campo === "caso" ||
+            campo === "motivo" ||
+            campo === "detalle") &&
           !nuevos[campo]
         ) {
           nuevos[campo] = problema.message;
@@ -148,7 +157,8 @@ export function ModalRegistrarIncidencia({
     <Dialog open={abierto} onOpenChange={onAbiertoChange}>
       <DialogContent
         showCloseButton={false}
-        className="flex flex-col gap-0 overflow-y-auto max-md:left-0 max-md:top-0 max-md:h-dvh max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none md:max-h-[90dvh] md:max-w-xl">
+        className="flex flex-col gap-0 overflow-y-auto max-md:left-0 max-md:top-0 max-md:h-dvh max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none md:max-h-[90dvh] md:max-w-xl"
+      >
         <Button
           type="button"
           variant="ghost"
@@ -226,7 +236,7 @@ export function ModalRegistrarIncidencia({
                   <ul
                     id={idLista}
                     role="listbox"
-                    aria-label="Estudiantes que pueden ser expulsados"
+                    aria-label="Estudiantes disponibles para registrar incidencia"
                     className="mt-1 max-h-56 overflow-y-auto rounded-xl border border-border bg-card"
                   >
                     {resultados.length === 0 ? (
@@ -277,6 +287,38 @@ export function ModalRegistrarIncidencia({
             )}
           </div>
 
+          {/* Caso */}
+          <div>
+            <Label htmlFor={idCaso}>Caso</Label>
+            <Select
+              value={caso}
+              onValueChange={(valor) => {
+                setCaso(valor as CasoIncidencia);
+                limpiarError("caso");
+              }}
+            >
+              <SelectTrigger
+                id={idCaso}
+                aria-invalid={Boolean(errores.caso)}
+                className="mt-2 w-full bg-card data-[size=default]:h-11"
+              >
+                <SelectValue placeholder="Seleccionar caso" />
+              </SelectTrigger>
+              <SelectContent>
+                {OPCIONES_CASO_INCIDENCIA.map((opcion) => (
+                  <SelectItem key={opcion.valor} value={opcion.valor}>
+                    {opcion.etiqueta}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errores.caso && (
+              <p role="alert" className="mt-1.5 text-sm text-destructive">
+                {errores.caso}
+              </p>
+            )}
+          </div>
+
           {/* Motivo */}
           <div>
             <Label htmlFor={idMotivo}>Motivo</Label>
@@ -309,20 +351,25 @@ export function ModalRegistrarIncidencia({
             )}
           </div>
 
-          {/* Detalle */}
+          {/* Detalle (Opcional) */}
           <div>
-            <Label htmlFor={idDetalle}>Detalle · Obligatorio</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor={idDetalle}>Detalle · Opcional</Label>
+              <span className="text-xs text-muted-foreground">
+                {detalle.length} / 500
+              </span>
+            </div>
             <textarea
               id={idDetalle}
               rows={4}
               aria-invalid={Boolean(errores.detalle)}
-              placeholder="Describe lo ocurrido y el motivo de la expulsión"
+              placeholder="Describe lo ocurrido y observaciones adicionales (opcional)"
               value={detalle}
               onChange={(e) => {
                 setDetalle(e.target.value);
                 limpiarError("detalle");
               }}
-              className="mt-2 flex min-h-28 w-full rounded-lg border border-input bg-card px-3 py-2 text-body placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-destructive"
+              className="mt-2 flex min-h-24 w-full rounded-lg border border-input bg-card px-3 py-2 text-body placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-destructive"
             />
             {errores.detalle && (
               <p role="alert" className="mt-1.5 text-sm text-destructive">
@@ -331,17 +378,30 @@ export function ModalRegistrarIncidencia({
             )}
           </div>
 
-          {/* Advertencia */}
-          <div className="flex items-start gap-3 rounded-lg border border-secondary bg-secondary/10 px-4 py-3 text-sm">
-            <TriangleAlert
-              aria-hidden
-              className="mt-0.5 h-4 w-4 shrink-0 text-secondary"
-            />
-            <p>
-              Esta acción queda registrada y el estudiante no podrá reingresar
-              al examen.
-            </p>
-          </div>
+          {/* Advertencia dinámica */}
+          {caso === "EXPULSION" || caso === "SUPLANTACION_IDENTIDAD" ? (
+            <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <TriangleAlert
+                aria-hidden
+                className="mt-0.5 h-4 w-4 shrink-0 text-destructive"
+              />
+              <p>
+                {caso === "SUPLANTACION_IDENTIDAD"
+                  ? "Falta grave: Se registrará la suplantación de identidad para el proceso disciplinario universitario e inhabilitación inmediata del estudiante."
+                  : "Esta acción de expulsión queda registrada de forma definitiva y el estudiante no podrá reingresar al examen."}
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+              <Info
+                aria-hidden
+                className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+              />
+              <p>
+                Esta incidencia quedará asentada en el acta y reporte del examen para constancia docente e institucional.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 md:flex-row md:justify-end">
             <Button

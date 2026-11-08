@@ -22,6 +22,7 @@ import {
 import { useGenerarReporte } from "../hooks/useGenerarReporte";
 import type { FiltrosReporte } from "../lib/filtrarReporte";
 import {
+  OPCIONES_CASO_INCIDENCIA,
   OPCIONES_MOTIVO_EXPULSION,
   type ExamenExpulsion,
 } from "../types/incidencias.types";
@@ -35,7 +36,12 @@ interface Props {
 }
 
 function filtrosIniciales(examenId: string | null): FiltrosReporte {
-  return { examenId: examenId ?? "", motivo: "TODOS", estudiante: "" };
+  return {
+    examenId: examenId ?? "",
+    caso: "TODOS",
+    motivo: "TODOS",
+    estudiante: "",
+  };
 }
 
 export function ModalGenerarReporte({
@@ -47,6 +53,7 @@ export function ModalGenerarReporte({
 }: Props) {
   const idBase = useId();
   const idExamen = `${idBase}-examen`;
+  const idCaso = `${idBase}-caso`;
   const idMotivo = `${idBase}-motivo`;
   const idEstudiante = `${idBase}-estudiante`;
 
@@ -127,6 +134,32 @@ export function ModalGenerarReporte({
                 {examenes.map((e) => (
                   <SelectItem key={e.id} value={e.id}>
                     {e.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Caso */}
+          <div>
+            <Label htmlFor={idCaso}>Caso</Label>
+            <Select
+              value={filtros.caso ?? "TODOS"}
+              onValueChange={(v) =>
+                actualizar("caso", v as FiltrosReporte["caso"])
+              }
+            >
+              <SelectTrigger
+                id={idCaso}
+                className="mt-2 w-full bg-card data-[size=default]:h-11"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODOS">Todos los casos</SelectItem>
+                {OPCIONES_CASO_INCIDENCIA.map((o) => (
+                  <SelectItem key={o.valor} value={o.valor}>
+                    {o.etiqueta}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -12,7 +12,18 @@ import {
   type PayloadRegistrarExpulsion,
 } from "../types/incidencias.types";
 
-/* Errores */
+/* ==========================================================================
+   GUÍA PARA EL EQUIPO DE BACKEND / INTEGRACIÓN API
+   ==========================================================================
+   Para conectar el Backend real y apagar los mocks:
+   1. En el archivo `.env.local` (o variables de entorno de producción):
+      NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS=false
+   2. El cliente HTTP `apiClient` ya inyecta automáticamente el token JWT
+      de la sesión actual (`Authorization: Bearer <token>`).
+   3. Implementar en el Backend los 4 endpoints descritos a continuación.
+   ========================================================================== */
+
+/* Errores de Negocio */
 
 export type CodigoErrorIncidencia =
   | "EXAMEN_NO_EN_CURSO"
@@ -22,9 +33,9 @@ export type CodigoErrorIncidencia =
   | "DESCONOCIDO";
 
 const MENSAJES_ERROR: Record<CodigoErrorIncidencia, string> = {
-  EXAMEN_NO_EN_CURSO: "Solo se puede expulsar en un examen en curso.",
+  EXAMEN_NO_EN_CURSO: "Solo se puede registrar incidencias en un examen en curso.",
   ESTUDIANTE_YA_EXPULSADO: "El estudiante ya fue expulsado de este examen.",
-  SIN_PERMISO: "No tienes permiso para registrar expulsiones.",
+  SIN_PERMISO: "No tienes permiso para registrar incidencias.",
   SIN_CONEXION:
     "No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.",
   DESCONOCIDO: "Ocurrió un error inesperado. Intenta de nuevo.",
@@ -64,38 +75,14 @@ function aErrorServicio(error: unknown): ErrorServicioIncidencias {
   return new ErrorServicioIncidencias("DESCONOCIDO");
 }
 
-/* Motivos: el front usa códigos, el back guarda y devuelve el texto */
-
-const MOTIVO_A_ETIQUETA: Record<string, string> = {
-  MATERIAL_NO_AUTORIZADO: "Material no autorizado",
-  USO_CELULAR: "Uso de celular",
-  COMUNICACION_ENTRE_ESTUDIANTES: "Comunicación entre estudiantes",
-  SUPLANTACION_IDENTIDAD: "Suplantación de identidad",
-  OTRO: "Otro",
-};
-
-const ETIQUETA_A_MOTIVO: Record<string, string> = Object.fromEntries(
-  Object.entries(MOTIVO_A_ETIQUETA).map(([codigo, etiqueta]) => [
-    etiqueta,
-    codigo,
-  ]),
-);
-
-function normalizarIncidencia(fila: unknown): unknown {
-  if (fila && typeof fila === "object" && "motivo" in fila) {
-    const motivo = (fila as { motivo: unknown }).motivo;
-    return {
-      ...fila,
-      motivo:
-        typeof motivo === "string" ? (ETIQUETA_A_MOTIVO[motivo] ?? motivo) : motivo,
-    };
-  }
-  return fila;
-}
-
-/* API (FORZAMOS EL USO DEL BACKEND REAL ESTABLECIENDO LA VARIABLE EN FALSE) */
-
-export const USAR_MOCKS_INCIDENCIAS = false;
+/* ==========================================================================
+   CONFIGURACIÓN DE MOCKS VS BACKEND REAL
+   ==========================================================================
+   Por defecto activo (true). Para desactivar y usar NestJS / PostgreSQL:
+   Configurar NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS=false en tu .env.local
+   ========================================================================== */
+export const USAR_MOCKS_INCIDENCIAS =
+  process.env.NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS !== "false";
 
 function ordenarMasRecientes(incidencias: Incidencia[]): Incidencia[] {
   return [...incidencias].sort(
@@ -103,7 +90,23 @@ function ordenarMasRecientes(incidencias: Incidencia[]): Incidencia[] {
   );
 }
 
-// GET /expulsiones/examenes
+/**
+ * --------------------------------------------------------------------------
+ * ENDPOINT 1: Listar exámenes disponibles para el selector
+ * --------------------------------------------------------------------------
+ * BACKEND TO-DO:
+ * Ruta: GET /expulsiones/examenes  (o GET /incidencias/examenes)
+ * Retorna lista de exámenes visibles por el docente/controlador autenticado.
+ * Respuesta esperada (Array):
+ * [
+ *   {
+ *     "id": "1",               // string o número convertible
+ *     "nombre": "Bases de Datos II – Primer parcial",
+ *     "ubicacion": "Laboratorio 2", // string | null
+ *     "enCurso": true          // boolean (determina si se habilita el botón de registrar)
+ *   }
+ * ]
+ */
 export async function obtenerExamenesExpulsion(): Promise<ExamenExpulsion[]> {
   if (USAR_MOCKS_INCIDENCIAS) return mockObtenerExamenes();
   try {
@@ -114,7 +117,28 @@ export async function obtenerExamenesExpulsion(): Promise<ExamenExpulsion[]> {
   }
 }
 
-// GET /examenes/:id/expulsiones  -> { total, data: [...] } (más reciente primero)
+/**
+ * --------------------------------------------------------------------------
+ * ENDPOINT 2: Obtener incidencias registradas de un examen
+ * --------------------------------------------------------------------------
+ * BACKEND TO-DO:
+ * Ruta: GET /examenes/:id/expulsiones  (o GET /examenes/:id/incidencias)
+ * Retorna las incidencias registradas durante el examen (ordenadas descendente por fecha/hora).
+ * Respuesta esperada (Array):
+ * [
+ *   {
+ *     "id": "1",
+ *     "examenId": "1",
+ *     "fechaHora": "2026-10-30T09:42:18.000Z", // Formato ISO-8601
+ *     "codigoSis": "202001456",
+ *     "estudianteNombre": "Diego Flores Vargas",
+ *     "caso": "EXPULSION",                      // Enum: EXPULSION | SUPLANTACION_IDENTIDAD | AMONESTACION | PROBLEMA_MEDICO | RETIRO_VOLUNTARIO | INCIDENCIA_TECNICA | OTRO
+ *     "motivo": "MATERIAL_NO_AUTORIZADO",        // Enum: MATERIAL_NO_AUTORIZADO | USO_CELULAR | COMUNICACION_ENTRE_ESTUDIANTES | SUPLANTACION_IDENTIDAD | OTRO
+ *     "detalle": "Apuntes bajo el examen",       // string (puede ser "")
+ *     "registradoPor": "Lic. Edgar Flores"       // Nombre del usuario que registró
+ *   }
+ * ]
+ */
 export async function obtenerIncidenciasPorExamen(
   examenId: string,
 ): Promise<Incidencia[]> {
@@ -132,8 +156,23 @@ export async function obtenerIncidenciasPorExamen(
   }
 }
 
-// GET /examenes/:id/expulsiones/estudiantes?q=
-// Solo estudiantes que ya ingresaron y no están expulsados.
+/**
+ * --------------------------------------------------------------------------
+ * ENDPOINT 3: Búsqueda predictiva de estudiantes para el autocompletado
+ * --------------------------------------------------------------------------
+ * BACKEND TO-DO:
+ * Ruta: GET /examenes/:id/expulsiones/estudiantes?q=termino
+ * Busca únicamente estudiantes que:
+ * 1) Estén inscritos en el examen y hayan marcado ingreso efectivo (están en aula).
+ * 2) NO hayan sido expulsados ni inhabilitados previamente en este examen.
+ * Respuesta esperada (Array máx 5-10 resultados):
+ * [
+ *   {
+ *     "codigoSis": "201900123",
+ *     "nombre": "Ana Rojas Mamani"
+ *   }
+ * ]
+ */
 export async function buscarEstudiantesExpulsables(
   examenId: string,
   consulta: string,
@@ -150,7 +189,28 @@ export async function buscarEstudiantesExpulsables(
   }
 }
 
-// POST /expulsiones
+/**
+ * --------------------------------------------------------------------------
+ * ENDPOINT 4: Registrar una nueva incidencia en pleno examen
+ * --------------------------------------------------------------------------
+ * BACKEND TO-DO:
+ * Ruta: POST /expulsiones  (o POST /incidencias)
+ * Payload enviado por el frontend (JSON Body):
+ * {
+ *   "examenId": "1",
+ *   "codigoSis": "202001456",
+ *   "caso": "EXPULSION",                  // Enum obligatorio
+ *   "motivo": "MATERIAL_NO_AUTORIZADO",    // Enum obligatorio
+ *   "detalle": "Texto opcional"           // string opcional (máx 500 caracteres)
+ * }
+ * Reglas de negocio del backend:
+ * - El docente/controlador autenticado (`registradoPor`) se extrae del JWT, NUNCA del body.
+ * - La `fechaHora` la asigna el servidor.
+ * - Si `caso === "EXPULSION"` o `"SUPLANTACION_IDENTIDAD"`, inhabilitar reingreso del alumno.
+ * - Retornar 400 con { code: "EXAMEN_NO_EN_CURSO" } si el examen no está activo.
+ * - Retornar 400 con { code: "ESTUDIANTE_YA_EXPULSADO" } si el alumno ya fue expulsado.
+ * - Retornar 201 Created con el objeto `Incidencia` creado.
+ */
 export async function registrarExpulsion(
   payload: PayloadRegistrarExpulsion,
 ): Promise<Incidencia> {
@@ -166,7 +226,9 @@ export async function registrarExpulsion(
   }
 }
 
-/* Mocks */
+/* ==========================================================================
+   DATOS Y SIMULACIÓN MOCK (SE USAN MIENTRAS NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS!==false)
+   ========================================================================== */
 
 export const MOCK_DOCENTE = "Edgar";
 const esperar = (ms = 350) =>
@@ -218,6 +280,7 @@ const mockIncidencias: Incidencia[] = [
     fechaHora: "2026-10-30T09:42:18",
     codigoSis: "202001456",
     estudianteNombre: "Diego Flores Vargas",
+    caso: "EXPULSION",
     motivo: "MATERIAL_NO_AUTORIZADO",
     detalle: "Apuntes debajo del examen.",
     registradoPor: MOCK_DOCENTE,
@@ -228,8 +291,9 @@ const mockIncidencias: Incidencia[] = [
     fechaHora: "2026-10-30T09:35:46",
     codigoSis: "201902345",
     estudianteNombre: "Valeria López Quispe",
+    caso: "AMONESTACION",
     motivo: "USO_CELULAR",
-    detalle: "Consulta de mensajes en celular.",
+    detalle: "Primer aviso verbal por tener el celular sobre la mesa.",
     registradoPor: MOCK_DOCENTE,
   },
   {
@@ -238,8 +302,20 @@ const mockIncidencias: Incidencia[] = [
     fechaHora: "2026-10-30T09:28:09",
     codigoSis: "201901567",
     estudianteNombre: "Gabriel Fernández Soto",
+    caso: "EXPULSION",
     motivo: "COMUNICACION_ENTRE_ESTUDIANTES",
-    detalle: "Intercambio de respuestas.",
+    detalle: "",
+    registradoPor: MOCK_DOCENTE,
+  },
+  {
+    id: "4",
+    examenId: "1",
+    fechaHora: "2026-10-30T09:15:22",
+    codigoSis: "201900123",
+    estudianteNombre: "Ana Rojas Mamani",
+    caso: "PROBLEMA_MEDICO",
+    motivo: "OTRO",
+    detalle: "Descompensación de salud, trasladada a enfermería.",
     registradoPor: MOCK_DOCENTE,
   },
 ];
@@ -263,7 +339,11 @@ async function mockBuscarEstudiantes(
   await esperar(200);
   const expulsados = new Set(
     mockIncidencias
-      .filter((i) => i.examenId === examenId)
+      .filter(
+        (i) =>
+          i.examenId === examenId &&
+          (i.caso === "EXPULSION" || i.caso === "SUPLANTACION_IDENTIDAD"),
+      )
       .map((i) => i.codigoSis),
   );
   return (MOCK_INGRESADOS[examenId] ?? [])
@@ -281,9 +361,18 @@ async function mockRegistrarExpulsion(
     throw new ErrorServicioIncidencias("EXAMEN_NO_EN_CURSO");
   }
   const yaExpulsado = mockIncidencias.some(
-    (i) => i.examenId === payload.examenId && i.codigoSis === payload.codigoSis,
+    (i) =>
+      i.examenId === payload.examenId &&
+      i.codigoSis === payload.codigoSis &&
+      (i.caso === "EXPULSION" || i.caso === "SUPLANTACION_IDENTIDAD"),
   );
-  if (yaExpulsado) throw new ErrorServicioIncidencias("ESTUDIANTE_YA_EXPULSADO");
+  if (
+    (payload.caso === "EXPULSION" ||
+      payload.caso === "SUPLANTACION_IDENTIDAD") &&
+    yaExpulsado
+  ) {
+    throw new ErrorServicioIncidencias("ESTUDIANTE_YA_EXPULSADO");
+  }
 
   const estudiante = (MOCK_INGRESADOS[payload.examenId] ?? []).find(
     (e) => e.codigoSis === payload.codigoSis,
@@ -296,8 +385,9 @@ async function mockRegistrarExpulsion(
     fechaHora: new Date().toISOString(),
     codigoSis: payload.codigoSis,
     estudianteNombre: estudiante.nombre,
+    caso: payload.caso,
     motivo: payload.motivo,
-    detalle: payload.detalle,
+    detalle: (payload.detalle ?? "").trim(),
     registradoPor: MOCK_DOCENTE,
   };
   mockIncidencias.push(nueva);

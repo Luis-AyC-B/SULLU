@@ -11,6 +11,7 @@ import {
   formatearHoraIncidencia,
   type Incidencia,
 } from "../types/incidencias.types";
+import { InsigniaCasoIncidencia } from "./InsigniaCasoIncidencia";
 import { InsigniaMotivoExpulsion } from "./InsigniaMotivoExpulsion";
 
 interface TablaIncidenciasProps {
@@ -23,12 +24,13 @@ interface TablaIncidenciasProps {
 export function TablaIncidencias({ incidencias, total }: TablaIncidenciasProps) {
   return (
     <div className="hidden overflow-hidden rounded-xl border border-border bg-card md:block">
-      <Table className="min-w-[760px]">
+      <Table className="min-w-[860px]">
         <TableHeader className="bg-muted/60">
           <TableRow className="hover:bg-transparent">
             <TableHead className="text-label px-4 py-3">Hora</TableHead>
             <TableHead className="text-label px-4 py-3">Código SIS</TableHead>
             <TableHead className="text-label px-4 py-3">Estudiante</TableHead>
+            <TableHead className="text-label px-4 py-3">Caso</TableHead>
             <TableHead className="text-label px-4 py-3">Motivo</TableHead>
             <TableHead className="text-label px-4 py-3">Detalle</TableHead>
             <TableHead className="text-label px-4 py-3">Registrado por</TableHead>
@@ -49,11 +51,18 @@ export function TablaIncidencias({ incidencias, total }: TablaIncidenciasProps) 
                 {incidencia.estudianteNombre}
               </TableCell>
               <TableCell className="px-4 py-5">
+                <InsigniaCasoIncidencia caso={incidencia.caso} />
+              </TableCell>
+              <TableCell className="px-4 py-5">
                 <InsigniaMotivoExpulsion motivo={incidencia.motivo} />
               </TableCell>
               {/* Texto plano: React escapa el contenido, no se ejecuta HTML. */}
               <TableCell className="max-w-xs whitespace-pre-wrap break-words px-4 py-5 text-muted-foreground">
-                {incidencia.detalle}
+                {incidencia.detalle?.trim() ? (
+                  incidencia.detalle
+                ) : (
+                  <span className="text-muted-foreground/50 italic">—</span>
+                )}
               </TableCell>
               <TableCell className="px-4 py-5">
                 {incidencia.registradoPor}
