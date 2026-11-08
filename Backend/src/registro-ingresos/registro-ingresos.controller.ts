@@ -7,14 +7,14 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
+  ApiTags,
   ApiBearerAuth,
   ApiOperation,
-  ApiProduces,
   ApiResponse,
-  ApiTags,
+  ApiParam,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -35,11 +35,12 @@ export class RegistroIngresosController {
   @Get('control')
   @Permissions('registro_ingresos.ver')
   @ApiOperation({
-    summary: 'Listar exámenes asignados al usuario para control de ingreso',
+    summary:
+      'Listar exámenes controlables por el usuario para el selector de registro de ingresos (HU17)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de exámenes que el usuario puede controlar',
+    description: 'Lista de exámenes controlables con fecha y nombre compuesto',
   })
   examenesControl(@Req() req: any) {
     return this.service.examenesControl(uid(req));
@@ -48,11 +49,26 @@ export class RegistroIngresosController {
   @Get(':id/ingresos')
   @Permissions('registro_ingresos.ver')
   @ApiOperation({
-    summary: 'Listar historial de ingresos registrados de un examen',
+    summary:
+      'Listar ingresos en tiempo real de un examen (HU17 - tabla de registro de ingresos)',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'ID del examen',
+    example: 1,
   })
   @ApiResponse({
     status: 200,
-    description: 'Historial cronológico de ingresos con métricas de asistencia',
+    description: 'Métricas y lista de ingresos registrados en vivo',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'No tienes permiso para controlar este examen',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'El examen no existe',
   })
   ingresos(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return this.service.ingresos(id, uid(req));
@@ -61,30 +77,30 @@ export class RegistroIngresosController {
   @Get(':id/reporte-pdf')
   @Permissions('registro_ingresos.ver')
   @ApiOperation({
-    summary: 'Descargar reporte oficial de asistencia en PDF del examen (HU17)',
-    description:
-      'Genera y descarga el documento oficial en formato PDF con membrete institucional, métricas de asistencia y nómina de estudiantes.',
+    summary:
+      'Descargar reporte oficial de asistencia del examen en formato PDF (HU17)',
   })
-  @ApiProduces('application/pdf')
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'ID del examen',
+    example: 1,
+  })
   @ApiResponse({
     status: 200,
-    description: 'Archivo binario PDF con el reporte oficial de asistencia',
-    content: {
-      'application/pdf': {
-        schema: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-    },
+    description: 'Archivo binario del PDF generado',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No hay ingresos registrados para descargar',
   })
   @ApiResponse({
     status: 403,
-    description: 'No autorizado para generar el reporte de este examen',
+    description: 'Solo el docente responsable puede descargar el reporte',
   })
   @ApiResponse({
     status: 404,
-    description: 'Examen no localizado',
+    description: 'El examen no existe',
   })
   async descargarReportePdf(
     @Param('id', ParseIntPipe) id: number,
@@ -98,6 +114,7 @@ export class RegistroIngresosController {
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.setHeader('Content-Length', String(buffer.length));
     res.setHeader('Cache-Control', 'no-store, must-revalidate');
 
