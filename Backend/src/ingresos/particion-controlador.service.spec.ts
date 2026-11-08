@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ParticionControladorService } from './particion-controlador.service';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 
 describe('ParticionControladorService', () => {
   let service: ParticionControladorService;
@@ -12,8 +13,12 @@ describe('ParticionControladorService', () => {
     },
     examenControlador: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
     },
     examen_Estudiante: {
+      findMany: jest.fn(),
+    },
+    ingreso: {
       findMany: jest.fn(),
     },
   };
@@ -128,7 +133,6 @@ describe('ParticionControladorService', () => {
         },
       ]);
 
-      // 4 estudiantes desordenados, con acentos para verificar normalización
       mockPrisma.examen_Estudiante.findMany.mockResolvedValue([
         {
           estudiante: {
@@ -174,14 +178,12 @@ describe('ParticionControladorService', () => {
       expect(resultado.totalEstudiantesHabilitados).toBe(4);
       expect(resultado.grupos).toHaveLength(2);
 
-      // Grupo 1: Alvarez, Benitez -> Rango A - B
       const g1 = resultado.grupos[0];
       expect(g1.colaboradorId).toBe(10);
       expect(g1.totalEstudiantes).toBe(2);
       expect(g1.estudianteIds).toEqual([1, 2]);
       expect(g1.rango).toBe('A - B');
 
-      // Grupo 2: Perez, Zambrana -> Rango P - Z
       const g2 = resultado.grupos[1];
       expect(g2.colaboradorId).toBe(20);
       expect(g2.totalEstudiantes).toBe(2);
@@ -212,7 +214,6 @@ describe('ParticionControladorService', () => {
         },
       ]);
 
-      // 5 estudiantes para 3 controladores -> deben quedar 2, 2, 1
       const apellidos = ['Aramayo', 'Bravo', 'Castro', 'Flores', 'Vargas'];
       mockPrisma.examen_Estudiante.findMany.mockResolvedValue(
         apellidos.map((ap, idx) => ({
@@ -293,7 +294,6 @@ describe('ParticionControladorService', () => {
     });
 
     it('debe retornar pertenece: false y detallar el controlador correcto si el estudiante pertenece a otra fila', async () => {
-      // Estudiante 2 (Zambrana) pertenece al controlador 20, pero lo intenta atender el controlador 10
       const validacion = await service.validarEstudianteEnGrupo(1, 10, 2);
 
       expect(validacion.pertenece).toBe(false);
@@ -322,6 +322,167 @@ describe('ParticionControladorService', () => {
       const validacion = await service.validarEstudianteEnGrupo(1, 10, 2);
 
       expect(validacion.pertenece).toBe(true);
+    });
+  });
+
+  describe('descargarGrupoControlador', () => {
+    const usuarioControlador: AuthenticatedUser = {
+      id: 10,
+      email: 'luciana@umss.edu.bo',
+      nombre: 'Luciana Pedraza',
+      roles: ['Personal de control'],
+      permisos: ['control_ingreso.ver_examenes_asignados'],
+    };
+
+    const examenData = {
+      id: 1,
+      usuarioId: 4, // Docente Vladimir
+      carrerasMaterias: [
+        {
+          carrera_materia: {
+            materia: { nombre: 'Bases de Datos I' },
+          },
+        },
+      ],
+      reservaAmbiente: {
+        ambiente: { nombre: 'Laboratorio Informática 1' },
+      },
+    };
+
+    beforeEach(() => {
+      mockPrisma.examen.findUnique.mockResolvedValue(examenData);
+      mockPrisma.examenControlador.findUnique.mockResolvedValue({
+        id: 1,
+        examenId: 1,
+        colaboradorId: 10,
+        rolAsignacion: 'Control principal',
+      });
+      mockPrisma.examenControlador.findMany.mockResolvedValue([
+        {
+          id: 1,
+          colaboradorId: 10,
+          rolAsignacion: 'Control principal',
+          colaborador: {
+            id: 10,
+            nombre: 'Luciana Pedraza',
+            correo: 'luciana@umss.edu.bo',
+          },
+        },
+        {
+          id: 2,
+          colaboradorId: 20,
+          rolAsignacion: 'Apoyo',
+          colaborador: {
+            id: 20,
+            nombre: 'Fernando Aguilar',
+            correo: 'fernando@umss.edu.bo',
+          },
+        },
+      ]);
+      mockPrisma.examen_Estudiante.findMany.mockResolvedValue([
+        {
+          estudiante: {
+            id: 1,
+            cod_sis: '2021001',
+            ci: '111',
+            nombre: 'Ana',
+            apellido: 'Alvarez',
+          },
+        },
+        {
+          estudiante: {
+            id: 2,
+            cod_sis: '2021002',
+            ci: '222',
+            nombre: 'Carlos',
+            apellido: 'Zambrana',
+          },
+        },
+      ]);
+      mockPrisma.ingreso.findMany.mockResolvedValue([]);
+    });
+
+    it('debe lanzar NotFoundException si el examen no existe', async () => {
+      mockPrisma.examen.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.descargarGrupoControlador(999, usuarioControlador),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('debe lanzar ForbiddenException si el usuario no está asignado como controlador ni es docente/admin', async () => {
+      mockPrisma.examenControlador.findUnique.mockResolvedValue(null);
+
+      const usuarioAjeno: AuthenticatedUser = {
+        id: 99,
+        email: 'ajeno@umss.edu.bo',
+        nombre: 'Usuario Ajeno',
+        roles: ['Personal de control'],
+        permisos: [],
+      };
+
+      await expect(
+        service.descargarGrupoControlador(1, usuarioAjeno),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('debe descargar únicamente los estudiantes asignados al grupo del controlador con su rango', async () => {
+      const resultado = await service.descargarGrupoControlador(
+        1,
+        usuarioControlador,
+      );
+
+      expect(resultado.examenId).toBe(1);
+      expect(resultado.asignatura).toBe('Bases de Datos I');
+      expect(resultado.colaboradorId).toBe(10);
+      expect(resultado.nombreControlador).toBe('Luciana Pedraza');
+      expect(resultado.rango).toBe('A');
+      expect(resultado.totalEstudiantesGrupo).toBe(1);
+      expect(resultado.totalEstudiantesExamen).toBe(2);
+      expect(resultado.estudiantes).toHaveLength(1);
+      expect(resultado.estudiantes[0].codSis).toBe('2021001');
+      expect(resultado.estudiantes[0].yaIngreso).toBe(false);
+    });
+
+    it('debe reflejar yaIngreso: true si el estudiante ya registró ingreso', async () => {
+      mockPrisma.ingreso.findMany.mockResolvedValue([
+        {
+          id: 50,
+          examenId: 1,
+          estudianteId: 1,
+          metodo: 'QR',
+          fechaHora: new Date('2026-10-30T08:35:00Z'),
+        },
+      ]);
+
+      const resultado = await service.descargarGrupoControlador(
+        1,
+        usuarioControlador,
+      );
+
+      expect(resultado.estudiantes[0].yaIngreso).toBe(true);
+      expect(resultado.estudiantes[0].metodoIngresoPrevio).toBe('QR');
+      expect(resultado.estudiantes[0].horaIngresoPrevio).toBeDefined();
+    });
+
+    it('debe entregar la lista completa con rango A - Z si quien descarga es el docente responsable', async () => {
+      const usuarioDocente: AuthenticatedUser = {
+        id: 4,
+        email: 'docente@umss.edu.bo',
+        nombre: 'Vladimir Costas',
+        roles: ['Docente'],
+        permisos: ['examenes.ver'],
+      };
+
+      const resultado = await service.descargarGrupoControlador(
+        1,
+        usuarioDocente,
+      );
+
+      expect(resultado.rango).toBe('A - Z');
+      expect(resultado.totalEstudiantesGrupo).toBe(2);
+      expect(resultado.totalEstudiantesExamen).toBe(2);
+      expect(resultado.estudiantes).toHaveLength(2);
     });
   });
 });

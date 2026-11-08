@@ -1,5 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
+import {
+  EstudianteGrupoItemDto,
+  GrupoControladorDescargaDto,
+} from './dto/grupo-controlador-descarga.dto';
 
 export interface EstudianteParticion {
   id: number;
@@ -221,6 +230,152 @@ export class ParticionControladorService {
     return (
       particion.grupos.find((g) => g.colaboradorId === colaboradorId) ?? null
     );
+  }
+
+  /**
+   * Permite a un controlador asignado (o docente/admin) descargar su grupo
+   * de estudiantes habilitados con sus respectivos estados de ingreso.
+   */
+  async descargarGrupoControlador(
+    examenId: number,
+    user: AuthenticatedUser,
+  ): Promise<GrupoControladorDescargaDto> {
+    const examen = await this.prisma.examen.findUnique({
+      where: { id: examenId },
+      include: {
+        reservaAmbiente: {
+          include: { ambiente: true },
+        },
+        carrerasMaterias: {
+          include: {
+            carrera_materia: {
+              include: { materia: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!examen) {
+      throw new NotFoundException(`Examen con ID ${examenId} no encontrado`);
+    }
+
+    const esAdmin = (user.permisos ?? []).includes('usuarios.crear');
+    const esDocente = examen.usuarioId === user.id;
+
+    let asignacion: { rolAsignacion: string } | null = null;
+    if (!esAdmin && !esDocente) {
+      asignacion = await this.prisma.examenControlador.findUnique({
+        where: {
+          examenId_colaboradorId: {
+            examenId,
+            colaboradorId: user.id,
+          },
+        },
+        select: { rolAsignacion: true },
+      });
+
+      if (!asignacion) {
+        throw new ForbiddenException(
+          'No tienes permiso ni grupo asignado en este examen.',
+        );
+      }
+    }
+
+    const particion = await this.calcularParticion(examenId);
+    const materiaNombre =
+      examen.carrerasMaterias[0]?.carrera_materia?.materia?.nombre ?? 'Examen';
+    const ambienteNombre =
+      examen.reservaAmbiente?.ambiente?.nombre ?? 'Sin ambiente asignado';
+
+    let grupoSeleccionado: GrupoControladorParticion | undefined;
+
+    if (esAdmin || esDocente) {
+      grupoSeleccionado = {
+        colaboradorId: user.id,
+        nombreControlador: user.nombre ?? 'Docente / Admin',
+        emailControlador: user.email ?? '',
+        rolAsignacion: esDocente ? 'Docente responsable' : 'Administrador',
+        rango: 'A - Z',
+        letraInicio: 'A',
+        letraFin: 'Z',
+        totalEstudiantes: particion.totalEstudiantesHabilitados,
+        estudianteIds: particion.grupos.flatMap((g) => g.estudianteIds),
+        estudiantes: particion.grupos.flatMap((g) => g.estudiantes),
+      };
+    } else {
+      grupoSeleccionado = particion.grupos.find(
+        (g) => g.colaboradorId === user.id,
+      );
+    }
+
+    const estudiantesGrupo = grupoSeleccionado?.estudiantes ?? [];
+    const estudianteIds = estudiantesGrupo.map((e) => e.id);
+
+    // Obtener los ingresos registrados para los estudiantes de este grupo
+    const ingresosPrevios =
+      estudianteIds.length > 0
+        ? await this.prisma.ingreso.findMany({
+            where: {
+              examenId,
+              estudianteId: { in: estudianteIds },
+            },
+            orderBy: { fechaHora: 'desc' },
+          })
+        : [];
+
+    const ultimosIngresosMap = new Map<
+      number,
+      (typeof ingresosPrevios)[number]
+    >();
+    for (const ing of ingresosPrevios) {
+      if (!ultimosIngresosMap.has(ing.estudianteId)) {
+        ultimosIngresosMap.set(ing.estudianteId, ing);
+      }
+    }
+
+    const estudiantesDto: EstudianteGrupoItemDto[] = estudiantesGrupo.map(
+      (est) => {
+        const ultimoIngreso = ultimosIngresosMap.get(est.id);
+        return {
+          id: est.id,
+          codSis: est.codSis,
+          ci: est.ci || undefined,
+          nombre: est.nombre,
+          apellido: est.apellido,
+          estadoHabilitado: true,
+          yaIngreso: !!ultimoIngreso,
+          horaIngresoPrevio: ultimoIngreso
+            ? new Date(ultimoIngreso.fechaHora).toLocaleTimeString('es-BO', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : undefined,
+          metodoIngresoPrevio: ultimoIngreso?.metodo as
+            'QR' | 'MANUAL' | undefined,
+        };
+      },
+    );
+
+    const rol =
+      asignacion?.rolAsignacion ??
+      (esDocente ? 'Docente responsable' : 'Administrador');
+
+    return {
+      examenId: examen.id,
+      asignatura: materiaNombre,
+      ambiente: ambienteNombre,
+      colaboradorId: user.id,
+      nombreControlador:
+        grupoSeleccionado?.nombreControlador ?? user.nombre ?? 'Controlador',
+      rolAsignacion: rol,
+      rango: grupoSeleccionado?.rango ?? '-',
+      letraInicio: grupoSeleccionado?.letraInicio ?? '-',
+      letraFin: grupoSeleccionado?.letraFin ?? '-',
+      totalEstudiantesGrupo: estudiantesDto.length,
+      totalEstudiantesExamen: particion.totalEstudiantesHabilitados,
+      estudiantes: estudiantesDto,
+    };
   }
 
   /**
