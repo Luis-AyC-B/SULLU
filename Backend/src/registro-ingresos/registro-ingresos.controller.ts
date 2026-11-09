@@ -74,7 +74,7 @@ export class RegistroIngresosController {
     return this.service.ingresos(id, uid(req));
   }
 
-  @Get(':id/reporte-pdf')
+  @Get([':id/reporte-pdf', ':id/reporte-asistencia'])
   @Permissions('registro_ingresos.ver')
   @ApiOperation({
     summary:
