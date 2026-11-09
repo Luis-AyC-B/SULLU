@@ -30,41 +30,51 @@ export function ControlIngresosPageContainer() {
 
   // HU-17: Acceso y filtros según el rol base
   // - "docente"  → rol predefinido por el sistema (solo Gestión, Materia, Examen)
-  // - "custom"   → rol personalizado con acceso al módulo (Docente, Gestión, Materia, Examen)
+  // - "custom"   → rol personalizado creado a partir de roles con acceso a registro_ingresos (Docente, Gestión, Materia, Examen)
   // - "control"  → personal de control (Docente, Gestión, Materia, Examen)
-  // - "admin"    → administrador (todos los filtros)
-  const userRole = (session?.user?.rol || "").toLowerCase();
-  const userEmail = (session?.user?.email || "").toLowerCase();
-  const permisos = (session?.user?.permisos || []).map((p: string) => p.toLowerCase());
-  // Flag que indica si el rol del usuario es exactamente "docente" (predefinido por el sistema)
-  const esRolDocentePredefinido =
-    userRole === "docente" || userRole === "rol_docente";
+  // - "admin"    → administrador (Facultad, Carrera, Docente, Gestión, Materia, Examen)
+  const userRole = (
+    session?.user?.rol ||
+    (session?.user as { role?: string })?.role ||
+    (session?.user as { rolNombre?: string })?.rolNombre ||
+    ""
+  ).toLowerCase().trim();
+  const userEmail = (session?.user?.email || "").toLowerCase().trim();
+  const permisos = (session?.user?.permisos || []).map((p: string) => String(p).toLowerCase());
 
   const rol: RolIngresos = useMemo(() => {
+    // 1. Administrador (acceso a todos los filtros)
     if (
       userRole.includes("admin") ||
       userEmail.includes("admin") ||
-      permisos.some((p) => p.includes("admin"))
+      permisos.some((p) => p.includes("admin") || p.startsWith("usuarios.") || p.startsWith("roles."))
     ) {
       return "admin";
     }
+
+    // 2. Docente predefinido por el sistema
+    // El docente NO debe ver el filtro "Docente" (solo Gestión, Materia y Examen)
+    if (
+      userRole.includes("docente") ||
+      userRole === "profesor" ||
+      userEmail.includes("docente")
+    ) {
+      return "docente";
+    }
+
+    // 3. Personal de control
     if (
       userRole.includes("control") ||
-      userRole.includes("colaborador") ||
+      userRole.includes("controlador") ||
       userEmail.includes("control") ||
-      userEmail.includes("colaborador") ||
-      permisos.some((p) => p.includes("control") || p.includes("colaborador"))
+      permisos.some((p) => p.startsWith("control_ingreso."))
     ) {
       return "control";
     }
-    // Si tiene el rol predefinido "docente" → solo Gestión, Materia, Examen
-    if (esRolDocentePredefinido) {
-      return "docente";
-    }
-    // Cualquier otro rol personalizado que tenga acceso al módulo
-    // registro-ingresos → ve Docente, Gestión, Materia, Examen
+
+    // 4. Rol personalizado creado en "Gestión de roles" con acceso al módulo
     return "custom";
-  }, [userRole, userEmail, permisos, esRolDocentePredefinido]);
+  }, [userRole, userEmail, permisos]);
 
   // Criterio 24: Cualquier usuario con acceso al módulo puede descargar el PDF
   const puedeDescargarPdf = Boolean(session?.user);
