@@ -102,6 +102,7 @@ export interface GenerarPdfParams {
   fechaGeneracion?: Date;
   filtrosAplicados?: {
     facultad?: string;
+    carrera?: string;
     docente?: string;
     gestion?: string;
     materia?: string;

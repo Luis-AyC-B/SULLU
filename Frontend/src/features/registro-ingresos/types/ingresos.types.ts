@@ -66,6 +66,7 @@ export const examenControlSchema = z.object({
   facultad: z.string().optional(),
   facultadId: z.union([z.string(), z.number()]).optional(),
   carrera: z.string().optional(),
+  carreraId: z.union([z.string(), z.number()]).optional(),
   materia: z.string().optional(),
   materiaId: z.union([z.string(), z.number()]).optional(),
   docente: z.string().optional(),
@@ -82,7 +83,8 @@ export const examenesControlSchema = z.array(examenControlSchema);
 
 export interface FiltrosIngresos {
   facultadId: string; // Solo Admin: "TODAS" o id de facultad
-  docenteId: string; // Admin y Control: "TODOS" o id de docente
+  carreraId: string; // Solo Admin: "TODAS" o id de carrera
+  docenteId: string; // Admin, Control y Custom: "TODOS" o id de docente
   gestion: GestionAcademica; // Todos los roles: "Gestión 1/2026" o "Gestión 2/2026"
   materiaId: string; // Todos los roles: "TODAS" o id de materia
   examenId: string; // Todos los roles: "TODOS" o id de examen

@@ -550,6 +550,7 @@ export async function descargarReporteIngresosPdf(
   docenteNombre?: string,
   filtrosAplicados?: {
     facultad?: string;
+    carrera?: string;
     docente?: string;
     gestion?: string;
     materia?: string;

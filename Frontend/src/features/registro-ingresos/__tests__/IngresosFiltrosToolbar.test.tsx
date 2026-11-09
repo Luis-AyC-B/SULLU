@@ -62,6 +62,7 @@ describe('HU-17: IngresosFiltrosToolbar (Filtros combinables en cascada)', () =>
 
   const filtrosIniciales: FiltrosIngresos = {
     facultadId: 'TODAS',
+    carreraId: 'TODAS',
     docenteId: 'TODOS',
     gestion: 'Gestión 2/2026',
     materiaId: 'TODAS',
@@ -69,7 +70,7 @@ describe('HU-17: IngresosFiltrosToolbar (Filtros combinables en cascada)', () =>
   };
 
   describe('Criterios 1, 2, 3: Visualización de filtros por rol', () => {
-    it('Docente (rol predefinido) visualiza Gestión, Materia y Examen (sin Facultad ni Docente)', () => {
+    it('Docente (rol predefinido) visualiza Gestión, Materia y Examen (sin Facultad, Carrera ni Docente)', () => {
       render(
         <IngresosFiltrosToolbar
           rol="docente"
@@ -83,11 +84,12 @@ describe('HU-17: IngresosFiltrosToolbar (Filtros combinables en cascada)', () =>
       expect(screen.getByText('Materia')).toBeInTheDocument();
       expect(screen.getByText('Examen')).toBeInTheDocument();
       expect(screen.queryByText('Facultad')).not.toBeInTheDocument();
+      expect(screen.queryByText('Carrera')).not.toBeInTheDocument();
       expect(screen.queryByText('Docente')).not.toBeInTheDocument();
       expect(screen.getByText('Todas mis materias')).toBeInTheDocument();
     });
 
-    it('Rol personalizado (custom) visualiza Docente, Gestión, Materia y Examen (sin Facultad)', () => {
+    it('Rol personalizado (custom) visualiza Docente, Gestión, Materia y Examen (sin Facultad ni Carrera)', () => {
       render(
         <IngresosFiltrosToolbar
           rol="custom"
@@ -102,9 +104,10 @@ describe('HU-17: IngresosFiltrosToolbar (Filtros combinables en cascada)', () =>
       expect(screen.getByText('Materia')).toBeInTheDocument();
       expect(screen.getByText('Examen')).toBeInTheDocument();
       expect(screen.queryByText('Facultad')).not.toBeInTheDocument();
+      expect(screen.queryByText('Carrera')).not.toBeInTheDocument();
     });
 
-    it('Personal de Control visualiza Docente, Gestión, Materia y Examen (sin Facultad)', () => {
+    it('Personal de Control visualiza Docente, Gestión, Materia y Examen (sin Facultad ni Carrera)', () => {
       render(
         <IngresosFiltrosToolbar
           rol="control"
@@ -119,10 +122,11 @@ describe('HU-17: IngresosFiltrosToolbar (Filtros combinables en cascada)', () =>
       expect(screen.getByText('Materia')).toBeInTheDocument();
       expect(screen.getByText('Examen')).toBeInTheDocument();
       expect(screen.queryByText('Facultad')).not.toBeInTheDocument();
+      expect(screen.queryByText('Carrera')).not.toBeInTheDocument();
       expect(screen.getByText('Todas las materias')).toBeInTheDocument();
     });
 
-    it('Administrador visualiza los 5 filtros: Facultad, Docente, Gestión, Materia y Examen', () => {
+    it('Administrador visualiza los 6 filtros: Facultad, Carrera, Docente, Gestión, Materia y Examen', () => {
       render(
         <IngresosFiltrosToolbar
           rol="admin"
@@ -133,6 +137,7 @@ describe('HU-17: IngresosFiltrosToolbar (Filtros combinables en cascada)', () =>
       );
 
       expect(screen.getByText('Facultad')).toBeInTheDocument();
+      expect(screen.getByText('Carrera')).toBeInTheDocument();
       expect(screen.getByText('Docente')).toBeInTheDocument();
       expect(screen.getByText('Gestión')).toBeInTheDocument();
       expect(screen.getByText('Materia')).toBeInTheDocument();

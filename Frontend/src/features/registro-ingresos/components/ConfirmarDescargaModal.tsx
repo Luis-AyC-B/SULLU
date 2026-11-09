@@ -18,6 +18,7 @@ interface ConfirmarDescargaModalProps {
   gestionNombre?: string;
   filtrosDetalle?: {
     facultad?: string;
+    carrera?: string;
     docente?: string;
     examen?: string;
   };
@@ -74,7 +75,7 @@ export function ConfirmarDescargaModal({
           </p>
 
           {/* Detalles de filtros aplicados si existen */}
-          {filtrosDetalle && (filtrosDetalle.facultad || filtrosDetalle.docente || filtrosDetalle.examen) && (
+          {filtrosDetalle && (filtrosDetalle.facultad || filtrosDetalle.carrera || filtrosDetalle.docente || filtrosDetalle.examen) && (
             <div className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs space-y-1 text-gray-600">
               <p className="font-semibold text-gray-800 text-[11px] uppercase tracking-wider">
                 Filtros aplicados:
@@ -83,6 +84,12 @@ export function ConfirmarDescargaModal({
                 <p>
                   <span className="font-medium text-gray-700">Facultad:</span>{" "}
                   {filtrosDetalle.facultad}
+                </p>
+              )}
+              {filtrosDetalle.carrera && (
+                <p>
+                  <span className="font-medium text-gray-700">Carrera:</span>{" "}
+                  {filtrosDetalle.carrera}
                 </p>
               )}
               {filtrosDetalle.docente && (

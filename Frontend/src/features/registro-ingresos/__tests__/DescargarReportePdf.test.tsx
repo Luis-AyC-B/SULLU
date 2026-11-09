@@ -205,7 +205,7 @@ describe('HU-17: Registro de ingresos > Descargar reporte de asistencia', () => 
       expect(screen.queryByText('Facultad')).not.toBeInTheDocument();
     });
 
-    it('muestra los 5 filtros cuando el usuario es Administrador', () => {
+    it('muestra los filtros incluyendo Carrera cuando el usuario es Administrador', () => {
       mockUseSession.mockReturnValue({
         data: {
           user: {
@@ -220,6 +220,7 @@ describe('HU-17: Registro de ingresos > Descargar reporte de asistencia', () => 
       render(<ControlIngresosPageContainer />);
       expect(screen.getByRole('button', { name: /descargar pdf/i })).toBeInTheDocument();
       expect(screen.getByText('Facultad')).toBeInTheDocument();
+      expect(screen.getByText('Carrera')).toBeInTheDocument();
       expect(screen.getByText('Docente')).toBeInTheDocument();
       expect(screen.getByText('Gestión')).toBeInTheDocument();
       expect(screen.getByText('Materia')).toBeInTheDocument();

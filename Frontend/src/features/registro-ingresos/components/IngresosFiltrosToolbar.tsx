@@ -43,13 +43,14 @@ export function IngresosFiltrosToolbar({
   isLoading = false,
 }: IngresosFiltrosToolbarProps) {
   // Asegurar que cada examen tenga su gestión asignada según Criterio 5.
-  // Los campos facultad, materia, docente deben venir del backend;
+  // Los campos facultad, carrera, materia, docente deben venir del backend;
   // solo la gestión se calcula como fallback a partir de la fecha.
   const examenesConGestion = useMemo(() => {
     return examenes.map((e) => ({
       ...e,
       gestion: e.gestion || obtenerGestionPorFecha(e.fecha),
       facultadId: e.facultadId ? String(e.facultadId) : undefined,
+      carreraId: e.carreraId ? String(e.carreraId) : (e.carrera ? String(e.carrera) : undefined),
       docenteId: e.docenteId ? String(e.docenteId) : undefined,
     }));
   }, [examenes]);
@@ -70,7 +71,7 @@ export function IngresosFiltrosToolbar({
     return Array.from(map.entries()).map(([id, nombre]) => ({ id, nombre }));
   }, [examenesEnGestion]);
 
-  // Filtrado por Facultad para calcular Docentes y Materias siguientes (Criterio 8)
+  // Filtrado por Facultad para calcular Carreras, Docentes y Materias siguientes (Criterio 8)
   const examenesPorFacultad = useMemo(() => {
     if (!filtros.facultadId || filtros.facultadId === "TODAS") {
       return examenesEnGestion;
@@ -80,26 +81,50 @@ export function IngresosFiltrosToolbar({
     );
   }, [examenesEnGestion, filtros.facultadId]);
 
-  // 3. Docentes disponibles (Admin y Control, Criterio 8)
-  const docentesDisponibles = useMemo(() => {
+  // 2.5 Carreras disponibles (solo Admin, filtradas por Facultad)
+  const carrerasDisponibles = useMemo(() => {
     const map = new Map<string, string>();
     examenesPorFacultad.forEach((e) => {
-      if (e.docenteId && e.docente) {
-        map.set(String(e.docenteId), e.docente);
+      const id = e.carreraId ? String(e.carreraId) : (e.carrera || "");
+      const nombre = e.carrera || id;
+      if (id && nombre) {
+        map.set(id, nombre);
       }
     });
     return Array.from(map.entries()).map(([id, nombre]) => ({ id, nombre }));
   }, [examenesPorFacultad]);
 
+  // Filtrado por Carrera para calcular Docentes y Materias siguientes
+  const examenesPorCarrera = useMemo(() => {
+    if (!filtros.carreraId || filtros.carreraId === "TODAS") {
+      return examenesPorFacultad;
+    }
+    return examenesPorFacultad.filter((e) => {
+      const id = e.carreraId ? String(e.carreraId) : (e.carrera || "");
+      return id === filtros.carreraId;
+    });
+  }, [examenesPorFacultad, filtros.carreraId]);
+
+  // 3. Docentes disponibles (Admin, Control y Custom, Criterio 8)
+  const docentesDisponibles = useMemo(() => {
+    const map = new Map<string, string>();
+    examenesPorCarrera.forEach((e) => {
+      if (e.docenteId && e.docente) {
+        map.set(String(e.docenteId), e.docente);
+      }
+    });
+    return Array.from(map.entries()).map(([id, nombre]) => ({ id, nombre }));
+  }, [examenesPorCarrera]);
+
   // Filtrado por Docente para calcular Materias siguientes (Criterio 9)
   const examenesPorDocente = useMemo(() => {
     if (!filtros.docenteId || filtros.docenteId === "TODOS") {
-      return examenesPorFacultad;
+      return examenesPorCarrera;
     }
-    return examenesPorFacultad.filter(
+    return examenesPorCarrera.filter(
       (e) => String(e.docenteId) === filtros.docenteId
     );
-  }, [examenesPorFacultad, filtros.docenteId]);
+  }, [examenesPorCarrera, filtros.docenteId]);
 
   // 4. Materias disponibles (Todos los roles, Criterio 9, 10)
   const materiasDisponibles = useMemo(() => {
@@ -130,14 +155,29 @@ export function IngresosFiltrosToolbar({
         ? examenesEnGestion
         : examenesEnGestion.filter((e) => String(e.facultadId) === nuevaFacultad);
 
+    // Si la carrera ya no pertenece, reset a TODAS
+    const carreraValida = nuevaListaExamenes.some((e) => {
+      const id = e.carreraId ? String(e.carreraId) : (e.carrera || "");
+      return id === filtros.carreraId;
+    });
+    const nuevaCarrera = carreraValida ? filtros.carreraId : "TODAS";
+
+    const listaConCarrera =
+      nuevaCarrera === "TODAS"
+        ? nuevaListaExamenes
+        : nuevaListaExamenes.filter((e) => {
+            const id = e.carreraId ? String(e.carreraId) : (e.carrera || "");
+            return id === nuevaCarrera;
+          });
+
     // Si el docente ya no pertenece, reset a TODOS
-    const docenteValido = nuevaListaExamenes.some(
+    const docenteValido = listaConCarrera.some(
       (e) => String(e.docenteId) === filtros.docenteId
     );
     const nuevoDocente = docenteValido ? filtros.docenteId : "TODOS";
 
     // Si la materia ya no pertenece, reset a TODAS
-    const materiaValida = nuevaListaExamenes.some(
+    const materiaValida = listaConCarrera.some(
       (e) => e.materia === filtros.materiaId
     );
     const nuevaMateria = materiaValida ? filtros.materiaId : "TODAS";
@@ -145,6 +185,33 @@ export function IngresosFiltrosToolbar({
     onFiltrosChange({
       ...filtros,
       facultadId: nuevaFacultad,
+      carreraId: nuevaCarrera,
+      docenteId: nuevoDocente,
+      materiaId: nuevaMateria,
+      examenId: "TODOS",
+    });
+  };
+
+  const handleCarreraChange = (nuevaCarrera: string) => {
+    const nuevaLista =
+      nuevaCarrera === "TODAS"
+        ? examenesPorFacultad
+        : examenesPorFacultad.filter((e) => {
+            const id = e.carreraId ? String(e.carreraId) : (e.carrera || "");
+            return id === nuevaCarrera;
+          });
+
+    const docenteValido = nuevaLista.some(
+      (e) => String(e.docenteId) === filtros.docenteId
+    );
+    const nuevoDocente = docenteValido ? filtros.docenteId : "TODOS";
+
+    const materiaValida = nuevaLista.some((e) => e.materia === filtros.materiaId);
+    const nuevaMateria = materiaValida ? filtros.materiaId : "TODAS";
+
+    onFiltrosChange({
+      ...filtros,
+      carreraId: nuevaCarrera,
       docenteId: nuevoDocente,
       materiaId: nuevaMateria,
       examenId: "TODOS",
@@ -154,8 +221,8 @@ export function IngresosFiltrosToolbar({
   const handleDocenteChange = (nuevoDocente: string) => {
     const nuevaLista =
       nuevoDocente === "TODOS"
-        ? examenesPorFacultad
-        : examenesPorFacultad.filter((e) => String(e.docenteId) === nuevoDocente);
+        ? examenesPorCarrera
+        : examenesPorCarrera.filter((e) => String(e.docenteId) === nuevoDocente);
 
     const materiaValida = nuevaLista.some((e) => e.materia === filtros.materiaId);
     const nuevaMateria = materiaValida ? filtros.materiaId : "TODAS";
@@ -177,6 +244,10 @@ export function IngresosFiltrosToolbar({
     const facValida = nuevaListaGestion.some(
       (e) => String(e.facultadId) === filtros.facultadId
     );
+    const carValida = nuevaListaGestion.some((e) => {
+      const id = e.carreraId ? String(e.carreraId) : (e.carrera || "");
+      return id === filtros.carreraId;
+    });
     const docValido = nuevaListaGestion.some(
       (e) => String(e.docenteId) === filtros.docenteId
     );
@@ -186,6 +257,7 @@ export function IngresosFiltrosToolbar({
 
     onFiltrosChange({
       facultadId: facValida ? filtros.facultadId : "TODAS",
+      carreraId: carValida ? filtros.carreraId : "TODAS",
       docenteId: docValido ? filtros.docenteId : "TODOS",
       gestion: gestionTyped,
       materiaId: matValida ? filtros.materiaId : "TODAS",
@@ -213,7 +285,7 @@ export function IngresosFiltrosToolbar({
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 w-full">
         {/* 1. Facultad (Solo Administrador, Criterio 7) */}
         {rol === "admin" && (
           <div className="flex flex-col gap-1.5">
@@ -233,6 +305,32 @@ export function IngresosFiltrosToolbar({
                 {facultadesDisponibles.map((f) => (
                   <SelectItem key={f.id} value={f.id}>
                     {f.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* 1.5. Carrera (Solo Administrador) */}
+        {rol === "admin" && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-700">
+              Carrera
+            </label>
+            <Select
+              value={filtros.carreraId || "TODAS"}
+              onValueChange={handleCarreraChange}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="w-full h-10 rounded-xl bg-white border-gray-200 text-xs">
+                <SelectValue placeholder="Todas las carreras" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODAS">Todas las carreras</SelectItem>
+                {carrerasDisponibles.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nombre}
                   </SelectItem>
                 ))}
               </SelectContent>

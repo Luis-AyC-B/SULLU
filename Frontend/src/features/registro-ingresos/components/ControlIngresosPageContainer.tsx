@@ -80,6 +80,7 @@ export function ControlIngresosPageContainer() {
       ...e,
       gestion: e.gestion || obtenerGestionPorFecha(e.fecha),
       facultadId: e.facultadId ? String(e.facultadId) : undefined,
+      carreraId: e.carreraId ? String(e.carreraId) : (e.carrera ? String(e.carrera) : undefined),
       docenteId: e.docenteId ? String(e.docenteId) : undefined,
     }));
   }, [examenes]);
@@ -87,6 +88,7 @@ export function ControlIngresosPageContainer() {
   // Filtros combinables para HU-17
   const [filtros, setFiltros] = useState<FiltrosIngresos>({
     facultadId: "TODAS",
+    carreraId: "TODAS",
     docenteId: "TODOS",
     gestion: obtenerGestionVigente(),
     materiaId: "TODAS",
@@ -100,6 +102,13 @@ export function ControlIngresosPageContainer() {
       if (
         filtros.facultadId !== "TODAS" &&
         String(e.facultadId) !== filtros.facultadId
+      ) {
+        return false;
+      }
+      if (
+        filtros.carreraId &&
+        filtros.carreraId !== "TODAS" &&
+        (e.carreraId ? String(e.carreraId) : e.carrera) !== filtros.carreraId
       ) {
         return false;
       }
@@ -173,6 +182,9 @@ export function ControlIngresosPageContainer() {
     const facultadObj = examenesEnriquecidos.find(
       (e) => String(e.facultadId) === filtros.facultadId
     );
+    const carreraObj = examenesEnriquecidos.find(
+      (e) => (e.carreraId ? String(e.carreraId) : e.carrera) === filtros.carreraId
+    );
     const docenteObj = examenesEnriquecidos.find(
       (e) => String(e.docenteId) === filtros.docenteId
     );
@@ -184,6 +196,10 @@ export function ControlIngresosPageContainer() {
       facultad:
         filtros.facultadId !== "TODAS"
           ? facultadObj?.facultad || filtros.facultadId
+          : undefined,
+      carrera:
+        filtros.carreraId && filtros.carreraId !== "TODAS"
+          ? carreraObj?.carrera || filtros.carreraId
           : undefined,
       docente:
         filtros.docenteId !== "TODOS"
@@ -261,6 +277,9 @@ export function ControlIngresosPageContainer() {
           facultad:
             filtrosDetalle.facultad ||
             (filtros.facultadId === "TODAS" ? "Todas las facultades" : undefined),
+          carrera:
+            filtrosDetalle.carrera ||
+            (filtros.carreraId === "TODAS" ? "Todas las carreras" : undefined),
           docente:
             filtrosDetalle.docente ||
             (filtros.docenteId === "TODOS" ? "Todos los docentes" : undefined),
