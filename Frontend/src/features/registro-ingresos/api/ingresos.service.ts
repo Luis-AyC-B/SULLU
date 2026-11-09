@@ -13,11 +13,16 @@ import {
   type Ingreso,
   type IngresosExamen,
 } from '../types/ingresos.types';
+import {
+  generarPdfReporteIngresos,
+  formatearNombreArchivoReporte,
+} from '../lib/generarPdfReporteIngresos';
 
 /* =============================================================================
    Endpoints:
    GET /examenes/control            -> [{ id, nombre, fecha }]
    GET /examenes/:id/ingresos       -> { examenId, ingresados, total, ingresos[] }
+   GET /examenes/:id/reporte-asistencia -> PDF Blob
    ============================================================================= */
 
 const FORCE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
@@ -308,4 +313,68 @@ export async function getIngresosExamen(
 
     throw error;
   }
+}
+
+/**
+ * HU-17: Descarga el reporte de asistencia en formato PDF.
+ * Solicita el PDF generado por backend o genera el documento estándar
+ * en frontend con todos los criterios de la historia de usuario.
+ */
+export async function descargarReporteIngresosPdf(
+  examen: ExamenControl,
+  datos: IngresosExamen,
+  docenteNombre?: string
+): Promise<{ blob: Blob; filename: string }> {
+  const filename = formatearNombreArchivoReporte(examen.nombre, examen.fecha);
+
+  if (FORCE_MOCKS) {
+    const blob = generarPdfReporteIngresos({
+      examen,
+      ingresos: datos.ingresos,
+      ingresados: datos.ingresados,
+      total: datos.total,
+      docenteNombre,
+    });
+    return { blob, filename };
+  }
+
+  try {
+    const response = await apiClient.get(`/examenes/${examen.id}/reporte-asistencia`, {
+      responseType: 'blob',
+      timeout: 10000,
+    });
+    if (response.data) {
+      const blob =
+        response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], { type: 'application/pdf' });
+      return { blob, filename };
+    }
+  } catch (error) {
+    // Si el backend no tiene el endpoint (404) o da error de servidor no bloqueante,
+    // usamos la generación PDF directa para garantizar la entrega de la HU-17
+    if (
+      isEndpointMissing(error) ||
+      (isAxiosError(error) && (!error.response || error.response.status >= 500))
+    ) {
+      const blob = generarPdfReporteIngresos({
+        examen,
+        ingresos: datos.ingresos,
+        ingresados: datos.ingresados,
+        total: datos.total,
+        docenteNombre,
+      });
+      return { blob, filename };
+    }
+    throw error;
+  }
+
+  const fallbackBlob = generarPdfReporteIngresos({
+    examen,
+    ingresos: datos.ingresos,
+    ingresados: datos.ingresados,
+    total: datos.total,
+    docenteNombre,
+  });
+  return { blob: fallbackBlob, filename };
 }
