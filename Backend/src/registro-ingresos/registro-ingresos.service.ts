@@ -11,11 +11,28 @@ import { AsistenciaPdfService } from './asistencia-pdf.service';
 const aBolivia = (d: Date) =>
   new Date(d.getTime() - 4 * 3600 * 1000).toISOString().slice(0, 19) + '-04:00';
 
-const incluirNombre = {
-  reservaAmbiente: true,
-  carrerasMaterias: {
-    include: { carrera_materia: { include: { materia: true } } },
+const incluirControl = {
+  reservaAmbiente: {
+    include: {
+      ambiente: true,
+      horarioFijo: true,
+    },
   },
+  carrerasMaterias: {
+    include: {
+      carrera_materia: {
+        include: {
+          materia: true,
+          carrera: {
+            include: {
+              facultad: true,
+            },
+          },
+        },
+      },
+    },
+  },
+  responsable: true,
 } as const;
 
 @Injectable()
@@ -57,24 +74,71 @@ export class RegistroIngresosService {
 
     return usuario.roles.some((r) => {
       const nombre = r.rol.nombre.toUpperCase();
-      return nombre === 'ADMIN' || nombre === 'ADMINISTRADOR';
+      return (
+        nombre === 'ADMIN' ||
+        nombre === 'ADMINISTRADOR' ||
+        nombre.includes('ADMIN')
+      );
     });
   }
 
   /** Exámenes que el usuario puede controlar; el del día primero. */
   async examenesControl(usuarioId: number) {
+    const esAdmin = await this.verificarEsAdmin(usuarioId);
+    const where = esAdmin ? {} : this.puedeControlar(usuarioId);
+
     const examenes = await this.prisma.examen.findMany({
-      where: this.puedeControlar(usuarioId),
-      include: incluirNombre,
+      where,
+      include: incluirControl,
     });
     const hoy = new Date().toISOString().slice(0, 10);
 
     return examenes
-      .map((ex) => ({
-        id: ex.id,
-        nombre: this.nombreExamen(ex),
-        fecha: ex.reservaAmbiente.fecha.toISOString().slice(0, 10),
-      }))
+      .map((ex) => {
+        const cm = ex.carrerasMaterias[0]?.carrera_materia;
+        const materiaNombre = cm?.materia.nombre ?? 'Examen';
+        const carreraNombre = cm?.carrera.nombre ?? 'Sin Carrera';
+        const facultadNombre = cm?.carrera.facultad.nombre ?? 'Sin Facultad';
+        const docenteNombre = ex.responsable
+          ? `${ex.responsable.nombre} ${ex.responsable.apellido ?? ''}`.trim()
+          : 'Docente';
+        const fechaStr = ex.reservaAmbiente.fecha.toISOString().slice(0, 10);
+        const mes = ex.reservaAmbiente.fecha.getUTCMonth() + 1;
+        const gestion = mes <= 6 ? 'Gestión 1/2026' : 'Gestión 2/2026';
+
+        let horario = '08:00 - 09:30';
+        if (ex.reservaAmbiente.horarioFijo) {
+          const hIni = ex.reservaAmbiente.horarioFijo.horaIni
+            ? new Date(ex.reservaAmbiente.horarioFijo.horaIni)
+                .toISOString()
+                .slice(11, 16)
+            : '08:00';
+          const hFin = ex.reservaAmbiente.horarioFijo.horaFin
+            ? new Date(ex.reservaAmbiente.horarioFijo.horaFin)
+                .toISOString()
+                .slice(11, 16)
+            : '09:30';
+          horario = `${hIni} - ${hFin}`;
+        }
+
+        return {
+          id: ex.id,
+          nombre: this.nombreExamen(ex),
+          fecha: fechaStr,
+          facultad: facultadNombre,
+          facultadId: cm?.carrera.facultadId ?? 1,
+          carrera: carreraNombre,
+          carreraId: cm?.carreraId ?? 1,
+          materia: materiaNombre,
+          materiaId: cm?.materiaId ?? 1,
+          docente: docenteNombre,
+          docenteId: ex.usuarioId,
+          gestion,
+          ambiente: ex.reservaAmbiente.ambiente?.nombre ?? 'Aula',
+          horario,
+          estado: ex.estado,
+        };
+      })
       .sort((a, b) => {
         const ra = a.fecha === hoy ? 0 : 1;
         const rb = b.fecha === hoy ? 0 : 1;
