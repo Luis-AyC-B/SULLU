@@ -16,6 +16,7 @@ import {
   type FiltrosIngresos,
   type GestionAcademica,
 } from "../types/ingresos.types";
+import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
 
 /**
  * Roles del módulo Registro de Ingresos:
@@ -49,6 +50,7 @@ export function IngresosFiltrosToolbar({
     return examenes.map((e) => ({
       ...e,
       gestion: e.gestion || obtenerGestionPorFecha(e.fecha),
+      materia: e.materia || (e.nombre ? obtenerNombreMateria(e.nombre) : undefined),
       facultadId: e.facultadId ? String(e.facultadId) : undefined,
       carreraId: e.carreraId ? String(e.carreraId) : (e.carrera ? String(e.carrera) : undefined),
       docenteId: e.docenteId ? String(e.docenteId) : undefined,
@@ -118,13 +120,13 @@ export function IngresosFiltrosToolbar({
 
   // Filtrado por Docente para calcular Materias siguientes (Criterio 9)
   const examenesPorDocente = useMemo(() => {
-    if (!filtros.docenteId || filtros.docenteId === "TODOS") {
+    if (rol === "docente" || docentesDisponibles.length <= 1 || !filtros.docenteId || filtros.docenteId === "TODOS") {
       return examenesPorCarrera;
     }
     return examenesPorCarrera.filter(
       (e) => String(e.docenteId) === filtros.docenteId
     );
-  }, [examenesPorCarrera, filtros.docenteId]);
+  }, [examenesPorCarrera, filtros.docenteId, rol, docentesDisponibles.length]);
 
   // 4. Materias disponibles (Todos los roles, Criterio 9, 10)
   const materiasDisponibles = useMemo(() => {

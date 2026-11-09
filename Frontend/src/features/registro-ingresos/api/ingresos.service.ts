@@ -443,6 +443,16 @@ export async function getIngresosExamen(
 ): Promise<IngresosExamen> {
   if (FORCE_MOCKS) return mockIngresos(examenId);
 
+  // Si se solicita "TODOS", el backend no tiene un ID "TODOS" (arrojaría 400 Bad Request).
+  if (String(examenId).toUpperCase() === 'TODOS') {
+    return {
+      examenId: 'TODOS',
+      ingresados: 0,
+      total: 0,
+      ingresos: [],
+    };
+  }
+
   // Helper para armar ingresos locales offline y fusionar con la cola local
   const armarIngresosOffline = async (): Promise<IngresosExamen> => {
     const cached = await obtenerIngresosExamenOffline(examenId);

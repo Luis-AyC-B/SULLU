@@ -153,13 +153,14 @@ export function ControlIngresosPageContainer() {
   const { examenes, isLoading: cargandoExamenes, error: errorExamenes } =
     useExamenesControl();
 
-  // Enriquecer los exámenes: solo la gestión se calcula como fallback
-  // a partir de la fecha. Los demás campos (facultad, materia, docente)
-  // deben venir del backend directamente.
+  // Enriquecer los exámenes:
+  // - gestión: calculada por fecha si no viene
+  // - materia: propiedad materia o inferida del nombre del examen como fallback
   const examenesEnriquecidos = useMemo<ExamenControl[]>(() => {
     return examenes.map((e) => ({
       ...e,
       gestion: e.gestion || obtenerGestionPorFecha(e.fecha),
+      materia: e.materia || (e.nombre ? obtenerNombreMateria(e.nombre) : undefined),
       facultadId: e.facultadId ? String(e.facultadId) : undefined,
       carreraId: e.carreraId ? String(e.carreraId) : (e.carrera ? String(e.carrera) : undefined),
       docenteId: e.docenteId ? String(e.docenteId) : undefined,
@@ -194,6 +195,7 @@ export function ControlIngresosPageContainer() {
         return false;
       }
       if (
+        rol !== "docente" &&
         filtros.docenteId !== "TODOS" &&
         String(e.docenteId) !== filtros.docenteId
       ) {
