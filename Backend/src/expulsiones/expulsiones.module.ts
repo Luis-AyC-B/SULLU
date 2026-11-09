@@ -5,5 +5,6 @@ import { ExpulsionesService } from './expulsiones.service';
 @Module({
   controllers: [ExpulsionesController],
   providers: [ExpulsionesService],
+  exports: [ExpulsionesService],
 })
 export class ExpulsionesModule {}

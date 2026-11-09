@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EstadoExamen, Prisma } from '@prisma/client';
+import { CasoIncidencia, EstadoExamen, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearExpulsionDto } from './dto/crear-expulsion.dto';
 import { combinarBolivia, estadoEfectivo } from '../common/estado-examen.util';
@@ -14,38 +14,47 @@ const incluir = { estudiante: true, docente: true } as const;
 
 const nombre = (n: string, a?: string | null) => `${n} ${a ?? ''}`.trim();
 
+const normalizar = (str: string) =>
+  (str ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
 type Fila = Prisma.ExpulsionGetPayload<{ include: typeof incluir }>;
+
+export interface ExpulsionResponseDto {
+  id: string;
+  examenId: string;
+  fechaHora: string;
+  codigoSis: string;
+  estudianteNombre: string;
+  caso: string;
+  motivo: string;
+  detalle: string;
+  registradoPor: string;
+}
+
+export interface EstudianteElegibleDto {
+  codigoSis: string;
+  nombre: string;
+}
 
 @Injectable()
 export class ExpulsionesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private aDto(f: Fila) {
+  private aDto(f: Fila): ExpulsionResponseDto {
     return {
       id: String(f.id),
       examenId: String(f.examenId),
       fechaHora: f.fechaHora.toISOString(),
       codigoSis: f.estudiante.cod_sis,
       estudianteNombre: nombre(f.estudiante.nombre, f.estudiante.apellido),
+      caso: f.caso,
       motivo: f.motivo,
-      detalle: f.detalle,
+      detalle: f.detalle ?? '',
       registradoPor: nombre(f.docente.nombre, f.docente.apellido),
     };
-  }
-
-  /** Cada palabra escrita debe coincidir con nombre, apellido o código SIS. */
-  private filtroBusqueda(texto?: string): Prisma.EstudianteWhereInput[] {
-    if (!texto) return [];
-    return texto
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((t) => ({
-        OR: [
-          { nombre: { contains: t, mode: 'insensitive' as const } },
-          { apellido: { contains: t, mode: 'insensitive' as const } },
-          { cod_sis: { contains: t } },
-        ],
-      }));
   }
 
   /**
@@ -145,7 +154,7 @@ export class ExpulsionesService {
     const ahora = new Date();
 
     if (ahora < inicio || ahora > fin) {
-      throw new ForbiddenException({
+      throw new BadRequestException({
         code: 'EXAMEN_NO_EN_CURSO',
         message: 'El examen no está en curso.',
       });
@@ -162,45 +171,97 @@ export class ExpulsionesService {
     return ingresos.map((i) => i.estudianteId);
   }
 
-  /** CA 1-5: listado + contador del examen. */
-  async listar(examenId: number, usuarioId: number, buscar?: string) {
+  /**
+   * Listado de incidencias/expulsiones del examen.
+   * Devuelve Array<ExpulsionResponseDto>.
+   */
+  async listar(
+    examenId: number,
+    usuarioId: number,
+    buscar?: string,
+  ): Promise<ExpulsionResponseDto[]> {
     await this.validarAcceso(examenId, usuarioId, false);
 
-    const [total, filas] = await this.prisma.$transaction([
-      this.prisma.expulsion.count({ where: { examenId } }),
-      this.prisma.expulsion.findMany({
-        where: { examenId, estudiante: { AND: this.filtroBusqueda(buscar) } },
-        orderBy: { fechaHora: 'desc' },
-        include: incluir,
-      }),
-    ]);
+    const filas = await this.prisma.expulsion.findMany({
+      where: { examenId },
+      orderBy: { fechaHora: 'desc' },
+      include: incluir,
+    });
 
-    return { total, data: filas.map((f) => this.aDto(f)) };
+    const dtoFilas = filas.map((f) => this.aDto(f));
+
+    if (!buscar?.trim()) {
+      return dtoFilas;
+    }
+
+    const palabras = normalizar(buscar).split(/\s+/).filter(Boolean);
+    return dtoFilas.filter((item) => {
+      const nombreNorm = normalizar(item.estudianteNombre);
+      const sisNorm = normalizar(item.codigoSis);
+      return palabras.every(
+        (p) => nombreNorm.includes(p) || sisNorm.includes(p),
+      );
+    });
   }
 
-  /** CA 7 y 18: ingresaron al examen y aún no están expulsados. */
-  async estudiantesElegibles(examenId: number, usuarioId: number, q?: string) {
+  /**
+   * Búsqueda (GET /examenes/:id/expulsiones/estudiantes?q=):
+   * separa q en palabras; todas deben coincidir con nombre, apellido o código SIS;
+   * ignora mayúsculas y acentos ("perez" encuentra "Pérez").
+   * Devuelve máximo 5 como [{codigoSis, nombre}]. Si q está vacío, devuelve los primeros 5.
+   */
+  async estudiantesElegibles(
+    examenId: number,
+    usuarioId: number,
+    q?: string,
+  ): Promise<EstudianteElegibleDto[]> {
     await this.validarAcceso(examenId, usuarioId, true);
     const ids = await this.idsEstudiantesIngresados(examenId);
+    if (ids.length === 0) {
+      return [];
+    }
 
     const estudiantes = await this.prisma.estudiante.findMany({
       where: {
         id: { in: ids },
         expulsiones: { none: { examenId } },
-        AND: this.filtroBusqueda(q),
       },
-      orderBy: { nombre: 'asc' },
-      take: 10,
+      orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
     });
 
-    return estudiantes.map((e) => ({
+    const palabras = q ? normalizar(q).split(/\s+/).filter(Boolean) : [];
+
+    const filtrados = estudiantes.filter((e) => {
+      if (palabras.length === 0) return true;
+      const nombreNorm = normalizar(e.nombre);
+      const apellidoNorm = normalizar(e.apellido ?? '');
+      const sisNorm = normalizar(e.cod_sis);
+      const fullNorm = `${nombreNorm} ${apellidoNorm}`.trim();
+
+      return palabras.every(
+        (p) =>
+          nombreNorm.includes(p) ||
+          apellidoNorm.includes(p) ||
+          fullNorm.includes(p) ||
+          sisNorm.includes(p),
+      );
+    });
+
+    return filtrados.slice(0, 5).map((e) => ({
       codigoSis: e.cod_sis,
       nombre: nombre(e.nombre, e.apellido),
     }));
   }
 
-  /** CA 13, 15-17 y escenarios negativos 6-13. */
-  async crear(dto: CrearExpulsionDto, usuarioId: number, ip?: string) {
+  /**
+   * Registrar expulsión / incidencia.
+   * Devuelve ExpulsionResponseDto.
+   */
+  async crear(
+    dto: CrearExpulsionDto,
+    usuarioId: number,
+    ip?: string,
+  ): Promise<ExpulsionResponseDto> {
     const examenId = Number(dto.examenId);
     if (!Number.isInteger(examenId)) {
       throw new NotFoundException({
@@ -237,8 +298,9 @@ export class ExpulsionesService {
             examenId,
             estudianteId: estudiante.id,
             docenteId: usuarioId,
+            caso: dto.caso ?? CasoIncidencia.EXPULSION,
             motivo: dto.motivo,
-            detalle: dto.detalle,
+            detalle: dto.detalle ?? '',
           },
           include: incluir,
         });
@@ -247,12 +309,13 @@ export class ExpulsionesService {
           data: {
             usuarioId,
             accion: 'EXPULSAR_ESTUDIANTE',
-            modulo: 'Incidencias',
+            modulo: 'Expulsiones',
             tablaAfectada: 'expulsion',
             registroId: nueva.id,
             detallesNuevo: {
               examenId,
               codigoSis: dto.codigoSis,
+              caso: nueva.caso,
               motivo: dto.motivo,
             },
             ipOrigen: ip?.slice(0, 45),
@@ -267,11 +330,38 @@ export class ExpulsionesService {
         e.code === 'P2002'
       ) {
         throw new ConflictException({
-          code: 'YA_EXPULSADO',
+          code: 'ESTUDIANTE_YA_EXPULSADO',
           message: 'El estudiante ya fue expulsado de este examen',
         });
       }
       throw e;
+    }
+  }
+
+  /**
+   * Bloqueo de reingreso:
+   * ForbiddenException si el estudiante tiene una incidencia en ese examen con caso EXPULSION o SUPLANTACION_IDENTIDAD.
+   */
+  async verificarBloqueoReingreso(
+    examenId: number,
+    estudianteId: number,
+  ): Promise<void> {
+    const expulsion = await this.prisma.expulsion.findFirst({
+      where: {
+        examenId,
+        estudianteId,
+        caso: {
+          in: [CasoIncidencia.EXPULSION, CasoIncidencia.SUPLANTACION_IDENTIDAD],
+        },
+      },
+    });
+
+    if (expulsion) {
+      throw new ForbiddenException({
+        code: 'ESTUDIANTE_EXPULSADO',
+        message:
+          'El estudiante fue expulsado de este examen y no puede ingresar nuevamente.',
+      });
     }
   }
 }

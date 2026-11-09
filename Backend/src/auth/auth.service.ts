@@ -180,8 +180,13 @@ export class AuthService {
         r.rol?.nombre === 'Docente',
     );
 
-    if (esDocente && !permisosUsuario.includes('expulsiones')) {
-      permisosUsuario.push('expulsiones');
+    if (esDocente) {
+      if (!permisosUsuario.includes('expulsiones.ver')) {
+        permisosUsuario.push('expulsiones.ver');
+      }
+      if (!permisosUsuario.includes('expulsiones.registrar')) {
+        permisosUsuario.push('expulsiones.registrar');
+      }
     }
 
     let sessionId: string | null = null;
