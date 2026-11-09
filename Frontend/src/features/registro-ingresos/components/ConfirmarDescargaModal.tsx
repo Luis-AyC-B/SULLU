@@ -15,6 +15,13 @@ interface ConfirmarDescargaModalProps {
   onClose: () => void;
   onConfirm: () => void;
   materiaNombre: string;
+  gestionNombre?: string;
+  filtrosDetalle?: {
+    facultad?: string;
+    carrera?: string;
+    docente?: string;
+    examen?: string;
+  };
   isDownloading: boolean;
   errorDescarga: string | null;
   onRetry?: () => void;
@@ -25,10 +32,14 @@ export function ConfirmarDescargaModal({
   onClose,
   onConfirm,
   materiaNombre,
+  gestionNombre,
+  filtrosDetalle,
   isDownloading,
   errorDescarga,
   onRetry,
 }: ConfirmarDescargaModalProps) {
+  const esTodas = materiaNombre.toLowerCase().includes("todas");
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isDownloading && onClose()}>
       <DialogContent
@@ -46,15 +57,61 @@ export function ConfirmarDescargaModal({
 
         <div className="mt-4 space-y-4 text-left">
           <p className="text-sm text-gray-700 leading-relaxed">
-            ¿Desea descargar el reporte de asistencia de la materia{" "}
-            <span className="font-semibold text-gray-900">{materiaNombre}</span>?
+            {gestionNombre ? (
+              <>
+                ¿Desea descargar el reporte de ingresos de{" "}
+                <span className="font-semibold text-gray-900">
+                  {esTodas ? "todas las materias" : materiaNombre}
+                </span>{" "}
+                —{" "}
+                <span className="font-semibold text-[#003770]">{gestionNombre}</span>?
+              </>
+            ) : (
+              <>
+                ¿Desea descargar el reporte de asistencia de la materia{" "}
+                <span className="font-semibold text-gray-900">{materiaNombre}</span>?
+              </>
+            )}
           </p>
+
+          {/* Detalles de filtros aplicados si existen */}
+          {filtrosDetalle && (filtrosDetalle.facultad || filtrosDetalle.carrera || filtrosDetalle.docente || filtrosDetalle.examen) && (
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-3 text-xs space-y-1 text-gray-600">
+              <p className="font-semibold text-gray-800 text-[11px] uppercase tracking-wider">
+                Filtros aplicados:
+              </p>
+              {filtrosDetalle.facultad && (
+                <p>
+                  <span className="font-medium text-gray-700">Facultad:</span>{" "}
+                  {filtrosDetalle.facultad}
+                </p>
+              )}
+              {filtrosDetalle.carrera && (
+                <p>
+                  <span className="font-medium text-gray-700">Carrera:</span>{" "}
+                  {filtrosDetalle.carrera}
+                </p>
+              )}
+              {filtrosDetalle.docente && (
+                <p>
+                  <span className="font-medium text-gray-700">Docente:</span>{" "}
+                  {filtrosDetalle.docente}
+                </p>
+              )}
+              {filtrosDetalle.examen && filtrosDetalle.examen !== "TODOS" && (
+                <p>
+                  <span className="font-medium text-gray-700">Examen:</span>{" "}
+                  {filtrosDetalle.examen}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 p-3.5 text-xs text-amber-900 leading-relaxed">
             <p className="font-medium">Aviso de sincronización:</p>
             <p className="mt-0.5 text-amber-800">
               El reporte incluye los ingresos sincronizados hasta este momento.
-              Los ingresos guardados sin conexión aparecerán cuando se sincronicen.
+              Los ingresos guardados sin conexión no se incluyen en el PDF hasta que se sincronicen.
             </p>
           </div>
 
@@ -96,15 +153,15 @@ export function ConfirmarDescargaModal({
             type="button"
             onClick={onConfirm}
             disabled={isDownloading}
-            className="w-full sm:w-auto h-11 px-6 rounded-lg bg-[#003770] hover:bg-[#002850] text-white font-medium shadow-xs disabled:opacity-50"
+            className="w-full sm:w-auto h-11 px-6 rounded-lg bg-[#003770] hover:bg-[#002850] text-white font-medium shadow-xs disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             {isDownloading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generando PDF...
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                <span>Generando PDF...</span>
               </>
             ) : (
-              "Confirmar"
+              <span>Confirmar</span>
             )}
           </Button>
         </div>
