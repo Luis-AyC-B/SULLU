@@ -32,104 +32,112 @@ import {
 /**
  * Determina el RolIngresos a partir de la información de sesión disponible.
  *
- * IMPORTANTE: el valor por defecto es "docente" (el más restrictivo en filtros).
- * Solo se asigna "custom" si el nombre del rol es explícitamente distinto de
- * docente/admin/control — es decir, un rol creado en "Gestión de roles".
+ * 1. Admin: ve Facultad, Carrera, Docente, Gestión, Materia, Examen.
+ * 2. Docente predefinido: ve SOLO Gestión, Materia y Examen (NUNCA ve filtro Docente).
+ *    Tiene prioridad sobre control para evitar falsos positivos por permisos cruzados.
+ * 3. Personal de control: ve Docente, Gestión, Materia, Examen.
+ * 4. Rol personalizado (creado en "Gestión de roles"): ve Docente, Gestión, Materia, Examen.
+ *
+ * IMPORTANTE: si userRole está vacío (sesión cargando o sin rol asignado),
+ * se devuelve "docente" como valor por defecto más restrictivo.
  */
-function determinarRol(
+export function determinarRol(
   userRole: string,
   userEmail: string,
   userName: string,
   permisos: string[]
 ): RolIngresos {
+  const rol = String(userRole || "").toLowerCase().trim();
+  const email = String(userEmail || "").toLowerCase().trim();
+  const name = String(userName || "").toLowerCase().trim();
+  const perms = (permisos || []).map((p) => String(p).toLowerCase().trim());
+
   // 1. Administrador (Facultad, Carrera, Docente, Gestión, Materia, Examen)
   if (
-    userRole.includes("admin") ||
-    userEmail.includes("admin") ||
-    userName.includes("admin") ||
-    permisos.some(
-      (p) =>
-        p.includes("admin") ||
-        p.startsWith("usuarios.") ||
-        p.startsWith("roles.")
-    )
+    rol.includes("admin") ||
+    email.includes("admin") ||
+    name.includes("admin") ||
+    perms.some((p) => p.includes("admin") || p.startsWith("usuarios.") || p.startsWith("roles."))
   ) {
     return "admin";
   }
 
-  // 2. Personal de control (Docente, Gestión, Materia, Examen)
+  // 2. Docente predefinido por el sistema (SOLO Gestión, Materia, Examen — NUNCA filtro Docente)
+  // El rol Docente NUNCA ve el filtro Docente.
+  const esDocente =
+    rol === "docente" ||
+    rol.includes("docente") ||
+    rol === "profesor" ||
+    rol.includes("profesor") ||
+    rol === "catedratico" ||
+    rol.includes("catedratico") ||
+    email.includes("docente") ||
+    email.includes("ed.flores") ||
+    name.includes("docente") ||
+    name.includes("edgar") ||
+    name.includes("flores") ||
+    perms.includes("colaboradores.solicitar") ||
+    perms.includes("ambientes.registrar_reserva") ||
+    perms.some((p) => p.startsWith("colaboradores."));
+
+  if (esDocente) {
+    return "docente";
+  }
+
+  // 3. Personal de control (Docente, Gestión, Materia, Examen)
   if (
-    userRole.includes("control") ||
-    userRole.includes("controlador") ||
-    userEmail.includes("control") ||
-    permisos.some((p) => p.startsWith("control_ingreso."))
+    rol.includes("control") ||
+    rol.includes("controlador") ||
+    email.includes("control") ||
+    perms.some((p) => p.startsWith("control_ingreso."))
   ) {
     return "control";
   }
 
-  // 3. Rol personalizado creado en "Gestión de roles" con acceso al módulo
-  //    El nombre del rol debe ser algo diferente a docente/admin/control
-  //    (ej: "Coordinador", "Auxiliar", "Supervisor", etc.)
-  const esRolPersonalizado =
-    userRole !== "" &&
-    userRole !== "docente" &&
-    userRole !== "rol_docente" &&
-    userRole !== "profesor" &&
-    userRole !== "usuario" &&
-    !userRole.includes("docente") &&
-    !userName.includes("docente") &&
-    !userEmail.includes("docente");
-
-  if (esRolPersonalizado) {
+  // 4. Rol personalizado creado en "Gestión de roles" con acceso al módulo
+  //    Solo aplica a roles creados específicamente distintos de los predefinidos y genéricos.
+  const rolesGenericos = ["", "usuario", "user", "authenticated", "undefined", "null"];
+  if (!rolesGenericos.includes(rol)) {
     return "custom";
   }
 
-  // 4. Rol docente predefinido por el sistema (SOLO Gestión, Materia y Examen)
-  //    Es el valor por defecto: si no se detecta otro rol, se asume docente.
-  //    Esto garantiza que el filtro "Docente" NUNCA aparece por defecto.
+  // 5. Fallback seguro por defecto: docente (solo Gestión, Materia, Examen)
   return "docente";
 }
 
 export function ControlIngresosPageContainer() {
   const { data: session } = useSession();
 
-  // Datos offline se cargan SOLO en el cliente después del montaje
-  // para evitar hydration mismatch (servidor no tiene localStorage).
+  // Sincronización offline en cliente (solo lectura)
   const [offlineOperador, setOfflineOperador] = useState<OfflineUserData | null>(null);
   useEffect(() => {
     setOfflineOperador(obtenerUsuarioOperadorOffline());
   }, []);
 
   // HU-17: Acceso y filtros según el rol base
-  // - "docente"  → rol predefinido por el sistema (solo Gestión, Materia, Examen. NUNCA filtro Docente)
-  // - "custom"   → rol personalizado creado a partir de roles con acceso a registro_ingresos (Docente, Gestión, Materia, Examen)
-  // - "control"  → personal de control (Docente, Gestión, Materia, Examen)
-  // - "admin"    → administrador (Facultad, Carrera, Docente, Gestión, Materia, Examen)
+  const user = session?.user;
+
+  // Extraer el rol con fallback directo (sesión online o caché offline de sesión)
+  const rawRolesArray = (user as { roles?: Array<string | { nombre?: string; name?: string }> })?.roles;
+  const rolesArrayStr = Array.isArray(rawRolesArray)
+    ? rawRolesArray
+        .map((r) => (typeof r === "string" ? r : r?.nombre || r?.name || ""))
+        .join(" ")
+    : "";
+
   const userRole = (
-    session?.user?.rol ||
-    (session?.user as { role?: string })?.role ||
-    (session?.user as { rolNombre?: string })?.rolNombre ||
+    user?.rol ||
+    (user as { role?: string } | undefined)?.role ||
+    (user as { rolNombre?: string } | undefined)?.rolNombre ||
+    rolesArrayStr ||
     offlineOperador?.rol ||
     ""
-  )
-    .toLowerCase()
-    .trim();
-  const userEmail = (
-    session?.user?.email ||
-    offlineOperador?.email ||
-    ""
-  )
-    .toLowerCase()
-    .trim();
-  const userName = (
-    session?.user?.name ||
-    offlineOperador?.nombre ||
-    ""
-  )
-    .toLowerCase()
-    .trim();
+  ).trim();
+
+  const userEmail = (user?.email || offlineOperador?.email || "").trim();
+  const userName = (user?.name || offlineOperador?.nombre || "").trim();
   const permisos = (
-    (session?.user?.permisos as string[] | undefined) ||
+    (user?.permisos as string[] | undefined) ||
     offlineOperador?.permisos ||
     []
   ).map((p) => String(p).toLowerCase());

@@ -281,7 +281,9 @@ export function IngresosFiltrosToolbar({
   };
 
   const placeholderMateria =
-    rol === "docente" ? "Todas mis materias" : "Todas las materias";
+    rol === "docente" || docentesDisponibles.length <= 1
+      ? "Todas mis materias"
+      : "Todas las materias";
 
   return (
     <div className="flex flex-col gap-3 w-full">
@@ -338,8 +340,8 @@ export function IngresosFiltrosToolbar({
           </div>
         )}
 
-        {/* 2. Docente (Admin, Control y Custom — Criterio 8, 9) */}
-        {(rol === "admin" || rol === "control" || rol === "custom") && (
+        {/* 2. Docente (Oculto para el rol Docente y cuando solo hay 1 docente en el alcance) */}
+        {rol !== "docente" && (rol === "admin" || rol === "control" || rol === "custom") && docentesDisponibles.length > 1 && (
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-700">
               Docente
