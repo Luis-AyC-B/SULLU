@@ -15,7 +15,6 @@ import {
 import { useDebouncedValue } from "@/features/registro-ingresos/hooks/useDebouncedValue";
 import { useExamenesExpulsion } from "../hooks/useExamenesExpulsion";
 import { useIncidenciasPorExamen } from "../hooks/useIncidenciasPorExamen";
-import { usePuedeRegistrarExpulsion } from "../hooks/usePuedeRegistrarExpulsion";
 import { MOCK_DOCENTE, USAR_MOCKS_INCIDENCIAS } from "../api/incidencias.service";
 import { useRegistrarExpulsion } from "../hooks/useRegistrarExpulsion";
 import { filtrarIncidencias } from "../lib/filtrarIncidencias";
@@ -34,39 +33,13 @@ function EsqueletoCarga() {
   return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
 }
 
-function AvisoError({
-  mensaje,
-  alReintentar,
-}: {
-  mensaje: string;
-  alReintentar: () => void;
-}) {
-  return (
-    <div
-      role="alert"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-    >
-      <span>{mensaje}</span>
-      <Button type="button" variant="outline" onClick={alReintentar}>
-        Reintentar
-      </Button>
-    </div>
-  );
-}
-
 export function VistaIncidencias() {
   const { data: sesion } = useSession();
   const nombreUsuario =
     (sesion?.user?.name as string | undefined) ??
     (USAR_MOCKS_INCIDENCIAS ? MOCK_DOCENTE : undefined);
 
-  const {
-    examenes,
-    cargando: cargandoExamenes,
-    error: errorExamenes,
-    reintentar: reintentarExamenes,
-  } = useExamenesExpulsion();
-  const puedeRegistrar = usePuedeRegistrarExpulsion();
+  const { examenes, cargando: cargandoExamenes } = useExamenesExpulsion();
 
   const [seleccion, setSeleccion] = useState<string | null>(null);
   // Si el usuario aún no eligió, se usa el primer examen de la lista.
@@ -76,8 +49,13 @@ export function VistaIncidencias() {
       : (examenes[0]?.id ?? null);
   const examen = examenes.find((e) => e.id === examenId) ?? null;
 
-  const { incidencias, cargando, error, recargar } =
+  const { incidencias, cargando, recargar } =
     useIncidenciasPorExamen(examenId);
+
+  // Al seleccionar un examen se actualiza el estado y se invoca obtenerIncidenciasPorExamen(examenId) mediante el hook
+  const handleSeleccionarExamen = (nuevoExamenId: string) => {
+    setSeleccion(nuevoExamenId);
+  };
 
   const [busqueda, setBusqueda] = useState("");
   const busquedaDiferida = useDebouncedValue(busqueda, 300);
@@ -136,28 +114,22 @@ export function VistaIncidencias() {
             Generar reporte
           </Button>
 
-          {puedeRegistrar && (
-            <Button
-              type="button"
-              onClick={() => setModalRegistroAbierto(true)}
-              disabled={!examen || !examen.enCurso}
-              title={
-                examen && !examen.enCurso
-                  ? "Solo se puede registrar incidencias en un examen en curso"
-                  : undefined
-              }
-              className="h-11 w-full gap-2 px-5 text-base sm:w-auto"
-            >
-              <Plus className="h-5 w-5" />
-              Registrar incidencia
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={() => setModalRegistroAbierto(true)}
+            disabled={!examen}
+            title={
+              !examen
+                ? "Selecciona un examen para registrar incidencias"
+                : undefined
+            }
+            className="h-11 w-full gap-2 px-5 text-base sm:w-auto"
+          >
+            <Plus className="h-5 w-5" />
+            Registrar incidencia
+          </Button>
         </div>
       </div>
-
-      {errorExamenes && (
-        <AvisoError mensaje={errorExamenes} alReintentar={reintentarExamenes} />
-      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-1.5">
@@ -166,7 +138,7 @@ export function VistaIncidencias() {
           </label>
           <Select
             value={examenId ?? ""}
-            onValueChange={setSeleccion}
+            onValueChange={handleSeleccionarExamen}
             disabled={cargandoExamenes || examenes.length === 0}
           >
             <SelectTrigger
@@ -209,17 +181,13 @@ export function VistaIncidencias() {
 
       {(cargandoExamenes || cargando) && <EsqueletoCarga />}
 
-      {!cargando && error && incidencias === null && (
-        <AvisoError mensaje={error} alReintentar={recargar} />
-      )}
-
-      {!cargando && incidencias !== null && incidenciasFiltradas.length === 0 && (
+      {!cargando && (!incidencias || incidenciasFiltradas.length === 0) && (
         <EstadoVacioIncidencias
-          hayBusqueda={busquedaDiferida.trim() !== "" && total > 0}
+          hayBusqueda={busquedaDiferida.trim() !== ""}
         />
       )}
 
-      {!cargando && incidencias !== null && incidenciasFiltradas.length > 0 && (
+      {!cargando && incidencias && incidenciasFiltradas.length > 0 && (
         <>
           <TablaIncidencias incidencias={incidenciasFiltradas} total={total} />
           <ListaIncidenciasMovil

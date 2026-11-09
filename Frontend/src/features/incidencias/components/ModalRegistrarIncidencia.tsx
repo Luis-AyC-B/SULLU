@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { useEstudiantesExpulsables } from "../hooks/useEstudiantesExpulsables";
-import { coincideBusqueda } from "../lib/filtrarIncidencias";
 import {
   OPCIONES_CASO_INCIDENCIA,
   OPCIONES_MOTIVO_EXPULSION,
@@ -66,20 +65,23 @@ export function ModalRegistrarIncidencia({
   const [detalle, setDetalle] = useState("");
   const [errores, setErrores] = useState<Errores>({});
 
-  // Búsqueda en el servidor (solo estudiantes que ingresaron y no están expulsados).
-  const hayConsulta = busqueda.trim() !== "";
-  const { resultados: resultadosServidor, cargando } =
-    useEstudiantesExpulsables(
-      examenId,
-      busqueda,
-      abierto && estudiante === null && hayConsulta,
-    );
-  // Solo coincidencias con lo escrito; sin texto no se muestra nada.
-  const resultados = hayConsulta
-    ? resultadosServidor.filter((e) =>
-        coincideBusqueda(e.nombre, e.codigoSis, busqueda),
-      )
-    : [];
+  // Búsqueda de estudiantes que ingresaron al aula y no están expulsados
+  const { resultados, cargando, totalEnAula } = useEstudiantesExpulsables(
+    examenId,
+    busqueda,
+    abierto && estudiante === null,
+  );
+
+  console.log(
+    "[ModalRegistrarIncidencia] examenId:",
+    examenId,
+    "busqueda:",
+    busqueda,
+    "resultados:",
+    resultados,
+    "totalEnAula:",
+    totalEnAula,
+  );
 
   // Al cerrar el modal se limpia todo; mientras la confirmación está encima
   // el modal sigue abierto y conserva los datos.
@@ -232,29 +234,27 @@ export function ModalRegistrarIncidencia({
                   />
                 </div>
 
-                {listaAbierta && hayConsulta && (
+                {listaAbierta && (cargando || resultados.length > 0) && (
                   <ul
                     id={idLista}
                     role="listbox"
                     aria-label="Estudiantes disponibles para registrar incidencia"
-                    className="mt-1 max-h-56 overflow-y-auto rounded-xl border border-border bg-card"
+                    className="mt-1 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-sm"
                   >
-                    {resultados.length === 0 ? (
+                    {cargando ? (
                       <li className="px-4 py-3 text-sm text-muted-foreground">
-                        {cargando
-                          ? "Buscando..."
-                          : "No se encontraron estudiantes."}
+                        Cargando estudiantes en aula...
                       </li>
                     ) : (
                       resultados.map((e, indice) => (
                         <li
-                          key={e.codigoSis}
+                          key={`${e.codigoSis}-${e.id ?? indice}`}
                           role="option"
                           aria-selected={indice === indiceActivo}
                           // mouseDown evita que el input pierda el foco antes del click
                           onMouseDown={(ev) => ev.preventDefault()}
                           onClick={() => seleccionar(e)}
-                          className={`flex cursor-pointer items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-b-0 ${
+                          className={`flex cursor-pointer items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-b-0 hover:bg-muted/70 ${
                             indice === indiceActivo ? "bg-muted" : ""
                           }`}
                         >

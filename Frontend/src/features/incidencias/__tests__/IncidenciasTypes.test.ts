@@ -173,6 +173,25 @@ describe("Modulo de Incidencias - Types y Validaciones", () => {
       const payload = aPayloadRegistrarExpulsion("examen-1", valores);
       expect(payload.detalle).toBe("");
     });
+
+    it("conserva id y estudianteId cuando estan presentes en el estudiante", () => {
+      const valores = {
+        estudiante: {
+          id: 42,
+          estudianteId: 42,
+          codigoSis: "202201234",
+          nombre: "Juan Perez",
+        },
+        caso: "EXPULSION" as const,
+        motivo: "USO_CELULAR" as const,
+        detalle: "Usando celular",
+      };
+
+      const payload = aPayloadRegistrarExpulsion("10", valores);
+      expect(payload.estudianteId).toBe(42);
+      expect(payload.id).toBe(42);
+      expect(payload.codigoSis).toBe("202201234");
+    });
   });
 
   describe("incidenciaSchema", () => {
@@ -192,6 +211,31 @@ describe("Modulo de Incidencias - Types y Validaciones", () => {
       expect(resultado.success).toBe(true);
       if (resultado.success) {
         expect(resultado.data.caso).toBe("EXPULSION");
+      }
+    });
+
+    it("tolera campos nulos o ausentes con valores por defecto seguros", () => {
+      const datos = {
+        id: null,
+        examenId: null,
+        fechaHora: null,
+        codigoSis: null,
+        estudianteNombre: null,
+        caso: null,
+        motivo: null,
+        detalle: null,
+        registradoPor: null,
+      };
+
+      const resultado = incidenciaSchema.safeParse(datos);
+      expect(resultado.success).toBe(true);
+      if (resultado.success) {
+        expect(resultado.data.id).toBe("");
+        expect(resultado.data.caso).toBe("EXPULSION");
+        expect(resultado.data.motivo).toBe("OTRO");
+        expect(resultado.data.detalle).toBe("");
+        expect(resultado.data.codigoSis).toBe("");
+        expect(resultado.data.estudianteNombre).toBe("");
       }
     });
   });
