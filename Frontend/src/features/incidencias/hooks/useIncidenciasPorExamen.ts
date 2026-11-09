@@ -22,16 +22,17 @@ export function useIncidenciasPorExamen(examenId: string | null) {
     obtenerIncidenciasPorExamen(examenId)
       .then((datos) => {
         if (cancelado) return;
-        setIncidencias(datos);
+        setIncidencias(Array.isArray(datos) ? datos : []);
         setError(null);
       })
       .catch((e: unknown) => {
         if (cancelado) return;
-        setError(
-          e instanceof Error
-            ? e.message
-            : "No se pudieron cargar las incidencias.",
+        console.warn(
+          "Error al obtener incidencias del examen o examen sin incidencias:",
+          e,
         );
+        setIncidencias([]);
+        setError(null);
       });
 
     return () => {

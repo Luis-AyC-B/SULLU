@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { obtenerExamenesExpulsion } from "../api/incidencias.service";
+import { examenesService } from "../api/incidencias.service";
 import type { ExamenExpulsion } from "../types/incidencias.types";
 
 export function useExamenesExpulsion() {
@@ -15,7 +15,8 @@ export function useExamenesExpulsion() {
     setCargando(true);
     setError(null);
 
-    obtenerExamenesExpulsion()
+    examenesService
+      .obtenerExamenes()
       .then((datos) => {
         if (!cancelado) setExamenes(datos);
       })

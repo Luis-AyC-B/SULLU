@@ -59,30 +59,95 @@ export const DETALLE_MAXIMO = 500;
 /* Respuestas del backend */
 
 export const examenExpulsionSchema = z.object({
-  id: z.coerce.string(),
-  nombre: z.string(),
+  id: z
+    .coerce
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v != null ? String(v) : ""))
+    .default(""),
+  nombre: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "Examen")
+    .default("Examen"),
   ubicacion: z.string().nullish(),
-  enCurso: z.boolean(),
+  enCurso: z
+    .boolean()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? false)
+    .default(false),
 });
 export type ExamenExpulsion = z.infer<typeof examenExpulsionSchema>;
 export const examenesExpulsionSchema = z.array(examenExpulsionSchema);
 
 export const incidenciaSchema = z.object({
-  id: z.coerce.string(),
-  examenId: z.coerce.string(),
+  id: z
+    .coerce
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v != null ? String(v) : ""))
+    .default(""),
+  examenId: z
+    .coerce
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v != null ? String(v) : ""))
+    .default(""),
   // ISO asignado por el servidor
-  fechaHora: z.string(),
-  codigoSis: z.string(),
-  estudianteNombre: z.string(),
-  caso: z.enum(CASOS_INCIDENCIA).default("EXPULSION"),
-  motivo: z.enum(MOTIVOS_EXPULSION),
-  detalle: z.string().default(""),
-  registradoPor: z.string(),
+  fechaHora: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? new Date().toISOString())
+    .default(() => new Date().toISOString()),
+  codigoSis: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "")
+    .default(""),
+  estudianteNombre: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "")
+    .default(""),
+  caso: z
+    .enum(CASOS_INCIDENCIA)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "EXPULSION")
+    .default("EXPULSION"),
+  motivo: z
+    .enum(MOTIVOS_EXPULSION)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "OTRO")
+    .default("OTRO"),
+  detalle: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "")
+    .default(""),
+  registradoPor: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "")
+    .default(""),
 });
 export type Incidencia = z.infer<typeof incidenciaSchema>;
 export const incidenciasSchema = z.array(incidenciaSchema);
 
 export const estudianteExpulsableSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  estudianteId: z.union([z.string(), z.number()]).optional(),
   codigoSis: z.string(),
   nombre: z.string(),
 });
@@ -93,7 +158,12 @@ export const estudiantesExpulsablesSchema = z.array(estudianteExpulsableSchema);
 
 export const formularioExpulsionSchema = z.object({
   estudiante: z.object(
-    { codigoSis: z.string(), nombre: z.string() },
+    {
+      id: z.union([z.string(), z.number()]).optional(),
+      estudianteId: z.union([z.string(), z.number()]).optional(),
+      codigoSis: z.string(),
+      nombre: z.string(),
+    },
     { error: "Selecciona un estudiante" },
   ),
   caso: z.enum(CASOS_INCIDENCIA, { error: "Selecciona un caso" }),
@@ -113,6 +183,8 @@ export type ValoresFormularioExpulsion = z.infer<
 export interface PayloadRegistrarExpulsion {
   examenId: string;
   codigoSis: string;
+  estudianteId?: string | number;
+  id?: string | number;
   caso: CasoIncidencia;
   motivo: MotivoExpulsion;
   detalle: string;
@@ -122,9 +194,12 @@ export function aPayloadRegistrarExpulsion(
   examenId: string,
   valores: ValoresFormularioExpulsion,
 ): PayloadRegistrarExpulsion {
+  const estudianteId =
+    valores.estudiante.estudianteId ?? valores.estudiante.id;
   return {
     examenId,
     codigoSis: valores.estudiante.codigoSis,
+    ...(estudianteId !== undefined ? { estudianteId, id: estudianteId } : {}),
     caso: valores.caso,
     motivo: valores.motivo,
     detalle: (valores.detalle ?? "").trim(),

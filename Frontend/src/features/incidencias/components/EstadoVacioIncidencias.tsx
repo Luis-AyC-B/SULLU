@@ -26,3 +26,5 @@ export function EstadoVacioIncidencias({
     </div>
   );
 }
+
+export default EstadoVacioIncidencias;
