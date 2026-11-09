@@ -66,8 +66,10 @@ export function IngresosFiltrosToolbar({
   const facultadesDisponibles = useMemo(() => {
     const map = new Map<string, string>();
     examenesEnGestion.forEach((e) => {
-      if (e.facultadId && e.facultad) {
-        map.set(String(e.facultadId), e.facultad);
+      const id = e.facultadId ? String(e.facultadId) : (e.facultad || "");
+      const nombre = e.facultad || id;
+      if (id && nombre) {
+        map.set(id, nombre);
       }
     });
     return Array.from(map.entries()).map(([id, nombre]) => ({ id, nombre }));
@@ -79,7 +81,10 @@ export function IngresosFiltrosToolbar({
       return examenesEnGestion;
     }
     return examenesEnGestion.filter(
-      (e) => String(e.facultadId) === filtros.facultadId
+      (e) => {
+        const id = e.facultadId ? String(e.facultadId) : (e.facultad || "");
+        return id === filtros.facultadId;
+      }
     );
   }, [examenesEnGestion, filtros.facultadId]);
 
@@ -111,8 +116,10 @@ export function IngresosFiltrosToolbar({
   const docentesDisponibles = useMemo(() => {
     const map = new Map<string, string>();
     examenesPorCarrera.forEach((e) => {
-      if (e.docenteId && e.docente) {
-        map.set(String(e.docenteId), e.docente);
+      const id = e.docenteId ? String(e.docenteId) : (e.docente || "");
+      const nombre = e.docente || id;
+      if (id && nombre) {
+        map.set(id, nombre);
       }
     });
     return Array.from(map.entries()).map(([id, nombre]) => ({ id, nombre }));
@@ -120,13 +127,16 @@ export function IngresosFiltrosToolbar({
 
   // Filtrado por Docente para calcular Materias siguientes (Criterio 9)
   const examenesPorDocente = useMemo(() => {
-    if (rol === "docente" || docentesDisponibles.length <= 1 || !filtros.docenteId || filtros.docenteId === "TODOS") {
+    if (rol === "docente" || !filtros.docenteId || filtros.docenteId === "TODOS") {
       return examenesPorCarrera;
     }
     return examenesPorCarrera.filter(
-      (e) => String(e.docenteId) === filtros.docenteId
+      (e) => {
+        const id = e.docenteId ? String(e.docenteId) : (e.docente || "");
+        return id === filtros.docenteId;
+      }
     );
-  }, [examenesPorCarrera, filtros.docenteId, rol, docentesDisponibles.length]);
+  }, [examenesPorCarrera, filtros.docenteId, rol]);
 
   // 4. Materias disponibles (Todos los roles, Criterio 9, 10)
   const materiasDisponibles = useMemo(() => {
@@ -342,8 +352,8 @@ export function IngresosFiltrosToolbar({
           </div>
         )}
 
-        {/* 2. Docente (Oculto para el rol Docente y cuando solo hay 1 docente en el alcance) */}
-        {rol !== "docente" && (rol === "admin" || rol === "control" || rol === "custom") && docentesDisponibles.length > 1 && (
+        {/* 2. Docente (Admin SIEMPRE lo ve; Control y Custom solo si hay >1 docente; Docente NUNCA) */}
+        {rol !== "docente" && (rol === "admin" || ((rol === "control" || rol === "custom") && docentesDisponibles.length > 1)) && (
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-700">
               Docente

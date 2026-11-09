@@ -401,6 +401,35 @@ export async function obtenerIngresosExamenOffline(
   return null;
 }
 
+function enriquecerExamenControl(e: any): ExamenControl {
+  const nombre = e.nombre || `${e.materiaNombre || e.materia?.nombre || 'Materia'} – ${e.tipoExamen || 'Examen'}`;
+  const facultad = e.facultadNombre || e.facultad?.nombre || e.facultad || 'Facultad de Ciencias y Tecnología (FCyT)';
+  const carrera = e.carreraNombre || e.carrera?.nombre || e.carrera || 'Licenciatura en Informática';
+  const materia = e.materiaNombre || e.materia?.nombre || e.materia || obtenerNombreMateria(nombre);
+  const docente =
+    e.docenteNombre ||
+    (typeof e.docente === 'object' ? `${e.docente.nombre || ''} ${e.docente.apellido || ''}`.trim() : e.docente) ||
+    (e.responsable ? `${e.responsable.nombre || ''} ${e.responsable.apellido || ''}`.trim() : 'Docente asignado');
+
+  return {
+    id: e.id,
+    nombre,
+    fecha: e.fecha || (e.reservaAmbiente?.fecha ? String(e.reservaAmbiente.fecha).slice(0, 10) : '2026-09-20'),
+    facultad,
+    facultadId: e.facultadId ? String(e.facultadId) : (facultad.toLowerCase().includes('econ') ? 'fce' : 'fcyt'),
+    carrera,
+    carreraId: e.carreraId ? String(e.carreraId) : (carrera.toLowerCase().includes('sist') ? 'sistemas' : carrera.toLowerCase().includes('admin') ? 'adm' : 'inf'),
+    materia,
+    materiaId: e.materiaId ? String(e.materiaId) : materia,
+    docente,
+    docenteId: e.docenteId ? String(e.docenteId) : (e.usuarioId ? String(e.usuarioId) : (e.responsable?.id ? String(e.responsable.id) : 'doc-1')),
+    gestion: e.gestion || obtenerGestionPorFecha(e.fecha || '2026-09-20'),
+    ambiente: e.ambienteNombre || e.ambiente?.nombre || e.ambiente || 'Aula',
+    horario: e.horario || `${e.horaInicio || '08:00'} - ${e.horaFin || '09:30'}`,
+    estado: e.estado || 'Activo',
+  };
+}
+
 export async function getExamenesControl(): Promise<ExamenControl[]> {
   if (FORCE_MOCKS) return MOCK_EXAMENES;
 
@@ -414,6 +443,29 @@ export async function getExamenesControl(): Promise<ExamenControl[]> {
     const { data } = await apiClient.get('/examenes/control');
     const parsed = examenesControlSchema.parse(data);
 
+    // Enriquecer con exámenes creados en el sistema en IndexedDB (si existen)
+    try {
+      if (typeof window !== 'undefined' && window.indexedDB) {
+        const { dbService } = await import('@/shared/lib/db/indexedDB');
+        const localDbExams = await dbService.getAllExams().catch(() => []);
+        if (Array.isArray(localDbExams) && localDbExams.length > 0) {
+          const map = new Map<string | number, ExamenControl>();
+          localDbExams.forEach((e) => {
+            const enriched = enriquecerExamenControl(e);
+            map.set(String(enriched.id), enriched);
+          });
+          parsed.forEach((e) => {
+            const enriched = enriquecerExamenControl(e);
+            const existente = map.get(String(enriched.id));
+            map.set(String(enriched.id), existente ? { ...enriched, ...existente } : enriched);
+          });
+          return Array.from(map.values());
+        }
+      }
+    } catch {
+      // Ignorar
+    }
+
     if (typeof window !== 'undefined' && parsed.length > 0) {
       try {
         localStorage.setItem(EXAMENES_CACHE_KEY, JSON.stringify(parsed));
@@ -422,11 +474,23 @@ export async function getExamenesControl(): Promise<ExamenControl[]> {
       }
     }
 
-    return parsed;
+    return parsed.map((e) => enriquecerExamenControl(e));
   } catch (error) {
-    // Si el endpoint no existe (404), devolvemos un arreglo vacío.
-    // Cuando el backend esté disponible devolverá los datos reales.
-    if (isEndpointMissing(error)) return [];
+    if (isEndpointMissing(error)) {
+      // Si el endpoint 404, pero hay exámenes creados localmente en el navegador, mostrarlos
+      try {
+        if (typeof window !== 'undefined' && window.indexedDB) {
+          const { dbService } = await import('@/shared/lib/db/indexedDB');
+          const localDbExams = await dbService.getAllExams().catch(() => []);
+          if (Array.isArray(localDbExams) && localDbExams.length > 0) {
+            return localDbExams.map((e) => enriquecerExamenControl(e));
+          }
+        }
+      } catch {
+        // Ignorar
+      }
+      return [];
+    }
 
     // Si falló por falta de red, intentar recuperar del caché antes de propagar
     const cached = obtenerExamenesControlOffline();
