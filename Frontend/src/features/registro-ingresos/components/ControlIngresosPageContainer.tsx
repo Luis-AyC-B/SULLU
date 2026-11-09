@@ -1,7 +1,7 @@
 // src/features/registro-ingresos/components/ControlIngresosPageContainer.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
@@ -24,12 +24,84 @@ import {
   type IngresosExamen,
 } from "../types/ingresos.types";
 import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
+import {
+  obtenerUsuarioOperadorOffline,
+  type OfflineUserData,
+} from "@/shared/lib/offline-auth";
+
+/**
+ * Determina el RolIngresos a partir de la información de sesión disponible.
+ *
+ * IMPORTANTE: el valor por defecto es "docente" (el más restrictivo en filtros).
+ * Solo se asigna "custom" si el nombre del rol es explícitamente distinto de
+ * docente/admin/control — es decir, un rol creado en "Gestión de roles".
+ */
+function determinarRol(
+  userRole: string,
+  userEmail: string,
+  userName: string,
+  permisos: string[]
+): RolIngresos {
+  // 1. Administrador (Facultad, Carrera, Docente, Gestión, Materia, Examen)
+  if (
+    userRole.includes("admin") ||
+    userEmail.includes("admin") ||
+    userName.includes("admin") ||
+    permisos.some(
+      (p) =>
+        p.includes("admin") ||
+        p.startsWith("usuarios.") ||
+        p.startsWith("roles.")
+    )
+  ) {
+    return "admin";
+  }
+
+  // 2. Personal de control (Docente, Gestión, Materia, Examen)
+  if (
+    userRole.includes("control") ||
+    userRole.includes("controlador") ||
+    userEmail.includes("control") ||
+    permisos.some((p) => p.startsWith("control_ingreso."))
+  ) {
+    return "control";
+  }
+
+  // 3. Rol personalizado creado en "Gestión de roles" con acceso al módulo
+  //    El nombre del rol debe ser algo diferente a docente/admin/control
+  //    (ej: "Coordinador", "Auxiliar", "Supervisor", etc.)
+  const esRolPersonalizado =
+    userRole !== "" &&
+    userRole !== "docente" &&
+    userRole !== "rol_docente" &&
+    userRole !== "profesor" &&
+    userRole !== "usuario" &&
+    !userRole.includes("docente") &&
+    !userName.includes("docente") &&
+    !userEmail.includes("docente");
+
+  if (esRolPersonalizado) {
+    return "custom";
+  }
+
+  // 4. Rol docente predefinido por el sistema (SOLO Gestión, Materia y Examen)
+  //    Es el valor por defecto: si no se detecta otro rol, se asume docente.
+  //    Esto garantiza que el filtro "Docente" NUNCA aparece por defecto.
+  return "docente";
+}
 
 export function ControlIngresosPageContainer() {
   const { data: session } = useSession();
 
+  // Datos offline se cargan SOLO en el cliente después del montaje
+  // para evitar hydration mismatch (servidor no tiene localStorage).
+  const [offlineOperador, setOfflineOperador] = useState<OfflineUserData | null>(null);
+  useEffect(() => {
+    setOfflineOperador(obtenerUsuarioOperadorOffline());
+  }, []);
+
   // HU-17: Acceso y filtros según el rol base
-  // - "docente"  → rol predefinido por el sistema (solo Gestión, Materia, Examen)
+  // - "docente"  → rol predefinido por el sistema (solo Gestión, Materia, Examen. NUNCA filtro Docente)
   // - "custom"   → rol personalizado creado a partir de roles con acceso a registro_ingresos (Docente, Gestión, Materia, Examen)
   // - "control"  → personal de control (Docente, Gestión, Materia, Examen)
   // - "admin"    → administrador (Facultad, Carrera, Docente, Gestión, Materia, Examen)
@@ -37,44 +109,35 @@ export function ControlIngresosPageContainer() {
     session?.user?.rol ||
     (session?.user as { role?: string })?.role ||
     (session?.user as { rolNombre?: string })?.rolNombre ||
+    offlineOperador?.rol ||
     ""
-  ).toLowerCase().trim();
-  const userEmail = (session?.user?.email || "").toLowerCase().trim();
-  const permisos = (session?.user?.permisos || []).map((p: string) => String(p).toLowerCase());
+  )
+    .toLowerCase()
+    .trim();
+  const userEmail = (
+    session?.user?.email ||
+    offlineOperador?.email ||
+    ""
+  )
+    .toLowerCase()
+    .trim();
+  const userName = (
+    session?.user?.name ||
+    offlineOperador?.nombre ||
+    ""
+  )
+    .toLowerCase()
+    .trim();
+  const permisos = (
+    (session?.user?.permisos as string[] | undefined) ||
+    offlineOperador?.permisos ||
+    []
+  ).map((p) => String(p).toLowerCase());
 
-  const rol: RolIngresos = useMemo(() => {
-    // 1. Administrador (acceso a todos los filtros)
-    if (
-      userRole.includes("admin") ||
-      userEmail.includes("admin") ||
-      permisos.some((p) => p.includes("admin") || p.startsWith("usuarios.") || p.startsWith("roles."))
-    ) {
-      return "admin";
-    }
-
-    // 2. Docente predefinido por el sistema
-    // El docente NO debe ver el filtro "Docente" (solo Gestión, Materia y Examen)
-    if (
-      userRole.includes("docente") ||
-      userRole === "profesor" ||
-      userEmail.includes("docente")
-    ) {
-      return "docente";
-    }
-
-    // 3. Personal de control
-    if (
-      userRole.includes("control") ||
-      userRole.includes("controlador") ||
-      userEmail.includes("control") ||
-      permisos.some((p) => p.startsWith("control_ingreso."))
-    ) {
-      return "control";
-    }
-
-    // 4. Rol personalizado creado en "Gestión de roles" con acceso al módulo
-    return "custom";
-  }, [userRole, userEmail, permisos]);
+  const rol: RolIngresos = useMemo(
+    () => determinarRol(userRole, userEmail, userName, permisos),
+    [userRole, userEmail, userName, permisos]
+  );
 
   // Criterio 24: Cualquier usuario con acceso al módulo puede descargar el PDF
   const puedeDescargarPdf = Boolean(session?.user);
@@ -268,7 +331,7 @@ export function ControlIngresosPageContainer() {
     setErrorDescarga(null);
 
     try {
-      const docenteNombre = session?.user?.name || "Docente titular";
+      const docenteNombre = session?.user?.name || offlineOperador?.nombre || "Docente titular";
       const examenBase =
         examenSeleccionado ||
         examenesFiltrados[0] ||
