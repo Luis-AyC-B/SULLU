@@ -6,8 +6,8 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import { PageContainer } from "@/shared/components/layout/PageContainer";
-import { ControlExamSelectorHeader } from "./ControlExamSelectorHeader";
 import { EnVivoBadge } from "./EnVivoBadge";
+import { IngresosFiltrosToolbar, type RolIngresos } from "./IngresosFiltrosToolbar";
 import { IngresosTableToolbar } from "./IngresosTableToolbar";
 import { IngresosTable } from "./IngresosTable";
 import { BotonDescargarReportePdf } from "./BotonDescargarReportePdf";
@@ -16,28 +16,120 @@ import { useExamenesControl } from "../hooks/useExamenesControl";
 import { useIngresosExamen } from "../hooks/useIngresosExamen";
 import { filtrarIngresos } from "../lib/filtrarIngresos";
 import { descargarReporteIngresosPdf } from "../api/ingresos.service";
+import {
+  obtenerGestionPorFecha,
+  obtenerGestionVigente,
+  type ExamenControl,
+  type FiltrosIngresos,
+  type IngresosExamen,
+} from "../types/ingresos.types";
 import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
 
 export function ControlIngresosPageContainer() {
   const { data: session } = useSession();
 
-  // HU-17 Criterio 13: El botón "Descargar PDF" solo se muestra para el rol Docente
+  // HU-17: Acceso y filtros según el rol base
+  // Docente, Personal de Control, Administrador (o rol personalizado con el módulo)
   const userRole = (session?.user?.rol || "").toLowerCase();
   const userEmail = (session?.user?.email || "").toLowerCase();
-  const isDocente =
-    userRole.includes("docente") ||
-    userEmail.includes("docente") ||
-    Boolean(session?.user?.permisos?.some((p: string) => p.includes("docente")));
+  const permisos = (session?.user?.permisos || []).map((p: string) => p.toLowerCase());
+
+  const rol: RolIngresos = useMemo(() => {
+    if (
+      userRole.includes("admin") ||
+      userEmail.includes("admin") ||
+      permisos.some((p) => p.includes("admin"))
+    ) {
+      return "admin";
+    }
+    if (
+      userRole.includes("control") ||
+      userRole.includes("colaborador") ||
+      userEmail.includes("control") ||
+      userEmail.includes("colaborador") ||
+      permisos.some((p) => p.includes("control") || p.includes("colaborador"))
+    ) {
+      return "control";
+    }
+    return "docente";
+  }, [userRole, userEmail, permisos]);
+
+  // Criterio 24: Cualquier usuario con acceso al módulo puede descargar el PDF
+  const puedeDescargarPdf = Boolean(session?.user);
 
   const { examenes, isLoading: cargandoExamenes, error: errorExamenes } =
     useExamenesControl();
 
-  const [seleccionado, setSeleccionado] = useState<string | null>(null);
-  // Si el usuario aún no eligió, se usa el primer examen de la lista
-  const examenId =
-    seleccionado ?? (examenes[0] ? String(examenes[0].id) : null);
+  // Enriquecer los exámenes con facultades, docentes, gestiones y materias
+  const examenesEnriquecidos = useMemo<ExamenControl[]>(() => {
+    return examenes.map((e) => ({
+      ...e,
+      gestion: e.gestion || obtenerGestionPorFecha(e.fecha),
+      materia: e.materia || obtenerNombreMateria(e.nombre),
+      facultad: e.facultad || "Facultad de Ciencias y Tecnología (FCyT)",
+      facultadId: e.facultadId ? String(e.facultadId) : "fcyt",
+      docente: e.docente || "Lic. Docente",
+      docenteId: e.docenteId ? String(e.docenteId) : "docente-1",
+    }));
+  }, [examenes]);
 
-  const { data, conexion } = useIngresosExamen(examenId);
+  // Filtros combinables para HU-17
+  const [filtros, setFiltros] = useState<FiltrosIngresos>({
+    facultadId: "TODAS",
+    docenteId: "TODOS",
+    gestion: obtenerGestionVigente(),
+    materiaId: "TODAS",
+    examenId: "TODOS",
+  });
+
+  // Exámenes que cumplen con los filtros aplicados
+  const examenesFiltrados = useMemo(() => {
+    return examenesEnriquecidos.filter((e) => {
+      if (e.gestion !== filtros.gestion) return false;
+      if (
+        filtros.facultadId !== "TODAS" &&
+        String(e.facultadId) !== filtros.facultadId
+      ) {
+        return false;
+      }
+      if (
+        filtros.docenteId !== "TODOS" &&
+        String(e.docenteId) !== filtros.docenteId
+      ) {
+        return false;
+      }
+      if (filtros.materiaId !== "TODAS" && e.materia !== filtros.materiaId) {
+        return false;
+      }
+      if (filtros.examenId !== "TODOS" && String(e.id) !== filtros.examenId) {
+        return false;
+      }
+      return true;
+    });
+  }, [examenesEnriquecidos, filtros]);
+
+  // ID para polling: si examen específico, su id; si "TODOS", pedimos consolidado "TODOS"
+  const idParaCargar = useMemo(() => {
+    if (examenes.length === 0) return null;
+    if (filtros.examenId !== "TODOS") return filtros.examenId;
+    return "TODOS";
+  }, [examenes.length, filtros.examenId]);
+
+  const { data: dataHook, conexion } = useIngresosExamen(idParaCargar);
+
+  // Datos activos para tabla y contador
+  const dataActiva: IngresosExamen | null = useMemo(() => {
+    if (examenes.length === 0 || examenesFiltrados.length === 0) {
+      return {
+        examenId: filtros.examenId,
+        ingresados: 0,
+        total: 0,
+        ingresos: [],
+      };
+    }
+    return dataHook;
+  }, [examenes.length, examenesFiltrados.length, filtros.examenId, dataHook]);
+
   const [busqueda, setBusqueda] = useState("");
 
   // Estado para la descarga del PDF (HU-17)
@@ -45,33 +137,71 @@ export function ControlIngresosPageContainer() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
 
-  const examenSeleccionado = useMemo(
-    () => examenes.find((e) => String(e.id) === String(examenId)) || null,
-    [examenes, examenId]
-  );
+  const examenSeleccionado = useMemo(() => {
+    if (filtros.examenId !== "TODOS") {
+      return (
+        examenesEnriquecidos.find((e) => String(e.id) === String(filtros.examenId)) ||
+        null
+      );
+    }
+    return examenesFiltrados[0] || examenesEnriquecidos[0] || null;
+  }, [examenesEnriquecidos, examenesFiltrados, filtros.examenId]);
 
   const materiaNombre = useMemo(() => {
-    return examenSeleccionado
-      ? obtenerNombreMateria(examenSeleccionado.nombre)
-      : "el examen";
-  }, [examenSeleccionado]);
+    if (filtros.materiaId !== "TODAS") {
+      return filtros.materiaId;
+    }
+    if (filtros.examenId !== "TODOS" && examenSeleccionado) {
+      return examenSeleccionado.materia || obtenerNombreMateria(examenSeleccionado.nombre);
+    }
+    return rol === "docente" ? "Todas mis materias" : "todas las materias";
+  }, [filtros.materiaId, filtros.examenId, examenSeleccionado, rol]);
+
+  // Nombres descriptivos para chips de filtros aplicados
+  const filtrosDetalle = useMemo(() => {
+    const facultadObj = examenesEnriquecidos.find(
+      (e) => String(e.facultadId) === filtros.facultadId
+    );
+    const docenteObj = examenesEnriquecidos.find(
+      (e) => String(e.docenteId) === filtros.docenteId
+    );
+    const examenObj = examenesEnriquecidos.find(
+      (e) => String(e.id) === filtros.examenId
+    );
+
+    return {
+      facultad:
+        filtros.facultadId !== "TODAS"
+          ? facultadObj?.facultad || filtros.facultadId
+          : undefined,
+      docente:
+        filtros.docenteId !== "TODOS"
+          ? docenteObj?.docente || filtros.docenteId
+          : undefined,
+      examen:
+        filtros.examenId !== "TODOS"
+          ? examenObj?.nombre || filtros.examenId
+          : undefined,
+    };
+  }, [examenesEnriquecidos, filtros]);
 
   const ingresosFiltrados = useMemo(
-    () => filtrarIngresos(data?.ingresos ?? [], busqueda),
-    [data, busqueda],
+    () => filtrarIngresos(dataActiva?.ingresos ?? [], busqueda),
+    [dataActiva, busqueda]
   );
 
-  const cargandoIngresos = cargandoExamenes || (examenId !== null && data === null);
+  const cargandoIngresos =
+    cargandoExamenes || (idParaCargar !== null && dataHook === null);
 
   // HU-17: Clic en el botón "Descargar PDF"
   const handleSolicitarDescarga = () => {
-    // Criterio 2: Sin examen seleccionado
-    if (!examenId || !examenSeleccionado) {
+    // Si no existen exámenes en el alcance
+    if (examenes.length === 0) {
       toast.error("Selecciona un examen para descargar el reporte");
       return;
     }
 
-    // Criterio 10: Dispositivo sin conexión
+    // Criterio 20: Dispositivo sin conexión
     const sinConexion =
       (typeof navigator !== "undefined" && !navigator.onLine) ||
       conexion === "desconectado";
@@ -80,32 +210,57 @@ export function ControlIngresosPageContainer() {
       return;
     }
 
-    // Criterio 8: Examen sin ingresos registrados
-    const totalIngresos = data?.ingresados ?? data?.ingresos?.length ?? 0;
+    // Criterio 18: Sin ingresos registrados para los filtros vigentes
+    const totalIngresos = dataActiva?.ingresados ?? dataActiva?.ingresos?.length ?? 0;
     if (totalIngresos === 0) {
       toast.warning("No hay ingresos registrados para descargar");
       return;
     }
 
-    // Abre el modal de confirmación (Criterio 3)
+    // Abre el modal de confirmación (Criterio 13)
     setErrorDescarga(null);
     setIsModalOpen(true);
   };
 
   // HU-17: Confirmar descarga desde el modal
   const handleConfirmarDescarga = async () => {
-    if (!examenSeleccionado || !data) return;
-    if (isDownloading) return; // Evitar doble clic (Escenario Negativo 6)
+    if (!dataActiva) return;
+    if (isDownloading) return; // Evitar doble clic (Escenario Negativo 7)
 
     setIsDownloading(true);
     setErrorDescarga(null);
 
     try {
       const docenteNombre = session?.user?.name || "Docente titular";
+      const examenBase =
+        examenSeleccionado ||
+        examenesFiltrados[0] ||
+        examenesEnriquecidos[0] || {
+          id: 1,
+          nombre: materiaNombre,
+          fecha: new Date().toISOString().slice(0, 10),
+          gestion: filtros.gestion,
+        };
+
       const { blob, filename } = await descargarReporteIngresosPdf(
-        examenSeleccionado,
-        data,
-        docenteNombre
+        examenBase,
+        dataActiva,
+        docenteNombre,
+        {
+          facultad:
+            filtrosDetalle.facultad ||
+            (filtros.facultadId === "TODAS" ? "Todas las facultades" : undefined),
+          docente:
+            filtrosDetalle.docente ||
+            (filtros.docenteId === "TODOS" ? "Todos los docentes" : undefined),
+          gestion: filtros.gestion,
+          materia:
+            filtros.materiaId === "TODAS" ? "Todas las materias" : filtros.materiaId,
+          examen:
+            filtrosDetalle.examen ||
+            (filtros.examenId === "TODOS" ? "Todos los exámenes" : undefined),
+        },
+        examenesFiltrados
       );
 
       // Descargar el archivo generado en el navegador
@@ -118,11 +273,11 @@ export function ControlIngresosPageContainer() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      // Criterio 6: Feedback de reporte descargado
+      // Criterio 16: Feedback de reporte descargado
       toast.success("Reporte descargado");
       setIsModalOpen(false);
     } catch (err) {
-      // Criterio 9: Manejo de errores con opción de reintentar
+      // Criterio 19: Manejo de errores con opción de reintentar
       console.error("Error al descargar reporte de asistencia:", err);
       setErrorDescarga(
         "Ocurrió un error al generar el reporte de asistencia. Por favor, reintenta la operación."
@@ -141,18 +296,18 @@ export function ControlIngresosPageContainer() {
           <div className="flex justify-end">
             <EnVivoBadge
               conexion={conexion}
-              ingresados={data?.ingresados}
-              total={data?.total}
+              ingresados={dataActiva?.ingresados}
+              total={dataActiva?.total}
             />
           </div>
 
-          {/* HU-17: Botón visible solo para rol Docente */}
-          {isDocente && (
+          {/* HU-17 Criterios 1, 2, 3, 24: Botón visible para Docente, Control y Administrador */}
+          {puedeDescargarPdf && (
             <BotonDescargarReportePdf
               onClick={handleSolicitarDescarga}
-              disabled={!examenId}
+              disabled={examenes.length === 0}
               disabledReason={
-                !examenId
+                examenes.length === 0
                   ? "Selecciona un examen para descargar el reporte"
                   : undefined
               }
@@ -182,32 +337,37 @@ export function ControlIngresosPageContainer() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <ControlExamSelectorHeader
-            examenes={examenes}
-            examenId={examenId}
-            onExamenChange={setSeleccionado}
-            conexion={conexion}
-            isLoading={cargandoExamenes}
-            showBadge={false}
-          />
+        {/* Toolbar de filtros combinables en cascada por rol (Criterios 1 a 10) */}
+        <IngresosFiltrosToolbar
+          rol={rol}
+          examenes={examenesEnriquecidos}
+          filtros={filtros}
+          onFiltrosChange={setFiltros}
+          isLoading={cargandoExamenes}
+        />
+
+        {/* Barra de búsqueda de estudiante */}
+        <div className="w-full">
           <IngresosTableToolbar onSearchChange={setBusqueda} />
         </div>
 
+        {/* Tabla en tiempo real con lista de ingresos y columna de caso excepcional */}
         <IngresosTable
           ingresos={ingresosFiltrados}
           isLoading={cargandoIngresos}
           hayBusqueda={busqueda.trim() !== ""}
-          ingresados={data?.ingresados ?? 0}
-          total={data?.total ?? 0}
+          ingresados={dataActiva?.ingresados ?? 0}
+          total={dataActiva?.total ?? 0}
         />
 
-        {/* HU-17: Modal de confirmación de descarga */}
+        {/* Modal de confirmación de descarga (Criterios 13 a 22) */}
         <ConfirmarDescargaModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onConfirm={handleConfirmarDescarga}
           materiaNombre={materiaNombre}
+          gestionNombre={filtros.gestion}
+          filtrosDetalle={filtrosDetalle}
           isDownloading={isDownloading}
           errorDescarga={errorDescarga}
           onRetry={handleConfirmarDescarga}

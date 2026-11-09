@@ -1,0 +1,336 @@
+// src/features/registro-ingresos/components/IngresosFiltrosToolbar.tsx
+"use client";
+
+import { useMemo } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
+  GESTIONES_DISPONIBLES,
+  obtenerGestionPorFecha,
+  type ExamenControl,
+  type FiltrosIngresos,
+  type GestionAcademica,
+} from "../types/ingresos.types";
+import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
+
+export type RolIngresos = "docente" | "control" | "admin";
+
+interface IngresosFiltrosToolbarProps {
+  rol: RolIngresos;
+  examenes: ExamenControl[];
+  filtros: FiltrosIngresos;
+  onFiltrosChange: (filtros: FiltrosIngresos) => void;
+  isLoading?: boolean;
+}
+
+export function IngresosFiltrosToolbar({
+  rol,
+  examenes,
+  filtros,
+  onFiltrosChange,
+  isLoading = false,
+}: IngresosFiltrosToolbarProps) {
+  // Asegurar que cada examen tenga su gestión asignada según Criterio 5
+  const examenesConGestion = useMemo(() => {
+    return examenes.map((e) => ({
+      ...e,
+      gestion: e.gestion || obtenerGestionPorFecha(e.fecha),
+      materia: e.materia || obtenerNombreMateria(e.nombre),
+      facultad: e.facultad || "Facultad de Ciencias y Tecnología (FCyT)",
+      facultadId: e.facultadId ? String(e.facultadId) : "fcyt",
+      docente: e.docente || "Lic. Docente",
+      docenteId: e.docenteId ? String(e.docenteId) : "docente-1",
+    }));
+  }, [examenes]);
+
+  // 1. Filtrado base por Gestión (Criterio 4, 5)
+  const examenesEnGestion = useMemo(() => {
+    return examenesConGestion.filter((e) => e.gestion === filtros.gestion);
+  }, [examenesConGestion, filtros.gestion]);
+
+  // 2. Facultades disponibles (solo Admin, Criterio 7)
+  const facultadesDisponibles = useMemo(() => {
+    const map = new Map<string, string>();
+    examenesEnGestion.forEach((e) => {
+      if (e.facultadId && e.facultad) {
+        map.set(String(e.facultadId), e.facultad);
+      }
+    });
+    return Array.from(map.entries()).map(([id, nombre]) => ({ id, nombre }));
+  }, [examenesEnGestion]);
+
+  // Filtrado por Facultad para calcular Docentes y Materias siguientes (Criterio 8)
+  const examenesPorFacultad = useMemo(() => {
+    if (!filtros.facultadId || filtros.facultadId === "TODAS") {
+      return examenesEnGestion;
+    }
+    return examenesEnGestion.filter(
+      (e) => String(e.facultadId) === filtros.facultadId
+    );
+  }, [examenesEnGestion, filtros.facultadId]);
+
+  // 3. Docentes disponibles (Admin y Control, Criterio 8)
+  const docentesDisponibles = useMemo(() => {
+    const map = new Map<string, string>();
+    examenesPorFacultad.forEach((e) => {
+      if (e.docenteId && e.docente) {
+        map.set(String(e.docenteId), e.docente);
+      }
+    });
+    return Array.from(map.entries()).map(([id, nombre]) => ({ id, nombre }));
+  }, [examenesPorFacultad]);
+
+  // Filtrado por Docente para calcular Materias siguientes (Criterio 9)
+  const examenesPorDocente = useMemo(() => {
+    if (!filtros.docenteId || filtros.docenteId === "TODOS") {
+      return examenesPorFacultad;
+    }
+    return examenesPorFacultad.filter(
+      (e) => String(e.docenteId) === filtros.docenteId
+    );
+  }, [examenesPorFacultad, filtros.docenteId]);
+
+  // 4. Materias disponibles (Todos los roles, Criterio 9, 10)
+  const materiasDisponibles = useMemo(() => {
+    const set = new Set<string>();
+    examenesPorDocente.forEach((e) => {
+      if (e.materia) set.add(e.materia);
+    });
+    return Array.from(set).sort();
+  }, [examenesPorDocente]);
+
+  // Filtrado por Materia para calcular Exámenes siguientes
+  const examenesPorMateria = useMemo(() => {
+    if (!filtros.materiaId || filtros.materiaId === "TODAS") {
+      return examenesPorDocente;
+    }
+    return examenesPorDocente.filter((e) => e.materia === filtros.materiaId);
+  }, [examenesPorDocente, filtros.materiaId]);
+
+  // 5. Exámenes disponibles
+  const examenesDisponibles = useMemo(() => {
+    return examenesPorMateria;
+  }, [examenesPorMateria]);
+
+  // Handlers con efecto Cascada (Criterio 8, 9)
+  const handleFacultadChange = (nuevaFacultad: string) => {
+    const nuevaListaExamenes =
+      nuevaFacultad === "TODAS"
+        ? examenesEnGestion
+        : examenesEnGestion.filter((e) => String(e.facultadId) === nuevaFacultad);
+
+    // Si el docente ya no pertenece, reset a TODOS
+    const docenteValido = nuevaListaExamenes.some(
+      (e) => String(e.docenteId) === filtros.docenteId
+    );
+    const nuevoDocente = docenteValido ? filtros.docenteId : "TODOS";
+
+    // Si la materia ya no pertenece, reset a TODAS
+    const materiaValida = nuevaListaExamenes.some(
+      (e) => e.materia === filtros.materiaId
+    );
+    const nuevaMateria = materiaValida ? filtros.materiaId : "TODAS";
+
+    onFiltrosChange({
+      ...filtros,
+      facultadId: nuevaFacultad,
+      docenteId: nuevoDocente,
+      materiaId: nuevaMateria,
+      examenId: "TODOS",
+    });
+  };
+
+  const handleDocenteChange = (nuevoDocente: string) => {
+    const nuevaLista =
+      nuevoDocente === "TODOS"
+        ? examenesPorFacultad
+        : examenesPorFacultad.filter((e) => String(e.docenteId) === nuevoDocente);
+
+    const materiaValida = nuevaLista.some((e) => e.materia === filtros.materiaId);
+    const nuevaMateria = materiaValida ? filtros.materiaId : "TODAS";
+
+    onFiltrosChange({
+      ...filtros,
+      docenteId: nuevoDocente,
+      materiaId: nuevaMateria,
+      examenId: "TODOS",
+    });
+  };
+
+  const handleGestionChange = (nuevaGestion: string) => {
+    const gestionTyped = nuevaGestion as GestionAcademica;
+    const nuevaListaGestion = examenesConGestion.filter(
+      (e) => e.gestion === gestionTyped
+    );
+
+    const facValida = nuevaListaGestion.some(
+      (e) => String(e.facultadId) === filtros.facultadId
+    );
+    const docValido = nuevaListaGestion.some(
+      (e) => String(e.docenteId) === filtros.docenteId
+    );
+    const matValida = nuevaListaGestion.some(
+      (e) => e.materia === filtros.materiaId
+    );
+
+    onFiltrosChange({
+      facultadId: facValida ? filtros.facultadId : "TODAS",
+      docenteId: docValido ? filtros.docenteId : "TODOS",
+      gestion: gestionTyped,
+      materiaId: matValida ? filtros.materiaId : "TODAS",
+      examenId: "TODOS",
+    });
+  };
+
+  const handleMateriaChange = (nuevaMateria: string) => {
+    onFiltrosChange({
+      ...filtros,
+      materiaId: nuevaMateria,
+      examenId: "TODOS",
+    });
+  };
+
+  const handleExamenChange = (nuevoExamen: string) => {
+    onFiltrosChange({
+      ...filtros,
+      examenId: nuevoExamen,
+    });
+  };
+
+  const placeholderMateria =
+    rol === "docente" ? "Todas mis materias" : "Todas las materias";
+
+  return (
+    <div className="flex flex-col gap-3 w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
+        {/* 1. Facultad (Solo Administrador, Criterio 7) */}
+        {rol === "admin" && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-700">
+              Facultad
+            </label>
+            <Select
+              value={filtros.facultadId || "TODAS"}
+              onValueChange={handleFacultadChange}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="w-full h-10 rounded-xl bg-white border-gray-200 text-xs">
+                <SelectValue placeholder="Todas las facultades" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODAS">Todas las facultades</SelectItem>
+                {facultadesDisponibles.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* 2. Docente (Admin y Personal de Control, Criterio 8, 9) */}
+        {(rol === "admin" || rol === "control") && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-700">
+              Docente
+            </label>
+            <Select
+              value={filtros.docenteId || "TODOS"}
+              onValueChange={handleDocenteChange}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="w-full h-10 rounded-xl bg-white border-gray-200 text-xs">
+                <SelectValue placeholder="Todos los docentes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODOS">Todos los docentes</SelectItem>
+                {docentesDisponibles.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* 3. Gestión (Todos los roles, Criterio 4, sin opción "Todas") */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-gray-700">
+            Gestión
+          </label>
+          <Select
+            value={filtros.gestion}
+            onValueChange={handleGestionChange}
+            disabled={isLoading}
+          >
+            <SelectTrigger className="w-full h-10 rounded-xl bg-white border-gray-200 text-xs">
+              <SelectValue placeholder="Seleccione gestión" />
+            </SelectTrigger>
+            <SelectContent>
+              {GESTIONES_DISPONIBLES.map((g) => (
+                <SelectItem key={g} value={g}>
+                  {g}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 4. Materia (Todos los roles, Criterio 10) */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-gray-700">
+            Materia
+          </label>
+          <Select
+            value={filtros.materiaId || "TODAS"}
+            onValueChange={handleMateriaChange}
+            disabled={isLoading}
+          >
+            <SelectTrigger className="w-full h-10 rounded-xl bg-white border-gray-200 text-xs">
+              <SelectValue placeholder={placeholderMateria} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODAS">{placeholderMateria}</SelectItem>
+              {materiasDisponibles.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 5. Examen (Todos los roles, Criterio 6) */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-gray-700">
+            Examen
+          </label>
+          <Select
+            value={filtros.examenId || "TODOS"}
+            onValueChange={handleExamenChange}
+            disabled={isLoading}
+          >
+            <SelectTrigger className="w-full h-10 rounded-xl bg-white border-gray-200 text-xs">
+              <SelectValue placeholder="Todos los exámenes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODOS">Todos los exámenes</SelectItem>
+              {examenesDisponibles.map((e) => (
+                <SelectItem key={String(e.id)} value={String(e.id)}>
+                  {e.nombre} ({e.fecha})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}
