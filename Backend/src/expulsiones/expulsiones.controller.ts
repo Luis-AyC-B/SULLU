@@ -1,19 +1,36 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { ExpulsionesService } from './expulsiones.service';
+import {
+  EstudianteElegibleDto,
+  ExpulsionResponseDto,
+  ExpulsionesService,
+} from './expulsiones.service';
 import { CrearExpulsionDto } from './dto/crear-expulsion.dto';
+
+interface RequestConUsuario extends Request {
+  user?: {
+    id?: number;
+    sub?: number;
+    userId?: number;
+  };
+}
+
+const extraerUserId = (req: RequestConUsuario): number =>
+  Number(req.user?.id ?? req.user?.sub ?? req.user?.userId ?? 0);
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -23,9 +40,8 @@ export class ExpulsionesController {
   // 1. Selector de exámenes: GET /expulsiones/examenes
   @Permissions('expulsiones.ver')
   @Get('expulsiones/examenes')
-  obtenerExamenes(@Req() req: any) {
-    const userId = req.user?.id || req.user?.sub || req.user?.userId;
-    return this.service.listarExamenesParaExpulsion(Number(userId));
+  obtenerExamenes(@Req() req: RequestConUsuario) {
+    return this.service.listarExamenesParaExpulsion(extraerUserId(req));
   }
 
   // 2. Listado de expulsiones por examen: GET /examenes/:id/expulsiones
@@ -34,10 +50,9 @@ export class ExpulsionesController {
   listarPorExamen(
     @Param('id') examenId: string,
     @Query('buscar') buscar: string,
-    @Req() req: any,
-  ) {
-    const userId = req.user?.id || req.user?.sub || req.user?.userId;
-    return this.service.listar(Number(examenId), Number(userId), buscar);
+    @Req() req: RequestConUsuario,
+  ): Promise<ExpulsionResponseDto[]> {
+    return this.service.listar(Number(examenId), extraerUserId(req), buscar);
   }
 
   // 3. Estudiantes elegibles: GET /examenes/:id/expulsiones/estudiantes?q=
@@ -46,12 +61,11 @@ export class ExpulsionesController {
   estudiantesElegibles(
     @Param('id') examenId: string,
     @Query('q') consulta: string,
-    @Req() req: any,
-  ) {
-    const userId = req.user?.id || req.user?.sub || req.user?.userId;
+    @Req() req: RequestConUsuario,
+  ): Promise<EstudianteElegibleDto[]> {
     return this.service.estudiantesElegibles(
       Number(examenId),
-      Number(userId),
+      extraerUserId(req),
       consulta,
     );
   }
@@ -59,8 +73,11 @@ export class ExpulsionesController {
   // 4. Crear expulsión: POST /expulsiones
   @Permissions('expulsiones.registrar')
   @Post('expulsiones')
-  crear(@Body() dto: CrearExpulsionDto, @Req() req: any) {
-    const userId = req.user?.id || req.user?.sub || req.user?.userId;
-    return this.service.crear(dto, Number(userId), req.ip);
+  @HttpCode(HttpStatus.CREATED)
+  crear(
+    @Body() dto: CrearExpulsionDto,
+    @Req() req: RequestConUsuario,
+  ): Promise<ExpulsionResponseDto> {
+    return this.service.crear(dto, extraerUserId(req), req.ip);
   }
 }

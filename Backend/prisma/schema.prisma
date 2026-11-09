@@ -529,14 +529,28 @@ model Bitacora_Auditoria {
 
   @@map("bitacora_auditoria")
 }
+
+enum CasoIncidencia {
+  EXPULSION
+  SUPLANTACION_IDENTIDAD
+  AMONESTACION
+  PROBLEMA_MEDICO
+  RETIRO_VOLUNTARIO
+  INCIDENCIA_TECNICA
+  OTRO
+
+  @@map("caso_incidencia")
+}
+
 model Expulsion {
-  id           Int      @id @default(autoincrement())
-  examenId     Int
-  estudianteId Int
-  docenteId    Int
-  motivo       String   @db.VarChar(50)
-  detalle      String   @db.VarChar(500)
-  fechaHora    DateTime @default(now())
+  id           Int            @id @default(autoincrement())
+  examenId     Int            @map("examen_id")
+  estudianteId Int            @map("estudiante_id")
+  docenteId    Int            @map("docente_id")
+  caso         CasoIncidencia @default(EXPULSION) @map("caso")
+  motivo       String         @map("motivo") @db.VarChar(50)
+  detalle      String         @default("") @map("detalle") @db.VarChar(500)
+  fechaHora    DateTime       @default(now()) @map("fecha_hora")
 
   examen     Examen     @relation(fields: [examenId], references: [id])
   estudiante Estudiante @relation(fields: [estudianteId], references: [id])
