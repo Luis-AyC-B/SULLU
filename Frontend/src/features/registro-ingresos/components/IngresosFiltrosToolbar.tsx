@@ -16,9 +16,16 @@ import {
   type FiltrosIngresos,
   type GestionAcademica,
 } from "../types/ingresos.types";
-import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
 
-export type RolIngresos = "docente" | "control" | "admin";
+/**
+ * Roles del módulo Registro de Ingresos:
+ *  - "docente"  → rol predefinido por el sistema. Filtros: Gestión, Materia, Examen.
+ *  - "custom"   → rol personalizado creado a partir del docente.
+ *                  Filtros: Docente, Gestión, Materia, Examen.
+ *  - "control"  → personal de control. Filtros: Docente, Gestión, Materia, Examen.
+ *  - "admin"    → administrador. Filtros: Facultad, Docente, Gestión, Materia, Examen.
+ */
+export type RolIngresos = "docente" | "custom" | "control" | "admin";
 
 interface IngresosFiltrosToolbarProps {
   rol: RolIngresos;
@@ -35,16 +42,15 @@ export function IngresosFiltrosToolbar({
   onFiltrosChange,
   isLoading = false,
 }: IngresosFiltrosToolbarProps) {
-  // Asegurar que cada examen tenga su gestión asignada según Criterio 5
+  // Asegurar que cada examen tenga su gestión asignada según Criterio 5.
+  // Los campos facultad, materia, docente deben venir del backend;
+  // solo la gestión se calcula como fallback a partir de la fecha.
   const examenesConGestion = useMemo(() => {
     return examenes.map((e) => ({
       ...e,
       gestion: e.gestion || obtenerGestionPorFecha(e.fecha),
-      materia: e.materia || obtenerNombreMateria(e.nombre),
-      facultad: e.facultad || "Facultad de Ciencias y Tecnología (FCyT)",
-      facultadId: e.facultadId ? String(e.facultadId) : "fcyt",
-      docente: e.docente || "Lic. Docente",
-      docenteId: e.docenteId ? String(e.docenteId) : "docente-1",
+      facultadId: e.facultadId ? String(e.facultadId) : undefined,
+      docenteId: e.docenteId ? String(e.docenteId) : undefined,
     }));
   }, [examenes]);
 
@@ -234,8 +240,8 @@ export function IngresosFiltrosToolbar({
           </div>
         )}
 
-        {/* 2. Docente (Admin y Personal de Control, Criterio 8, 9) */}
-        {(rol === "admin" || rol === "control") && (
+        {/* 2. Docente (Admin, Control y Custom — Criterio 8, 9) */}
+        {(rol === "admin" || rol === "control" || rol === "custom") && (
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-700">
               Docente

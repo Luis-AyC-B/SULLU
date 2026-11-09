@@ -34,7 +34,11 @@ function isEndpointMissing(error: unknown): boolean {
   return isAxiosError(error) && error.response?.status === 404;
 }
 
-/* ---------- Mocks ---------- */
+/* ---------- Mocks (solo activos cuando NEXT_PUBLIC_USE_MOCKS === 'true') ---------- */
+/* NOTA: Estos datos son exclusivamente para desarrollo/pruebas con la flag
+   FORCE_MOCKS activada. Cuando el backend esté disponible, NO se usan.
+   Al conectar con el backend real, los datos de facultad, materia, docente,
+   gestion, etc. deben venir completos en la respuesta de /examenes/control. */
 
 export const MOCK_EXAMENES: ExamenControl[] = [
   {
@@ -228,7 +232,12 @@ export async function getIngresosExamenesConsolidados(
 
   const resultados = await Promise.all(
     examenes.map((ex) =>
-      getIngresosExamen(ex.id).catch(() => mockIngresos(ex.id))
+      getIngresosExamen(ex.id).catch(() => ({
+        examenId: ex.id,
+        ingresados: 0,
+        total: 0,
+        ingresos: [],
+      }))
     )
   );
 
@@ -415,7 +424,9 @@ export async function getExamenesControl(): Promise<ExamenControl[]> {
 
     return parsed;
   } catch (error) {
-    if (isEndpointMissing(error)) return MOCK_EXAMENES;
+    // Si el endpoint no existe (404), devolvemos un arreglo vacío.
+    // Cuando el backend esté disponible devolverá los datos reales.
+    if (isEndpointMissing(error)) return [];
 
     // Si falló por falta de red, intentar recuperar del caché antes de propagar
     const cached = obtenerExamenesControlOffline();
@@ -508,7 +519,16 @@ export async function getIngresosExamen(
 
     return parsed;
   } catch (error) {
-    if (isEndpointMissing(error)) return mockIngresos(examenId);
+    // Si el endpoint no existe (404), devolvemos datos vacíos.
+    // Cuando el backend esté disponible devolverá los datos reales.
+    if (isEndpointMissing(error)) {
+      return {
+        examenId: Number(examenId),
+        ingresados: 0,
+        total: 0,
+        ingresos: [],
+      };
+    }
 
     // Si falló por falta de red, recuperar datos locales en vez de romper la interfaz
     if (typeof navigator !== 'undefined' && !navigator.onLine) {

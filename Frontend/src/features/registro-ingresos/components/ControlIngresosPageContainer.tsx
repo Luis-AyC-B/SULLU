@@ -29,10 +29,16 @@ export function ControlIngresosPageContainer() {
   const { data: session } = useSession();
 
   // HU-17: Acceso y filtros según el rol base
-  // Docente, Personal de Control, Administrador (o rol personalizado con el módulo)
+  // - "docente"  → rol predefinido por el sistema (solo Gestión, Materia, Examen)
+  // - "custom"   → rol personalizado con acceso al módulo (Docente, Gestión, Materia, Examen)
+  // - "control"  → personal de control (Docente, Gestión, Materia, Examen)
+  // - "admin"    → administrador (todos los filtros)
   const userRole = (session?.user?.rol || "").toLowerCase();
   const userEmail = (session?.user?.email || "").toLowerCase();
   const permisos = (session?.user?.permisos || []).map((p: string) => p.toLowerCase());
+  // Flag que indica si el rol del usuario es exactamente "docente" (predefinido por el sistema)
+  const esRolDocentePredefinido =
+    userRole === "docente" || userRole === "rol_docente";
 
   const rol: RolIngresos = useMemo(() => {
     if (
@@ -51,8 +57,14 @@ export function ControlIngresosPageContainer() {
     ) {
       return "control";
     }
-    return "docente";
-  }, [userRole, userEmail, permisos]);
+    // Si tiene el rol predefinido "docente" → solo Gestión, Materia, Examen
+    if (esRolDocentePredefinido) {
+      return "docente";
+    }
+    // Cualquier otro rol personalizado que tenga acceso al módulo
+    // registro-ingresos → ve Docente, Gestión, Materia, Examen
+    return "custom";
+  }, [userRole, userEmail, permisos, esRolDocentePredefinido]);
 
   // Criterio 24: Cualquier usuario con acceso al módulo puede descargar el PDF
   const puedeDescargarPdf = Boolean(session?.user);
@@ -60,16 +72,15 @@ export function ControlIngresosPageContainer() {
   const { examenes, isLoading: cargandoExamenes, error: errorExamenes } =
     useExamenesControl();
 
-  // Enriquecer los exámenes con facultades, docentes, gestiones y materias
+  // Enriquecer los exámenes: solo la gestión se calcula como fallback
+  // a partir de la fecha. Los demás campos (facultad, materia, docente)
+  // deben venir del backend directamente.
   const examenesEnriquecidos = useMemo<ExamenControl[]>(() => {
     return examenes.map((e) => ({
       ...e,
       gestion: e.gestion || obtenerGestionPorFecha(e.fecha),
-      materia: e.materia || obtenerNombreMateria(e.nombre),
-      facultad: e.facultad || "Facultad de Ciencias y Tecnología (FCyT)",
-      facultadId: e.facultadId ? String(e.facultadId) : "fcyt",
-      docente: e.docente || "Lic. Docente",
-      docenteId: e.docenteId ? String(e.docenteId) : "docente-1",
+      facultadId: e.facultadId ? String(e.facultadId) : undefined,
+      docenteId: e.docenteId ? String(e.docenteId) : undefined,
     }));
   }, [examenes]);
 

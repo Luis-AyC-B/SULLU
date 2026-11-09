@@ -69,7 +69,7 @@ describe('HU-17: IngresosFiltrosToolbar (Filtros combinables en cascada)', () =>
   };
 
   describe('Criterios 1, 2, 3: Visualización de filtros por rol', () => {
-    it('Docente visualiza Gestión, Materia y Examen (sin Facultad ni Docente)', () => {
+    it('Docente (rol predefinido) visualiza Gestión, Materia y Examen (sin Facultad ni Docente)', () => {
       render(
         <IngresosFiltrosToolbar
           rol="docente"
@@ -85,6 +85,23 @@ describe('HU-17: IngresosFiltrosToolbar (Filtros combinables en cascada)', () =>
       expect(screen.queryByText('Facultad')).not.toBeInTheDocument();
       expect(screen.queryByText('Docente')).not.toBeInTheDocument();
       expect(screen.getByText('Todas mis materias')).toBeInTheDocument();
+    });
+
+    it('Rol personalizado (custom) visualiza Docente, Gestión, Materia y Examen (sin Facultad)', () => {
+      render(
+        <IngresosFiltrosToolbar
+          rol="custom"
+          examenes={mockExamenes}
+          filtros={filtrosIniciales}
+          onFiltrosChange={jest.fn()}
+        />
+      );
+
+      expect(screen.getByText('Docente')).toBeInTheDocument();
+      expect(screen.getByText('Gestión')).toBeInTheDocument();
+      expect(screen.getByText('Materia')).toBeInTheDocument();
+      expect(screen.getByText('Examen')).toBeInTheDocument();
+      expect(screen.queryByText('Facultad')).not.toBeInTheDocument();
     });
 
     it('Personal de Control visualiza Docente, Gestión, Materia y Examen (sin Facultad)', () => {
