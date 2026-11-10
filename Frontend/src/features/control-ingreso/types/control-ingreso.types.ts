@@ -78,6 +78,10 @@ export interface RegistroManualResponse {
   fechaHora: string;
   estudiante: EstudianteBusquedaItem;
   mensaje?: string;
+  /** HU17: true si el estudiante pertenece a otro controlador */
+  fueraDeGrupo?: boolean;
+  /** HU17: Advertencia del backend indicando a qué controlador debe ir */
+  advertencia?: string;
 }
 
 // ==========================================

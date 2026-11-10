@@ -183,6 +183,7 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
         isOpen={isModalManualOpen}
         onClose={() => setIsModalManualOpen(false)}
         onIngresoExitoso={refetch}
+        miGrupo={miGrupo}
       />
 
       {/* Modal de Escáner QR continuo en Dispositivos Móviles (HU8) */}

@@ -158,7 +158,7 @@ export function useRegistroManual(examen: ExamenAsignado, onIngresoExitoso?: () 
           ? crypto.randomUUID()
           : `sync-${Date.now()}`;
 
-      await controlIngresoService.registrarIngresoManual(examen.id, {
+      const res = await controlIngresoService.registrarIngresoManual(examen.id, {
         estudianteId: estudianteSeleccionado.id,
         identificador:
           estudianteSeleccionado.codSis || estudianteSeleccionado.ci,
@@ -173,11 +173,15 @@ export function useRegistroManual(examen: ExamenAsignado, onIngresoExitoso?: () 
       );
 
       setPaso("EXITO");
-      toast.success(
-        `Ingreso registrado: ${estudianteSeleccionado.nombre} ${
-          estudianteSeleccionado.apellido ?? ""
-        }`.trim()
-      );
+      if (res.fueraDeGrupo && res.advertencia) {
+        toast.warning(res.advertencia, { duration: 6000, id: "manual-fuera-grupo" });
+      } else {
+        toast.success(
+          `Ingreso registrado: ${estudianteSeleccionado.nombre} ${
+            estudianteSeleccionado.apellido ?? ""
+          }`.trim()
+        );
+      }
       if (onIngresoExitoso) {
         onIngresoExitoso();
       }

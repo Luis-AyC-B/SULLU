@@ -480,6 +480,13 @@ export const controlIngresoService = {
     try {
       const response = await apiClient.post<{
         mensaje: string;
+        fueraDeGrupo?: boolean;
+        advertencia?: string;
+        grupoCorrecto?: {
+          colaboradorId: number;
+          nombreControlador: string;
+          rango: string;
+        };
         ingreso: {
           id: number;
           estudianteId: number;
@@ -530,6 +537,8 @@ export const controlIngresoService = {
             yaIngreso: true,
           },
           mensaje: response.data.mensaje || "Ingreso registrado exitosamente",
+          fueraDeGrupo: response.data.fueraDeGrupo ?? false,
+          advertencia: response.data.advertencia,
         };
       }
     } catch (err: unknown) {
