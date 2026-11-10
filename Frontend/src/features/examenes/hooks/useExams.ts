@@ -68,6 +68,9 @@ interface BackendExamResponse {
   horaFin?: string;
   estado?: ExamStatus | string;
   habilitadosCount?: number;
+  presentesCount?: number;
+  ausentesCount?: number | null;
+  estadoCalculado?: string;
   estudiantes?: unknown[];
   createdAt?: string;
   normas?: string;
@@ -257,6 +260,16 @@ export function useExams() {
           horaFin: e.horaFin || "09:30",
           duracionMinutos: Number(e.duracionMinutos || 90),
           habilitadosCount: Number(e.habilitadosCount ?? (e.estudiantes?.length ?? 0)),
+          presentesCount: e.presentesCount !== undefined ? Number(e.presentesCount) : 0,
+          ausentesCount:
+            e.ausentesCount !== undefined
+              ? e.ausentesCount === null
+                ? null
+                : Number(e.ausentesCount)
+              : normalizeEstado(e.estado) === "Programado"
+              ? null
+              : Math.max(0, Number(e.habilitadosCount ?? (e.estudiantes?.length ?? 0)) - Number(e.presentesCount ?? 0)),
+          estadoCalculado: e.estadoCalculado ? String(e.estadoCalculado) : undefined,
           normas: e.normas || "",
           docenteId: String(e.docenteId || e.docente?.id || ""),
           docenteNombre:

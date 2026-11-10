@@ -118,6 +118,42 @@ export interface ValidacionQrResponse {
   motivoInhabilitacion?: string;
   ambienteAsignado?: string;
   pendientesOffline?: number;
+  /** HU17: true cuando el estudiante pertenece al grupo de otro controlador */
+  fueraDeGrupo?: boolean;
+  /** HU17: Texto de advertencia cuando fueraDeGrupo es true */
+  advertencia?: string;
+}
+
+// ==========================================
+// HU17: TIPOS PARA GRUPO ASIGNADO AL CONTROLADOR
+// ==========================================
+
+export interface EstudianteGrupo {
+  id: number;
+  codSis: string;
+  ci?: string;
+  nombre: string;
+  apellido: string;
+  estadoHabilitado: boolean;
+  yaIngreso: boolean;
+  horaIngresoPrevio?: string;
+  metodoIngresoPrevio?: "QR" | "MANUAL";
+}
+
+export interface MiGrupoControlador {
+  examenId: number;
+  asignatura: string;
+  ambiente: string;
+  colaboradorId: number;
+  nombreControlador: string;
+  rolAsignacion: string;
+  /** Rango legible, ej: "A - G" */
+  rango: string;
+  letraInicio: string;
+  letraFin: string;
+  totalEstudiantesGrupo: number;
+  totalEstudiantesExamen: number;
+  estudiantes: EstudianteGrupo[];
 }
 
 export interface IngresoOfflineItem {

@@ -950,6 +950,9 @@ export const controlIngresoService = {
 
       const response = await apiClient.post<{
         mensaje: string;
+        fueraDeGrupo?: boolean;
+        advertencia?: string;
+        grupoCorrecto?: { colaboradorId: number; nombreControlador: string; rango: string };
         ingreso: {
           id: number;
           estudianteId: number;
@@ -1005,6 +1008,9 @@ export const controlIngresoService = {
             carrera: "Ingeniería de Sistemas",
             horaIngreso: horaFormateada,
           },
+          // HU17: propagar advertencia de grupo incorrecto
+          fueraDeGrupo: response.data.fueraDeGrupo ?? false,
+          advertencia: response.data.advertencia,
         };
       }
     } catch (err: unknown) {
