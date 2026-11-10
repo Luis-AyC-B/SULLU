@@ -8,7 +8,9 @@ import {
 } from '@/shared/lib/offline-sullu-db';
 import {
   examenesControlSchema,
+  ingresoSchema,
   ingresosExamenSchema,
+  obtenerGestionPorFecha,
   type ExamenControl,
   type Ingreso,
   type IngresosExamen,
@@ -18,6 +20,7 @@ import {
 import {
   generarPdfReporteIngresos,
   formatearNombreArchivoReporte,
+  obtenerNombreMateria,
 } from '../lib/generarPdfReporteIngresos';
 
 /* =============================================================================

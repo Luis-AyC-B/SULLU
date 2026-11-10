@@ -23,6 +23,7 @@ import {
   obtenerGestionVigente,
   type ExamenControl,
   type FiltrosIngresos,
+  type Ingreso,
   type IngresosExamen,
 } from "../types/ingresos.types";
 import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
@@ -550,6 +551,15 @@ export function ControlIngresosPageContainer() {
           isDownloading={isDownloading}
           errorDescarga={errorDescarga}
           onRetry={handleConfirmarDescarga}
+        />
+
+        {/* HU-20: Modal de registro de casos excepcionales */}
+        <RegistrarCasoExcepcionalModal
+          isOpen={isCasoModalOpen}
+          onClose={() => setIsCasoModalOpen(false)}
+          examen={examenSeleccionado}
+          ingresosActuales={todosLosIngresos}
+          onCasoRegistrado={handleCasoRegistrado}
         />
       </div>
     </PageContainer>

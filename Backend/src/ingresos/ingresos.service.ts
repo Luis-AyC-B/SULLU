@@ -79,6 +79,53 @@ export class IngresosService {
     }
   }
 
+  private async validarGrupoAsignado(
+    examenId: number,
+    registradoPorId: number,
+    estudianteId: number,
+  ): Promise<{
+    fueraDeGrupo: boolean;
+    advertencia?: string;
+    grupoCorrecto?: {
+      colaboradorId: number;
+      nombreControlador: string;
+      rango: string;
+    };
+  }> {
+    let fueraDeGrupo = false;
+    let advertencia: string | undefined;
+    let grupoCorrecto:
+      | {
+          colaboradorId: number;
+          nombreControlador: string;
+          rango: string;
+        }
+      | undefined;
+
+    if (this.particionService) {
+      try {
+        const valGrupo = await this.particionService.validarEstudianteEnGrupo(
+          examenId,
+          registradoPorId,
+          estudianteId,
+        );
+        if (!valGrupo.pertenece && valGrupo.grupoCorrecto) {
+          fueraDeGrupo = true;
+          advertencia = valGrupo.mensaje;
+          grupoCorrecto = {
+            colaboradorId: valGrupo.grupoCorrecto.colaboradorId,
+            nombreControlador: valGrupo.grupoCorrecto.nombreControlador,
+            rango: valGrupo.grupoCorrecto.rango,
+          };
+        }
+      } catch {
+        // Fallback defensivo
+      }
+    }
+
+    return { fueraDeGrupo, advertencia, grupoCorrecto };
+  }
+
   // ──────────────────────────────────────────────────────────────────
   private verificarFirmaQr(token: string): boolean {
     if (token.startsWith('qr_test_')) return true;
@@ -769,8 +816,18 @@ export class IngresosService {
       },
     });
 
+    const { fueraDeGrupo, advertencia, grupoCorrecto } =
+      await this.validarGrupoAsignado(
+        dto.examenId,
+        registradoPorId,
+        estudiante.id,
+      );
+
     return {
       mensaje: 'Ingreso registrado exitosamente',
+      fueraDeGrupo,
+      advertencia,
+      grupoCorrecto,
       ingreso: nuevoIngreso,
     };
   }
@@ -1077,8 +1134,18 @@ export class IngresosService {
       where: { token: tokenLimpio },
     });
 
+    const { fueraDeGrupo, advertencia, grupoCorrecto } =
+      await this.validarGrupoAsignado(
+        dto.examenId,
+        registradoPorId,
+        estudiante.id,
+      );
+
     return {
       mensaje: 'Ingreso por QR registrado exitosamente',
+      fueraDeGrupo,
+      advertencia,
+      grupoCorrecto,
       ingreso: nuevoIngreso,
     };
   }
@@ -1411,7 +1478,11 @@ export class IngresosService {
     });
   }
 
-  async buscarEstudiantesExamen(examenId: number, query?: string) {
+  async buscarEstudiantesExamen(
+    examenId: number,
+    query?: string,
+    colaboradorId?: number,
+  ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
     });
@@ -1420,10 +1491,24 @@ export class IngresosService {
       throw new NotFoundException('Examen no encontrado');
     }
 
+    let estudianteIdsFiltrados: number[] | undefined;
+    if (colaboradorId && this.particionService) {
+      const grupo = await this.particionService.obtenerGrupoDeControlador(
+        examenId,
+        colaboradorId,
+      );
+      if (grupo) {
+        estudianteIdsFiltrados = grupo.estudianteIds;
+      }
+    }
+
     const q = query?.trim();
 
     const where: Prisma.Examen_EstudianteWhereInput = {
       examenId,
+      ...(estudianteIdsFiltrados && {
+        estudianteId: { in: estudianteIdsFiltrados },
+      }),
       ...(q && {
         estudiante: {
           OR: [
