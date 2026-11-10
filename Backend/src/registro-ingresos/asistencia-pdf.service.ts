@@ -336,27 +336,26 @@ export class AsistenciaPdfService {
     data: ReporteAsistenciaPdfData,
   ) {
     const columnas = [
-      { key: 'num', titulo: '#', width: 24, align: 'center' as const },
-      { key: 'hora', titulo: 'HORA', width: 48, align: 'center' as const },
-      { key: 'sis', titulo: 'CÓDIGO SIS', width: 68, align: 'center' as const },
+      { key: 'num', titulo: '#', width: 22, align: 'center' as const },
+      { key: 'hora', titulo: 'HORA', width: 42, align: 'center' as const },
+      { key: 'sis', titulo: 'CÓDIGO SIS', width: 62, align: 'center' as const },
       {
         key: 'nombre',
         titulo: 'ESTUDIANTE',
-        width: 172,
+        width: 156,
         align: 'left' as const,
       },
-      { key: 'metodo', titulo: 'MÉTODO', width: 48, align: 'center' as const },
-      { key: 'estado', titulo: 'ESTADO', width: 62, align: 'center' as const },
+      { key: 'metodo', titulo: 'MÉTODO', width: 46, align: 'center' as const },
+      { key: 'estado', titulo: 'ESTADO', width: 56, align: 'center' as const },
       {
         key: 'excepcional',
         titulo: 'CASO EXCEPCIONAL',
-        width: 110,
+        width: 148,
         align: 'left' as const,
       },
     ];
 
     const headerHeight = 18;
-    const rowHeight = 16;
     const maxY = doc.page.height - 45;
 
     let currentY = startY;
@@ -401,24 +400,41 @@ export class AsistenciaPdfService {
     }
 
     data.ingresos.forEach((ing, idx) => {
-      if (currentY + rowHeight > maxY) {
+      doc.font('Helvetica-Bold').fontSize(7);
+      const altoCaso =
+        ing.casoExcepcional && ing.casoExcepcional !== '-'
+          ? doc.heightOfString(ing.casoExcepcional, {
+              width: columnas[6].width - 8,
+            })
+          : 8;
+
+      doc.font('Helvetica').fontSize(7.5);
+      const altoNombre = doc.heightOfString(ing.estudiante, {
+        width: columnas[3].width - 8,
+      });
+
+      const maxTextHeight = Math.max(altoCaso, altoNombre, 8);
+      const currentRowHeight = Math.max(18, Math.ceil(maxTextHeight) + 8);
+
+      if (currentY + currentRowHeight > maxY) {
         doc.addPage();
         currentY = dibujarHeaderTabla(40);
       }
 
       const esPar = idx % 2 === 0;
       doc
-        .rect(startX, currentY, width, rowHeight)
+        .rect(startX, currentY, width, currentRowHeight)
         .fillAndStroke(esPar ? '#ffffff' : '#f8fafc', '#f1f5f9');
 
       let colX = startX;
+      const textPaddingY = currentY + 4;
 
       // 1. #
       doc
         .fillColor('#475569')
         .font('Helvetica')
         .fontSize(7.5)
-        .text(String(ing.numero), colX, currentY + 4, {
+        .text(String(ing.numero), colX, textPaddingY, {
           width: columnas[0].width,
           align: 'center',
         });
@@ -429,7 +445,7 @@ export class AsistenciaPdfService {
         .fillColor('#1e293b')
         .font('Helvetica-Bold')
         .fontSize(7)
-        .text(ing.hora, colX, currentY + 4, {
+        .text(ing.hora, colX, textPaddingY, {
           width: columnas[1].width,
           align: 'center',
         });
@@ -440,7 +456,7 @@ export class AsistenciaPdfService {
         .fillColor('#1e293b')
         .font('Helvetica-Bold')
         .fontSize(7.5)
-        .text(ing.codSis, colX, currentY + 4, {
+        .text(ing.codSis, colX, textPaddingY, {
           width: columnas[2].width,
           align: 'center',
         });
@@ -451,11 +467,10 @@ export class AsistenciaPdfService {
         .fillColor('#0f172a')
         .font('Helvetica')
         .fontSize(7.5)
-        .text(ing.estudiante, colX + 4, currentY + 4, {
+        .text(ing.estudiante, colX + 4, textPaddingY, {
           width: columnas[3].width - 8,
           align: 'left',
-          lineBreak: false,
-          ellipsis: true,
+          lineBreak: true,
         });
       colX += columnas[3].width;
 
@@ -464,7 +479,7 @@ export class AsistenciaPdfService {
         .fillColor('#475569')
         .font('Helvetica')
         .fontSize(7)
-        .text(ing.metodo, colX, currentY + 4, {
+        .text(ing.metodo, colX, textPaddingY, {
           width: columnas[4].width,
           align: 'center',
         });
@@ -476,7 +491,7 @@ export class AsistenciaPdfService {
         .fillColor(esHabil ? '#15803d' : '#b91c1c')
         .font('Helvetica-Bold')
         .fontSize(7)
-        .text(ing.estado, colX, currentY + 4, {
+        .text(ing.estado, colX, textPaddingY, {
           width: columnas[5].width,
           align: 'center',
         });
@@ -487,14 +502,13 @@ export class AsistenciaPdfService {
         .fillColor(ing.casoExcepcional !== '-' ? '#b45309' : '#94a3b8')
         .font(ing.casoExcepcional !== '-' ? 'Helvetica-Bold' : 'Helvetica')
         .fontSize(7)
-        .text(ing.casoExcepcional, colX + 4, currentY + 4, {
+        .text(ing.casoExcepcional, colX + 4, textPaddingY, {
           width: columnas[6].width - 8,
           align: 'left',
-          lineBreak: false,
-          ellipsis: true,
+          lineBreak: true,
         });
 
-      currentY += rowHeight;
+      currentY += currentRowHeight;
     });
   }
 
