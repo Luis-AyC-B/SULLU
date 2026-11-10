@@ -15,6 +15,7 @@ export const ingresoSchema = z.object({
   hora: z.string().min(1),
   sis: z.string().min(1),
   estudiante: z.string().min(1),
+  ci: z.string().nullish(),
   metodo: metodoIngresoSchema,
   estado: estadoIngresoSchema,
   casoExcepcional: z.string().nullish(),
@@ -56,6 +57,34 @@ export function obtenerGestionPorFecha(fechaIso: string): GestionAcademica {
 export function obtenerGestionVigente(): GestionAcademica {
   return 'Gestión 2/2026';
 }
+
+/* ---------- Estudiante para búsqueda de casos excepcionales (HU-20) ---------- */
+
+export interface EstudianteExamenItem {
+  id: number | string;
+  codSis: string;
+  ci: string;
+  nombre: string;
+  apellido: string;
+  estadoHabilitado: boolean;
+  motivoInhabilitacion?: string | null;
+  yaIngreso?: boolean;
+  horaIngresoPrevio?: string;
+  metodoIngresoPrevio?: MetodoIngreso;
+}
+
+export const registrarCasoExcepcionalSchema = z.object({
+  examenId: z.union([z.string(), z.number()]),
+  codigoSis: z.string().trim().min(1, 'Ingresa el código SIS'),
+  motivo: z
+    .string()
+    .trim()
+    .min(1, 'Ingresa el motivo del caso')
+    .max(50, 'Máximo 50 caracteres'),
+});
+export type RegistrarCasoExcepcionalPayload = z.infer<
+  typeof registrarCasoExcepcionalSchema
+>;
 
 /* ---------- Examen para el selector y filtros combinables ---------- */
 
@@ -107,15 +136,17 @@ export type EstadoConexion = 'conectado' | 'desconectado';
 
 /* ---------- Helpers de presentación ---------- */
 
-/** "2026-09-06T09:04:32-04:00" -> "09:04:32" */
-export function formatHoraIngreso(iso: string): string {
+/** "2026-09-06T09:04:32-04:00" -> "09:04:32" o "09:15" si es HH:mm */
+export function formatHoraIngreso(iso: string, soloHoraMinuto = false): string {
+  if (!iso) return '--:--';
+  if (/^\d{2}:\d{2}$/.test(iso)) return iso;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleTimeString('es-BO', {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
+    ...(soloHoraMinuto ? {} : { second: '2-digit' }),
     timeZone: 'America/La_Paz',
   });
 }

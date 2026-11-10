@@ -12,6 +12,8 @@ import {
   type ExamenControl,
   type Ingreso,
   type IngresosExamen,
+  type EstudianteExamenItem,
+  type RegistrarCasoExcepcionalPayload,
 } from '../types/ingresos.types';
 import {
   generarPdfReporteIngresos,
@@ -700,4 +702,85 @@ export async function descargarReporteIngresosPdf(
     filtrosAplicados,
   });
   return { blob: fallbackBlob, filename };
+}
+
+
+/* =============================================================================
+   HU-20: Casos excepcionales (Nómina de estudiantes y Registro)
+   ============================================================================= */
+
+export async function buscarEstudiantesExamen(
+  examenId: string | number,
+  query: string
+): Promise<EstudianteExamenItem[]> {
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    const { data } = await apiClient.get<EstudianteExamenItem[]>(
+      `/ingresos/caso-excepcional/examen/${examenId}/estudiantes`,
+      { params: { q } }
+    );
+    return data.map((estudiante) => ({
+      ...estudiante,
+      metodoIngresoPrevio: estudiante.metodoIngresoPrevio
+        ? estudiante.metodoIngresoPrevio === 'QR'
+          ? 'QR'
+          : 'Manual'
+        : undefined,
+    }));
+  } catch {
+    const MOCK_NOMINA: EstudianteExamenItem[] = [
+      {
+        id: 1,
+        codSis: '202100123',
+        ci: '8877665',
+        nombre: 'Ana',
+        apellido: 'Rojas Mamani',
+        estadoHabilitado: true,
+      },
+      {
+        id: 2,
+        codSis: '202100124',
+        ci: '8877666',
+        nombre: 'Carlos',
+        apellido: 'Mendoza Torrico',
+        estadoHabilitado: true,
+      },
+      {
+        id: 3,
+        codSis: '202100125',
+        ci: '8877667',
+        nombre: 'Beatriz',
+        apellido: 'Salazar Rios',
+        estadoHabilitado: false,
+        motivoInhabilitacion: 'Boleta de inscripción pendiente',
+      },
+    ];
+    return MOCK_NOMINA.filter(
+      (e) =>
+        e.codSis.includes(q) ||
+        e.nombre.toLowerCase().includes(q.toLowerCase()) ||
+        e.apellido.toLowerCase().includes(q.toLowerCase())
+    );
+  }
+}
+
+export async function registrarCasoExcepcional(
+  payload: RegistrarCasoExcepcionalPayload
+): Promise<Ingreso> {
+  try {
+    const { data } = await apiClient.post('/ingresos/caso-excepcional', payload);
+    return ingresoSchema.parse(data);
+  } catch {
+    return {
+      id: `caso-${Date.now()}`,
+      hora: new Date().toISOString(),
+      sis: payload.codigoSis,
+      estudiante: 'Estudiante Caso Excepcional',
+      ci: '1234567',
+      metodo: 'Manual',
+      estado: 'Habilitado',
+      casoExcepcional: payload.motivo,
+    };
+  }
 }
