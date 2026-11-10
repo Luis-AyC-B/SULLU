@@ -19,7 +19,7 @@ export function toPascalCase(str: string): string {
 
 /**
  * Obtiene el nombre corto de la materia a partir del nombre completo del examen
- * Ej: "Bases de Datos I - Primer parcial - 19/10/2026" -> "Bases de Datos I"
+ * Ej: "Bases de Datos I – Primer parcial - 19/10/2026" -> "Bases de Datos I"
  */
 export function obtenerNombreMateria(nombreExamen: string): string {
   if (!nombreExamen) return 'Examen';
@@ -38,16 +38,25 @@ export function obtenerNombreParcial(nombreExamen: string): string {
 }
 
 /**
- * Genera el nombre del archivo según el formato requerido:
- * ingresos_[Materia]_[Examen]_[Fecha].pdf
- * Ej: ingresos_BasesDeDatosI_PrimerParcial_19-10-2026.pdf
+ * Genera el nombre del archivo según el formato requerido (Criterio 36):
+ * ingresos_[Facultad]_[Materia]_[Gestion]_[Fecha].pdf
+ * Ej: ingresos_FCyT_BasesDeDatosI_Gestion2-2026_19-10-2026.pdf
+ * Si no se indica facultad: ingresos_BasesDeDatosI_Gestion2-2026_19-10-2026.pdf
+ * Si se seleccionó todas las materias: ingresos_TodasLasMaterias_Gestion2-2026_19-10-2026.pdf
+ * Compatible con llamadas de 2 parámetros: ingresos_[Materia]_[Examen]_[Fecha].pdf
  */
 export function formatearNombreArchivoReporte(
-  nombreExamen: string,
-  fecha: string
+  nombreExamenOMateria: string,
+  fecha: string,
+  gestion?: string,
+  facultad?: string
 ): string {
-  const materia = toPascalCase(obtenerNombreMateria(nombreExamen)) || 'Materia';
-  const examen = toPascalCase(obtenerNombreParcial(nombreExamen)) || 'Examen';
+  let materiaLimpia = '';
+  if (nombreExamenOMateria.toLowerCase().includes('todas')) {
+    materiaLimpia = 'TodasLasMaterias';
+  } else {
+    materiaLimpia = toPascalCase(obtenerNombreMateria(nombreExamenOMateria)) || 'Materia';
+  }
 
   let fechaFormateada = fecha;
   if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
@@ -57,16 +66,48 @@ export function formatearNombreArchivoReporte(
     fechaFormateada = fecha.replace(/[^a-zA-Z0-9-]/g, '');
   }
 
-  return `ingresos_${materia}_${examen}_${fechaFormateada}.pdf`;
+  // Compatibilidad con llamadas legacy de 2 parámetros
+  if (!gestion && !facultad) {
+    const examen = toPascalCase(obtenerNombreParcial(nombreExamenOMateria)) || 'Examen';
+    return `ingresos_${materiaLimpia}_${examen}_${fechaFormateada}.pdf`;
+  }
+
+  // Criterio 36: con Gestión y Facultad opcional
+  const gestionFormato = gestion
+    ? gestion
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '')
+        .replace(/\//g, '-')
+    : 'Gestion2-2026';
+
+  if (facultad && facultad !== 'TODAS' && !facultad.toLowerCase().includes('todas')) {
+    const matchAcronym = /\(([A-Za-z0-9]+)\)/.exec(facultad);
+    const facLimpia = matchAcronym
+      ? matchAcronym[1]
+      : toPascalCase(facultad) || 'FCyT';
+    return `ingresos_${facLimpia}_${materiaLimpia}_${gestionFormato}_${fechaFormateada}.pdf`;
+  }
+
+  return `ingresos_${materiaLimpia}_${gestionFormato}_${fechaFormateada}.pdf`;
 }
 
-interface GenerarPdfParams {
+export interface GenerarPdfParams {
   examen: ExamenControl;
+  examenesLista?: ExamenControl[];
   ingresos: Ingreso[];
   ingresados: number;
   total: number;
   docenteNombre?: string;
   fechaGeneracion?: Date;
+  filtrosAplicados?: {
+    facultad?: string;
+    carrera?: string;
+    docente?: string;
+    gestion?: string;
+    materia?: string;
+    examen?: string;
+  };
 }
 
 /**
@@ -84,15 +125,20 @@ function escapePdfText(str: string): string {
  */
 export function generarPdfReporteIngresos({
   examen,
+  examenesLista,
   ingresos,
   ingresados,
   total,
   docenteNombre = 'Docente titular',
   fechaGeneracion = new Date(),
+  filtrosAplicados,
 }: GenerarPdfParams): Blob {
-  const materia = obtenerNombreMateria(examen.nombre);
-  const parcial = obtenerNombreParcial(examen.nombre);
+  const materia = filtrosAplicados?.materia || obtenerNombreMateria(examen.nombre);
+  const parcial = filtrosAplicados?.examen || obtenerNombreParcial(examen.nombre);
   const fechaStr = formatFechaExamen(examen.fecha);
+  const gestionStr = filtrosAplicados?.gestion || examen.gestion || 'Gestión 2/2026';
+  const facultadStr = filtrosAplicados?.facultad || examen.facultad || 'Todas las facultades';
+  const docenteStr = filtrosAplicados?.docente || examen.docente || docenteNombre;
 
   const horaGeneracionStr = fechaGeneracion.toLocaleTimeString('es-BO', {
     hour: '2-digit',
@@ -110,7 +156,7 @@ export function generarPdfReporteIngresos({
   const PAGE_HEIGHT = 841.89;
   const MARGIN_LEFT = 40;
   const MARGIN_RIGHT = 555.28;
-  const ROWS_PER_PAGE = 26;
+  const ROWS_PER_PAGE = 24;
 
   // Dividir los ingresos en páginas
   const chunks: Ingreso[][] = [];
@@ -144,48 +190,55 @@ export function generarPdfReporteIngresos({
 
     // Título del reporte
     s += 'BT\n';
-    s += '/F2 16 Tf\n';
+    s += '/F2 15 Tf\n';
     s += '0 0.215 0.439 rg\n';
-    s += `${MARGIN_LEFT} ${PAGE_HEIGHT - 65} Td\n`;
+    s += `${MARGIN_LEFT} ${PAGE_HEIGHT - 62} Td\n`;
     s += `(${escapePdfText('REPORTE DE ASISTENCIA Y REGISTRO DE INGRESOS')}) Tj\n`;
     s += 'ET\n';
 
-    // Cuadro de metadatos del examen
+    // Cuadro de metadatos y filtros aplicados (Criterio 28)
+    const BOX_HEIGHT = 70;
+    const BOX_Y = PAGE_HEIGHT - 145;
     s += 'q\n';
-    s += '0.94 0.96 0.98 rg\n'; // Gris azulado suave
-    s += `${MARGIN_LEFT} ${PAGE_HEIGHT - 135} ${MARGIN_RIGHT - MARGIN_LEFT} 60 re f\n`;
+    s += '0.95 0.96 0.98 rg\n'; // Gris azulado suave
+    s += `${MARGIN_LEFT} ${BOX_Y} ${MARGIN_RIGHT - MARGIN_LEFT} ${BOX_HEIGHT} re f\n`;
     s += '0.8 0.85 0.9 RG\n'; // Borde
     s += '1 w\n';
-    s += `${MARGIN_LEFT} ${PAGE_HEIGHT - 135} ${MARGIN_RIGHT - MARGIN_LEFT} 60 re S\n`;
+    s += `${MARGIN_LEFT} ${BOX_Y} ${MARGIN_RIGHT - MARGIN_LEFT} ${BOX_HEIGHT} re S\n`;
     s += 'Q\n';
 
-    // Contenido de metadatos
+    // Contenido de metadatos (Columna izquierda)
     s += 'BT\n';
-    s += '/F2 9 Tf\n';
+    s += '/F2 8.5 Tf\n';
     s += '0.1 0.1 0.1 rg\n';
-    s += `${MARGIN_LEFT + 10} ${PAGE_HEIGHT - 92} Td\n`;
+    s += `${MARGIN_LEFT + 10} ${PAGE_HEIGHT - 90} Td\n`;
+    s += `(${escapePdfText(`Facultad: ${facultadStr}`)}) Tj\n`;
+    s += `0 -13 Td\n`;
+    s += `(${escapePdfText(`Docente: ${docenteStr}`)}) Tj\n`;
+    s += `0 -13 Td\n`;
+    s += `(${escapePdfText(`Gestión: ${gestionStr}`)}) Tj\n`;
+    s += `0 -13 Td\n`;
     s += `(${escapePdfText(`Materia: ${materia}`)}) Tj\n`;
-    s += `0 -14 Td\n`;
-    s += `(${escapePdfText(`Examen: ${parcial}`)}) Tj\n`;
-    s += `0 -14 Td\n`;
-    s += `(${escapePdfText(`Docente: ${docenteNombre}`)}) Tj\n`;
     s += 'ET\n';
 
+    // Contenido de metadatos (Columna derecha)
     s += 'BT\n';
-    s += '/F1 9 Tf\n';
+    s += '/F1 8.5 Tf\n';
     s += '0.1 0.1 0.1 rg\n';
-    s += `${MARGIN_LEFT + 280} ${PAGE_HEIGHT - 92} Td\n`;
+    s += `${MARGIN_LEFT + 260} ${PAGE_HEIGHT - 90} Td\n`;
+    s += `(${escapePdfText(`Examen: ${parcial}`)}) Tj\n`;
+    s += `0 -13 Td\n`;
     s += `(${escapePdfText(`Fecha examen: ${fechaStr}`)}) Tj\n`;
-    s += `0 -14 Td\n`;
-    s += `(${escapePdfText(`Ingresos registrados: ${ingresados} de ${total}`)}) Tj\n`;
-    s += `0 -14 Td\n`;
-    s += `(${escapePdfText(`Generado el: ${fechaGeneracionStr} a las ${horaGeneracionStr}`)}) Tj\n`;
+    s += `0 -13 Td\n`;
+    s += `(${escapePdfText(`Total ingresados: ${ingresados} de ${total}`)}) Tj\n`;
+    s += `0 -13 Td\n`;
+    s += `(${escapePdfText(`Generado: ${fechaGeneracionStr} ${horaGeneracionStr} (${docenteNombre})`)}) Tj\n`;
     s += 'ET\n';
 
-    // Encabezado de la tabla de ingresos
-    const tableTopY = PAGE_HEIGHT - 155;
+    // Cabecera de la tabla de ingresos
+    const tableTopY = BOX_Y - 15;
     s += 'q\n';
-    s += '0 0.215 0.439 rg\n';
+    s += '0 0.215 0.439 rg\n'; // Fondo azul encabezado tabla
     s += `${MARGIN_LEFT} ${tableTopY - 18} ${MARGIN_RIGHT - MARGIN_LEFT} 18 re f\n`;
     s += 'Q\n';
 
@@ -211,7 +264,7 @@ export function generarPdfReporteIngresos({
       s += '/F1 9 Tf\n';
       s += '0.5 0.5 0.5 rg\n';
       s += `${MARGIN_LEFT + 150} ${currentY - 20} Td\n`;
-      s += `(${escapePdfText('No hay registros de ingreso para este examen.')}) Tj\n`;
+      s += `(${escapePdfText('No hay registros de ingreso para los filtros aplicados.')}) Tj\n`;
       s += 'ET\n';
     } else {
       chunk.forEach((item, rIdx) => {

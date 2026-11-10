@@ -6,19 +6,21 @@ import { ConnectionStatusBadge } from "../shared/ConnectionStatusBadge";
 import { ExamenActivoHeaderCard } from "./ExamenActivoHeaderCard";
 import { AccionesOperativasGrid } from "./AccionesOperativasGrid";
 import { ResumenEnVivoCard } from "./ResumenEnVivoCard";
+import { RangoAsignadoBanner } from "./RangoAsignadoBanner";
 import { RegistroManualModal } from "../manual/RegistroManualModal";
 import { EscanearQrModal } from "../escanear/EscanearQrModal";
 import { useResumenEnVivo } from "../../hooks/useResumenEnVivo";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { useActiveExam } from "../../store/useActiveExamStore";
+import { useMiGrupo } from "../../hooks/useMiGrupo";
 import {
   controlIngresoService,
   obtenerTimestampNominaCache,
 } from "../../services/control-ingreso.service";
 import { offlineIngresosService } from "../../services/offline-ingresos.service";
-import { offlineIncidenciasService } from "../../../incidencias/services/offline-incidencias.service";
+import { offlineIncidenciasService } from "../../../ingresos-rechazados/services/offline-incidencias.service";
 import { getIngresosExamen } from "../../../registro-ingresos/api/ingresos.service";
-import { getIncidenciasExamen } from "../../../incidencias/api/incidencias.service";
+import { getIncidenciasExamen } from "../../../ingresos-rechazados/api/incidencias.service";
 import type { ExamenAsignado } from "../../types/control-ingreso.types";
 
 interface ExamenActivoViewProps {
@@ -29,6 +31,7 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
   const { clearExamenActivo } = useActiveExam();
   const network = useNetworkStatus();
   const { resumen, isLoading, refetch } = useResumenEnVivo(examen.id);
+  const { miGrupo } = useMiGrupo(examen.id);
   const [isModalManualOpen, setIsModalManualOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -161,6 +164,9 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
         onCambiarExamen={clearExamenActivo}
       />
 
+      {/* HU17: Banner de rango de apellidos asignado al controlador */}
+      {miGrupo && <RangoAsignadoBanner miGrupo={miGrupo} />}
+
       {/* Layout único en columna: Resumen en vivo → Acciones operativas */}
       <div className="flex flex-col gap-4">
         <ResumenEnVivoCard resumen={resumen} isLoading={isLoading} />
@@ -177,6 +183,7 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
         isOpen={isModalManualOpen}
         onClose={() => setIsModalManualOpen(false)}
         onIngresoExitoso={refetch}
+        miGrupo={miGrupo}
       />
 
       {/* Modal de Escáner QR continuo en Dispositivos Móviles (HU8) */}
@@ -189,6 +196,7 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
           setIsScannerOpen(false);
           setIsModalManualOpen(true);
         }}
+        miGrupo={miGrupo}
       />
     </div>
   );

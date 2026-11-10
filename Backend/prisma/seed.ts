@@ -872,6 +872,7 @@ async function main() {
     { nombre: 'Registro de ingresos', activo: true },
     { nombre: 'Incidencias', activo: true },
     { nombre: 'Colaboradores', activo: true },
+    { nombre: 'Expulsiones', activo: true },
     // HU17/HU18/HU20: nuevos modulos Sprint 3
     { nombre: 'Ingresos', activo: true },
     { nombre: 'Observaciones', activo: true },
@@ -1062,6 +1063,16 @@ async function main() {
       clave: 'colaboradores.aprobar',
       descripcion: 'Aprobar/rechazar solicitudes (Administrador)',
     },
+    {
+      modulo: 'Expulsiones',
+      clave: 'expulsiones.ver',
+      descripcion: 'Ver expulsiones de estudiantes',
+    },
+    {
+      modulo: 'Expulsiones',
+      clave: 'expulsiones.registrar',
+      descripcion: 'Registrar expulsion de estudiante',
+    },
     // HU17/HU18/HU20: permisos nuevos Sprint 3
     {
       modulo: 'Ingresos',
@@ -1114,6 +1125,8 @@ async function main() {
     'colaboradores.dar_de_baja',
     'registro_ingresos.ver',
     'incidencias.ver',
+    'expulsiones.ver',
+    'expulsiones.registrar',
     // HU17/HU18/HU20
     'ingresos.descargar_reporte',
     'observaciones.descargar_reporte',
@@ -2259,13 +2272,6 @@ async function main() {
   console.log(
     'Incidencias: 5 (NO_HABILITADO, NO_ENCONTRADO, QR_CADUCADO, DOBLE_MARCACION, IDENTIDAD_NO_COINCIDE)',
   );
-  console.log('');
-  console.log('CAMBIOS SPRINT 3 (HU17/HU18/HU20):');
-  console.log('  Ingreso: +casoExcepcional, @@unique(estudianteId,examenId), @@index(examenId,fechaHora)');
-  console.log('  TipoIncidencia: +QR_OTRO_EXAMEN, +QR_NO_VALIDO, +NO_LLEGO');
-  console.log('  IncidenciaIngreso.registradoPor: ahora opcional (null = Sistema)');
-  console.log('  Permisos nuevos: ingresos.descargar_reporte, observaciones.descargar_reporte, casos_excepcionales.registrar');
-  console.log('  Colaboradores Edgar: Javier(APROBADO), Sofia(APROBADO), Miguel(PENDIENTE)');
   console.log('='.repeat(60));
 }
 

@@ -49,7 +49,7 @@ describe('HU16: Dashboard de asistencia en tiempo real (Exámenes)', () => {
         count: jest.fn(),
       },
     };
-    service = new ExamenesService(prismaMock);
+    service = new ExamenesService(prismaMock as any);
   });
 
   describe('EP1: Asistencia de un examen en curso', () => {

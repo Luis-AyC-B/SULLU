@@ -6,10 +6,15 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { IngresosService } from './ingresos.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ParticionControladorService } from './particion-controlador.service';
 import { EstadoExamen, TipoIncidencia } from '@prisma/client';
 
 describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación de código QR', () => {
   let service: IngresosService;
+  let mockParticion: {
+    validarEstudianteEnGrupo: jest.Mock;
+    obtenerGrupoDeControlador: jest.Mock;
+  };
   let prismaMock: {
     examen: { findUnique: jest.Mock };
     codigoQr: { findUnique: jest.Mock; deleteMany: jest.Mock };
@@ -85,12 +90,23 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
       },
     };
 
+    mockParticion = {
+      validarEstudianteEnGrupo: jest.fn().mockResolvedValue({
+        pertenece: true,
+      }),
+      obtenerGrupoDeControlador: jest.fn().mockResolvedValue(null),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IngresosService,
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          provide: ParticionControladorService,
+          useValue: mockParticion,
         },
       ],
     }).compile();
@@ -196,5 +212,42 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
         }),
       }),
     );
+  });
+
+  // Caso 6: Estudiante de otro grupo al escanear QR: permite el ingreso pero marca fueraDeGrupo y advertencia
+  it('6. QR con estudiante de otro grupo: permite el ingreso pero marca fueraDeGrupo: true y genera advertencia', async () => {
+    mockParticion.validarEstudianteEnGrupo.mockResolvedValueOnce({
+      pertenece: false,
+      mensaje:
+        'Estudiante no pertenece a tu grupo asignado (Rango A-M). Debe dirigirse a Fernando Aguilar (Rango N-Z).',
+      grupoCorrecto: {
+        colaboradorId: 20,
+        nombreControlador: 'Fernando Aguilar',
+        rango: 'N - Z',
+      },
+    });
+
+    const result = await service.registrarIngresoQr(
+      { examenId: 1, token: 'qr_test_alejandro' },
+      2,
+    );
+
+    expect(result.mensaje).toContain('exitosamente');
+    expect(result.fueraDeGrupo).toBe(true);
+    expect(result.advertencia).toContain('no pertenece a tu grupo asignado');
+    expect(result.grupoCorrecto?.nombreControlador).toBe('Fernando Aguilar');
+    expect(prismaMock.ingreso.create).toHaveBeenCalled();
+  });
+
+  // Caso 7: Estudiante de su propio grupo al escanear QR: fueraDeGrupo es false y sin advertencia
+  it('7. QR con estudiante de su propio grupo: fueraDeGrupo es false y sin advertencia', async () => {
+    const result = await service.registrarIngresoQr(
+      { examenId: 1, token: 'qr_test_alejandro' },
+      2,
+    );
+
+    expect(result.mensaje).toContain('exitosamente');
+    expect(result.fueraDeGrupo).toBe(false);
+    expect(result.advertencia).toBeUndefined();
   });
 });

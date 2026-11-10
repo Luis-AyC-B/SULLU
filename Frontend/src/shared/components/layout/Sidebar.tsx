@@ -21,7 +21,9 @@ export function Sidebar() {
       <nav className="flex flex-col gap-2 overflow-y-auto px-3">
         {modulosPermitidos.map((modulo) => {
           const Icon = modulo.icon;
-          const isActive = pathname.startsWith(modulo.ruta);
+          // Coincidencia exacta o subruta: evita que /ingresos marque /ingresos-rechazados
+          const isActive =
+            pathname === modulo.ruta || pathname.startsWith(`${modulo.ruta}/`);
 
           return (
             <Link

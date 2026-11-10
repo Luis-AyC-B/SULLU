@@ -2,6 +2,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { isAxiosError } from "axios";
+import { toast } from "sonner";
+import { formatHoraIngreso } from "../types/ingresos.types";
 import {
   X,
   Search,
@@ -120,6 +123,12 @@ export function RegistrarCasoExcepcionalModal({
           setShowDropdown(true);
           setBusquedaRealizada(true);
         }
+      } catch {
+        if (isMounted) {
+          setCoincidencias([]);
+          setShowDropdown(false);
+          setErrorEstudiante("No se pudo consultar la nómina. Intenta nuevamente.");
+        }
       } finally {
         if (isMounted) setIsSearching(false);
       }
@@ -164,9 +173,9 @@ export function RegistrarCasoExcepcionalModal({
 
     // Criterio Escenario Negativo 5: Estudiante ya registrado
     const yaRegistrado = ingresosActuales.find((ing) => ing.sis === item.codSis);
-    if (yaRegistrado) {
+    if (yaRegistrado || item.yaIngreso) {
       setErrorEstudiante(
-        `El estudiante ya cuenta con un ingreso registrado a las ${yaRegistrado.hora?.slice(11, 16) || "hora registrada"} (Método: ${yaRegistrado.metodo}).`
+        `El estudiante ya cuenta con un ingreso registrado a las ${yaRegistrado ? formatHoraIngreso(yaRegistrado.hora, true) : item.horaIngresoPrevio || "hora registrada"} (Método: ${yaRegistrado?.metodo || item.metodoIngresoPrevio || "Manual"}).`
       );
       setEstudianteSeleccionado(null);
       return;
@@ -220,9 +229,13 @@ export function RegistrarCasoExcepcionalModal({
       });
 
       onCasoRegistrado(nuevo);
-      handleClose();
+      handleResetForm();
+      onClose();
     } catch (err) {
-      console.error("Error al registrar caso excepcional:", err);
+      const mensaje = isAxiosError<{ message?: string | string[] }>(err)
+        ? err.response?.data?.message
+        : undefined;
+      toast.error(Array.isArray(mensaje) ? mensaje.join(". ") : mensaje || "No se pudo registrar el caso. Intenta nuevamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -271,8 +284,8 @@ export function RegistrarCasoExcepcionalModal({
                     {examen?.nombre || "Examen seleccionado"}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {examen?.ambiente || "Laboratorio Informática 1"} ·{" "}
-                    {examen?.horario || "08:15-09:45"}
+                    {examen?.ambiente || "Ambiente no disponible"} ·{" "}
+                    {examen?.horario || "Horario no disponible"}
                   </p>
                 </div>
               </div>

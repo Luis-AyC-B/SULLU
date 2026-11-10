@@ -1,471 +1,851 @@
 import { isAxiosError } from "axios";
 import { apiClient } from "@/shared/lib/api-client";
+import { coincideBusqueda } from "../lib/filtrarIncidencias";
 import {
-  idbGet,
-  idbPut,
-  SULLU_STORES,
-} from "@/shared/lib/offline-sullu-db";
-import {
-  examenesIncidenciaSchema,
+  CASOS_INCIDENCIA,
+  MOTIVOS_EXPULSION,
+  examenesExpulsionSchema,
   incidenciaSchema,
   incidenciasSchema,
-  type CrearIncidenciaPayload,
-  type ExamenIncidencia,
+  type CasoIncidencia,
+  type EstudianteExpulsable,
+  type ExamenExpulsion,
   type Incidencia,
+  type MotivoExpulsion,
+  type PayloadRegistrarExpulsion,
 } from "../types/incidencias.types";
-import { offlineIncidenciasService } from "../services/offline-incidencias.service";
 
-/* -------------------------------------------------------------------------- */
-/* Errores                                                                    */
-/* -------------------------------------------------------------------------- */
+export { incidenciaSchema, incidenciasSchema };
 
-export type IncidenciaErrorCode =
-  | "SIS_NO_EXISTE"
-  | "EXAMEN_INVALIDO"
+/* ==========================================================================
+   GUÍA PARA EL EQUIPO DE BACKEND / INTEGRACIÓN API
+   ==========================================================================
+   Para conectar el Backend real y apagar los mocks:
+   1. En el archivo `.env.local` (o variables de entorno de producción):
+      NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS=false
+   2. El cliente HTTP `apiClient` ya inyecta automáticamente el token JWT
+      de la sesión actual (`Authorization: Bearer <token>`).
+   3. Implementar en el Backend los 4 endpoints descritos a continuación.
+   ========================================================================== */
+
+/* Errores de Negocio */
+
+export type CodigoErrorIncidencia =
+  | "EXAMEN_NO_EN_CURSO"
+  | "ESTUDIANTE_YA_EXPULSADO"
+  | "SIN_PERMISO"
   | "SIN_CONEXION"
   | "DESCONOCIDO";
 
-const MENSAJES_ERROR: Record<IncidenciaErrorCode, string> = {
-  SIS_NO_EXISTE: "El código SIS ingresado no existe",
-  EXAMEN_INVALIDO: "El examen seleccionado no es válido",
+const MENSAJES_ERROR: Record<CodigoErrorIncidencia, string> = {
+  EXAMEN_NO_EN_CURSO: "Solo se puede registrar incidencias en un examen en curso.",
+  ESTUDIANTE_YA_EXPULSADO: "El estudiante ya fue expulsado de este examen.",
+  SIN_PERMISO: "No tienes permiso para registrar incidencias.",
   SIN_CONEXION:
     "No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.",
   DESCONOCIDO: "Ocurrió un error inesperado. Intenta de nuevo.",
 };
 
-export class IncidenciaServiceError extends Error {
-  readonly code: IncidenciaErrorCode;
-
-  constructor(code: IncidenciaErrorCode) {
-    super(MENSAJES_ERROR[code]);
-    this.name = "IncidenciaServiceError";
-    this.code = code;
+export class ErrorServicioIncidencias extends Error {
+  readonly codigo: CodigoErrorIncidencia;
+  constructor(codigo: CodigoErrorIncidencia) {
+    super(MENSAJES_ERROR[codigo]);
+    this.name = "ErrorServicioIncidencias";
+    this.codigo = codigo;
   }
 }
 
-function leerCodigo(error: unknown): string | undefined {
-  if (!isAxiosError(error)) return undefined;
-  const data: unknown = error.response?.data;
-  if (data && typeof data === "object" && "code" in data) {
-    const code = (data as { code: unknown }).code;
-    return typeof code === "string" ? code : undefined;
-  }
-  return undefined;
-}
-
-function esRutaInexistente(error: unknown): boolean {
-  return (
-    isAxiosError(error) &&
-    error.response?.status === 404 &&
-    leerCodigo(error) === undefined
-  );
-}
-
-function aServiceError(error: unknown): IncidenciaServiceError {
-  if (error instanceof IncidenciaServiceError) return error;
+function aErrorServicio(error: unknown): ErrorServicioIncidencias {
+  if (error instanceof ErrorServicioIncidencias) return error;
   if (isAxiosError(error)) {
-    if (!error.response) return new IncidenciaServiceError("SIN_CONEXION");
-    const code = leerCodigo(error);
-    if (code === "SIS_NO_EXISTE" || code === "EXAMEN_INVALIDO") {
-      return new IncidenciaServiceError(code);
+    if (!error.response) return new ErrorServicioIncidencias("SIN_CONEXION");
+
+    const datos: unknown = error.response.data;
+    const codigo =
+      datos && typeof datos === "object" && "code" in datos
+        ? (datos as { code: unknown }).code
+        : undefined;
+
+    // Primero el código del backend: "examen no en curso" también llega como 403
+    if (codigo === "EXAMEN_NO_EN_CURSO") {
+      return new ErrorServicioIncidencias("EXAMEN_NO_EN_CURSO");
+    }
+    if (codigo === "YA_EXPULSADO" || codigo === "ESTUDIANTE_YA_EXPULSADO") {
+      return new ErrorServicioIncidencias("ESTUDIANTE_YA_EXPULSADO");
+    }
+    if (error.response.status === 403) {
+      return new ErrorServicioIncidencias("SIN_PERMISO");
     }
   }
-  return new IncidenciaServiceError("DESCONOCIDO");
+  return new ErrorServicioIncidencias("DESCONOCIDO");
 }
 
-/* -------------------------------------------------------------------------- */
-/* API con soporte offline                                                    */
-/* -------------------------------------------------------------------------- */
+/* ==========================================================================
+   CONFIGURACIÓN DE MOCKS VS BACKEND REAL
+   ==========================================================================
+   Por defecto activo (true). Para desactivar y usar NestJS / PostgreSQL:
+   Configurar NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS=false en tu .env.local
+   ========================================================================== */
+export const USAR_MOCKS_INCIDENCIAS =
+  process.env.NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS !== "false";
 
-const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
-const EXAMENES_CACHE_KEY = "sullu_examenes_incidencias_cache";
-const INCIDENCIAS_CACHE_PREFIX = "sullu_incidencias_examen_";
+/* Motivos: mapeo entre etiquetas legibles del backend y códigos de frontend */
 
-function ordenarMasRecientes(items: Incidencia[]): Incidencia[] {
-  return [...items].sort(
-    (a, b) => new Date(b.fechaHora).getTime() - new Date(a.fechaHora).getTime()
+export const MOTIVO_A_ETIQUETA: Record<string, string> = {
+  MATERIAL_NO_AUTORIZADO: "Material no autorizado",
+  USO_CELULAR: "Uso de celular",
+  COMUNICACION_ENTRE_ESTUDIANTES: "Comunicación entre estudiantes",
+  SUPLANTACION_IDENTIDAD: "Suplantación de identidad",
+  OTRO: "Otro",
+};
+
+export const ETIQUETA_A_MOTIVO: Record<string, string> = Object.fromEntries(
+  Object.entries(MOTIVO_A_ETIQUETA).map(([codigo, etiqueta]) => [
+    etiqueta,
+    codigo,
+  ]),
+);
+
+const MOTIVOS_LOWER: Record<string, MotivoExpulsion> = {
+  "material no autorizado": "MATERIAL_NO_AUTORIZADO",
+  "uso de celular": "USO_CELULAR",
+  "comunicacion entre estudiantes": "COMUNICACION_ENTRE_ESTUDIANTES",
+  "comunicación entre estudiantes": "COMUNICACION_ENTRE_ESTUDIANTES",
+  "suplantacion de identidad": "SUPLANTACION_IDENTIDAD",
+  "suplantación de identidad": "SUPLANTACION_IDENTIDAD",
+  "otro": "OTRO",
+};
+
+/**
+ * Normaliza una fila de incidencia proveniente del backend o de mocks.
+ * Acepta campos nulos o ausentes y provee valores seguros por defecto.
+ */
+export function normalizarIncidencia(fila: unknown): Record<string, unknown> {
+  if (!fila || typeof fila !== "object") {
+    return {
+      id: "",
+      examenId: "",
+      fechaHora: new Date().toISOString(),
+      codigoSis: "",
+      estudianteNombre: "",
+      caso: "EXPULSION",
+      motivo: "OTRO",
+      detalle: "",
+      registradoPor: "",
+    };
+  }
+
+  const f = fila as Record<string, unknown>;
+
+  // Normalizar motivo (admite null, undefined, etiquetas en español o claves enum)
+  let motivo = f.motivo;
+  if (typeof motivo === "string") {
+    const lim = motivo.trim();
+    motivo =
+      ETIQUETA_A_MOTIVO[lim] ??
+      MOTIVOS_LOWER[lim.toLowerCase()] ??
+      (MOTIVOS_EXPULSION.includes(lim as MotivoExpulsion) ? lim : "OTRO");
+  } else {
+    motivo = "OTRO";
+  }
+
+  // Normalizar caso
+  let caso = f.caso;
+  if (
+    typeof caso !== "string" ||
+    !CASOS_INCIDENCIA.includes(caso as CasoIncidencia)
+  ) {
+    caso = "EXPULSION";
+  }
+
+  // Normalizar fecha y hora
+  const fechaHora =
+    (typeof f.fechaHora === "string" && f.fechaHora) ||
+    (typeof f.fecha_hora === "string" && f.fecha_hora) ||
+    (typeof f.createdAt === "string" && f.createdAt) ||
+    (typeof f.created_at === "string" && f.created_at) ||
+    new Date().toISOString();
+
+  // Normalizar nombre de estudiante
+  let estudianteNombre =
+    f.estudianteNombre ?? f.nombreEstudiante ?? f.estudiante_nombre;
+  if (!estudianteNombre && f.estudiante && typeof f.estudiante === "object") {
+    const est = f.estudiante as Record<string, unknown>;
+    estudianteNombre = [est.nombre, est.apellido].filter(Boolean).join(" ");
+  }
+
+  // Normalizar código SIS
+  const codigoSis =
+    f.codigoSis ??
+    f.cod_sis ??
+    f.codigo_sis ??
+    (f.estudiante && typeof f.estudiante === "object"
+      ? (f.estudiante as Record<string, unknown>).cod_sis
+      : "") ??
+    "";
+
+  // Normalizar registrado por (docente / usuario)
+  let registradoPor = f.registradoPor ?? f.docenteNombre ?? f.registrado_por;
+  if (!registradoPor && f.docente && typeof f.docente === "object") {
+    const doc = f.docente as Record<string, unknown>;
+    registradoPor = [doc.nombre, doc.apellido].filter(Boolean).join(" ");
+  }
+
+  return {
+    ...f,
+    id: f.id != null ? String(f.id) : "",
+    examenId: f.examenId != null ? String(f.examenId) : "",
+    fechaHora: String(fechaHora),
+    codigoSis: String(codigoSis ?? ""),
+    estudianteNombre: String(estudianteNombre ?? ""),
+    caso,
+    motivo,
+    detalle: f.detalle != null ? String(f.detalle) : "",
+    registradoPor: String(registradoPor ?? ""),
+  };
+}
+
+/**
+ * Normaliza un objeto examen proveniente de /examenes o /expulsiones/examenes
+ * soportando campos nulos o ausentes.
+ */
+export function normalizarExamen(raw: unknown): ExamenExpulsion {
+  if (!raw || typeof raw !== "object") {
+    return {
+      id: "",
+      nombre: "Examen",
+      ubicacion: null,
+      enCurso: false,
+    };
+  }
+
+  const e = raw as Record<string, unknown>;
+  const id = String(e.id ?? e.examen_id ?? "");
+
+  let nombre = typeof e.nombre === "string" && e.nombre ? e.nombre : "";
+  if (!nombre) {
+    const materia = e.materiaNombre ?? e.materia ?? `Examen #${id}`;
+    const tipo = e.tipoExamen ?? e.tipo_examen ?? "";
+    nombre = tipo ? `${materia} - ${tipo}` : String(materia);
+  }
+
+  const infoUbicacion = [
+    e.ambienteNombre ?? e.ambiente,
+    e.carreraNombre ?? e.carrera,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const ubicacion =
+    (typeof e.ubicacion === "string" ? e.ubicacion : null) ??
+    (infoUbicacion || null);
+
+  const enCurso =
+    e.enCurso === true ||
+    e.estado === "EN_CURSO" ||
+    e.estadoExamId === 2;
+
+  return {
+    id,
+    nombre,
+    ubicacion,
+    enCurso,
+  };
+}
+
+function ordenarMasRecientes(incidencias: Incidencia[]): Incidencia[] {
+  return [...incidencias].sort(
+    (a, b) => new Date(b.fechaHora).getTime() - new Date(a.fechaHora).getTime(),
   );
 }
 
 /**
- * Obtiene exámenes cacheados desde cualquier módulo disponible
- * (incidencias, registro-ingresos o control-ingreso).
+ * --------------------------------------------------------------------------
+ * ENDPOINT 1: Listar exámenes disponibles para el selector
+ * --------------------------------------------------------------------------
+ * Consume dinámicamente la API real de exámenes (GET /examenes o GET /expulsiones/examenes).
  */
-export function obtenerExamenesIncidenciasFallback(): ExamenIncidencia[] {
-  if (typeof window === "undefined") return [];
-
-  // 1. Probar caché específico de incidencias
-  const rawInc = localStorage.getItem(EXAMENES_CACHE_KEY);
-  if (rawInc) {
-    try {
-      const parsed = examenesIncidenciaSchema.parse(JSON.parse(rawInc));
-      if (parsed.length > 0) return parsed;
-    } catch {}
-  }
-
-  // 2. Probar caché de registro-ingresos
-  const rawCtrl = localStorage.getItem("sullu_examenes_control_cache");
-  if (rawCtrl) {
-    try {
-      const items = JSON.parse(rawCtrl) as Array<{
-        id: string | number;
-        nombre: string;
-        fecha: string;
-      }>;
-      if (Array.isArray(items) && items.length > 0) {
-        return items.map((i) => ({
-          id: String(i.id),
-          nombre: i.nombre || "Examen",
-          fecha: i.fecha || new Date().toISOString().slice(0, 10),
-        }));
-      }
-    } catch {}
-  }
-
-  // 3. Probar caché de control-ingreso (el que se carga al entrar a /control-ingreso)
-  const rawAsig = localStorage.getItem("sullu_examenes_asignados_cache");
-  if (rawAsig) {
-    try {
-      const items = JSON.parse(rawAsig) as Array<{
-        id: number;
-        asignatura?: string;
-        nombre?: string;
-        fecha?: string;
-      }>;
-      if (Array.isArray(items) && items.length > 0) {
-        return items.map((i) => ({
-          id: String(i.id),
-          nombre: i.nombre || i.asignatura || "Examen",
-          fecha: i.fecha || new Date().toISOString().slice(0, 10),
-        }));
-      }
-    } catch {}
-  }
-
-  // 4. Probar examen activo en sesión (HU7/HU8)
+export async function obtenerExamenes(): Promise<ExamenExpulsion[]> {
   try {
-    const rawActive = sessionStorage.getItem("exacontrol_active_exam");
-    if (rawActive) {
-      const active = JSON.parse(rawActive) as {
-        id?: number | string;
-        examenId?: number | string;
-        nombre?: string;
-        asignatura?: string;
-        fecha?: string;
-      };
-      if (active && (active.id || active.examenId)) {
-        return [
-          {
-            id: String(active.id || active.examenId),
-            nombre: active.nombre || active.asignatura || "Examen",
-            fecha: active.fecha || new Date().toISOString().slice(0, 10),
-          },
-        ];
+    let filas: unknown[] = [];
+    try {
+      const { data } = await apiClient.get("/examenes");
+      filas = Array.isArray(data) ? data : (data?.data ?? []);
+    } catch {
+      const { data } = await apiClient.get("/expulsiones/examenes");
+      filas = Array.isArray(data) ? data : (data?.data ?? []);
+    }
+
+    const adaptados = filas.map(normalizarExamen);
+    const parseResult = examenesExpulsionSchema.safeParse(adaptados);
+    if (!parseResult.success) {
+      console.warn("Error de validación de Zod en exámenes:", parseResult.error);
+      return adaptados;
+    }
+    return parseResult.data;
+  } catch (error) {
+    if (USAR_MOCKS_INCIDENCIAS) {
+      console.warn(
+        "No se pudo obtener exámenes de la API real, usando fallback mock:",
+        error,
+      );
+      return mockObtenerExamenes();
+    }
+    throw aErrorServicio(error);
+  }
+}
+
+export const examenesService = {
+  obtenerExamenes,
+};
+
+export const obtenerExamenesExpulsion = obtenerExamenes;
+
+/**
+ * --------------------------------------------------------------------------
+ * ENDPOINT 2: Obtener incidencias registradas de un examen
+ * --------------------------------------------------------------------------
+ * Ruta principal: GET /examenes/:id/expulsiones
+ * Ruta fallback: GET /expulsiones/examen/:id (si la primera da 404)
+ * Si ambas devuelven 404 o el examen no tiene incidencias registradas, retorna []
+ * evitando arrojar excepciones a useIncidenciasPorExamen para mantener la UI limpia.
+ */
+export async function obtenerIncidenciasPorExamen(
+  examenId: string,
+): Promise<Incidencia[]> {
+  if (USAR_MOCKS_INCIDENCIAS) return mockObtenerIncidencias(examenId);
+  try {
+    let resData: unknown;
+
+    try {
+      const res = await apiClient.get(
+        `/examenes/${encodeURIComponent(examenId)}/expulsiones`,
+      );
+      resData = res.data;
+    } catch (errPrimeraRuta) {
+      if (
+        isAxiosError(errPrimeraRuta) &&
+        errPrimeraRuta.response?.status === 404
+      ) {
+        try {
+          const resFallback = await apiClient.get(
+            `/expulsiones/examen/${encodeURIComponent(examenId)}`,
+          );
+          resData = resFallback.data;
+        } catch (errSegundaRuta) {
+          if (
+            isAxiosError(errSegundaRuta) &&
+            errSegundaRuta.response?.status === 404
+          ) {
+            return [];
+          }
+          throw errSegundaRuta;
+        }
+      } else {
+        throw errPrimeraRuta;
       }
     }
-  } catch {}
 
-  // 5. Probar portal del estudiante
-  try {
-    const rawPortal = localStorage.getItem("exacontrol_offline_examenes");
-    if (rawPortal) {
-      const parsed = JSON.parse(rawPortal);
-      const data = parsed.data || parsed;
-      if (Array.isArray(data) && data.length > 0) {
-        return data.map(
-          (item: {
-            id?: string | number;
-            examenId?: string | number;
-            materia?: string;
-            asignatura?: string;
-            nombre?: string;
-            fecha?: string;
-          }) => ({
-            id: String(item.id || item.examenId),
-            nombre:
-              item.materia || item.asignatura || item.nombre || "Examen",
-            fecha: item.fecha || new Date().toISOString().slice(0, 10),
-          })
-        );
+    const dataObj = resData as Record<string, unknown> | null | undefined;
+    const filas: unknown[] = Array.isArray(resData)
+      ? resData
+      : Array.isArray(dataObj?.data)
+        ? (dataObj?.data as unknown[])
+        : Array.isArray(dataObj?.incidencias)
+          ? (dataObj?.incidencias as unknown[])
+          : Array.isArray(dataObj?.expulsiones)
+            ? (dataObj?.expulsiones as unknown[])
+            : [];
+
+    if (filas.length === 0) {
+      return [];
+    }
+
+    const mapeadas = filas.map(normalizarIncidencia);
+    const parseResult = incidenciasSchema.safeParse(mapeadas);
+
+    if (!parseResult.success) {
+      console.warn(
+        "Error de validación de Zod en incidencias:",
+        parseResult.error,
+      );
+      return ordenarMasRecientes(mapeadas as unknown as Incidencia[]);
+    }
+
+    return ordenarMasRecientes(parseResult.data);
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status;
+      if (status === 404 || status === 204) {
+        return [];
+      }
+      const data = error.response?.data as Record<string, unknown> | undefined;
+      const code = data && typeof data.code === "string" ? data.code : "";
+      const message =
+        data && typeof data.message === "string"
+          ? data.message.toLowerCase()
+          : "";
+      if (
+        code === "EXAMEN_INVALIDO" ||
+        code === "SIN_INCIDENCIAS" ||
+        code === "NOT_FOUND" ||
+        message.includes("no existe") ||
+        message.includes("no encontrado") ||
+        message.includes("no tiene incidencias")
+      ) {
+        return [];
       }
     }
-  } catch {}
+    console.warn("No se pudieron obtener las incidencias del examen, retornando lista vacía:", error);
+    return [];
+  }
+}
 
+function extraerArrayIngresos(data: unknown): unknown[] {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    if (Array.isArray(obj.ingresos)) return obj.ingresos;
+    if (Array.isArray(obj.data)) return obj.data;
+    if (Array.isArray(obj.estudiantes)) return obj.estudiantes;
+    if (Array.isArray(obj.items)) return obj.items;
+    if (obj.data && typeof obj.data === "object") {
+      const sub = obj.data as Record<string, unknown>;
+      if (Array.isArray(sub.ingresos)) return sub.ingresos;
+      if (Array.isArray(sub.data)) return sub.data;
+      if (Array.isArray(sub.estudiantes)) return sub.estudiantes;
+    }
+  }
   return [];
 }
 
-// GET /incidencias/examenes
-export async function getExamenesIncidencias(): Promise<ExamenIncidencia[]> {
-  if (USE_MOCKS) return mockGetExamenes();
-
-  // Si no hay red proactivamente, buscar en la caché compartida
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    const fallback = obtenerExamenesIncidenciasFallback();
-    if (fallback.length > 0) return fallback;
+/**
+ * Consulta específicamente el endpoint de ingresos del examen actual:
+ * GET /examenes/:id/ingresos
+ */
+export async function obtenerIngresosPorExamen(
+  examenId: string | number,
+): Promise<unknown[]> {
+  if (
+    examenId === undefined ||
+    examenId === null ||
+    String(examenId).trim() === "" ||
+    String(examenId) === "undefined" ||
+    String(examenId) === "null"
+  ) {
+    console.warn(
+      "[obtenerIngresosPorExamen] examenId no es válido o está indefinido:",
+      examenId,
+    );
+    return [];
   }
+
+  const idStr = String(examenId).trim();
+  const url = `/examenes/${encodeURIComponent(idStr)}/ingresos`;
 
   try {
-    const { data } = await apiClient.get("/incidencias/examenes");
-    const parsed = examenesIncidenciaSchema.parse(data);
-
-    if (typeof window !== "undefined" && parsed.length > 0) {
-      try {
-        localStorage.setItem(EXAMENES_CACHE_KEY, JSON.stringify(parsed));
-      } catch {
-        // Ignorar
-      }
-    }
-
-    return parsed;
-  } catch (error) {
-    if (esRutaInexistente(error)) return mockGetExamenes();
-
-    // Fallback offline cruzado de exámenes
-    const fallback = obtenerExamenesIncidenciasFallback();
-    if (fallback.length > 0) {
-      return fallback;
-    }
-
-    throw aServiceError(error);
-  }
-}
-
-// GET /examenes/:id/incidencias
-export async function getIncidenciasExamen(
-  examenId: string
-): Promise<Incidencia[]> {
-  if (USE_MOCKS) return mockGetIncidencias(examenId);
-
-  // Combinar incidencias pendientes locales con las del servidor
-  const pendientesLocales = offlineIncidenciasService
-    .obtenerPendientesSync(examenId)
-    .map((p) => ({
-      id: p.id,
-      examenId: p.examenId,
-      fechaHora: p.fechaHoraCaptura,
-      codigoSis: p.codigoSis,
-      estudianteNombre: p.estudianteNombre || "Estudiante (offline)",
-      motivo: p.motivo,
-      observaciones: p.observaciones ?? null,
-      registradoPor: "Control (offline)",
-    }));
-
-  // Si no hay conexión proactivamente, responder de inmediato con la caché local
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    let cacheadas: Incidencia[] = [];
-    try {
-      const record = await idbGet<{
-        examenId: number;
-        cachedAt: string;
-        data: Incidencia[];
-      }>(SULLU_STORES.INCIDENCIAS_VISTA, Number(examenId));
-      if (record && record.data) cacheadas = record.data;
-    } catch {}
-
-    if (cacheadas.length === 0 && typeof window !== "undefined") {
-      const raw = localStorage.getItem(`${INCIDENCIAS_CACHE_PREFIX}${examenId}`);
-      if (raw) {
-        try {
-          cacheadas = incidenciasSchema.parse(JSON.parse(raw));
-        } catch {}
-      }
-    }
-
-    const idSetC = new Set(cacheadas.map((c) => String(c.id)));
-    const pendientesFiltradosC = pendientesLocales.filter((p) => !idSetC.has(String(p.id)));
-    return ordenarMasRecientes([...pendientesFiltradosC, ...cacheadas]);
-  }
-
-  try {
-    const { data } = await apiClient.get(
-      `/examenes/${encodeURIComponent(examenId)}/incidencias`
+    console.log("[obtenerIngresosPorExamen] Consultando endpoint:", url);
+    const { data } = await apiClient.get(url);
+    console.log(
+      "[obtenerIngresosPorExamen] Respuesta exitosa de",
+      url,
+      ":",
+      data,
     );
 
-    const parsed = incidenciasSchema.parse(data);
-
-    // Guardar en cache offline
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(
-          `${INCIDENCIAS_CACHE_PREFIX}${examenId}`,
-          JSON.stringify(parsed)
-        );
-        await idbPut(SULLU_STORES.INCIDENCIAS_VISTA, {
-          examenId: Number(examenId),
-          cachedAt: new Date().toISOString(),
-          data: parsed,
-        });
-      } catch {
-        // Ignorar
-      }
+    const extraidos = extraerArrayIngresos(data);
+    if (extraidos.length > 0) {
+      return extraidos;
     }
-
-    const idSet = new Set(parsed.map((p) => String(p.id)));
-    const pendientesFiltrados = pendientesLocales.filter((p) => !idSet.has(String(p.id)));
-    return ordenarMasRecientes([...pendientesFiltrados, ...parsed]);
+    return [];
   } catch (error) {
-    if (esRutaInexistente(error)) return mockGetIncidencias(examenId);
-
-    // Fallback offline: buscar en IndexedDB, luego en localStorage
-    let cacheadas: Incidencia[] = [];
+    // Si la llamada directa falla o estamos en entorno offline/tests, intentar con getIngresosExamen
     try {
-      const record = await idbGet<{
-        examenId: number;
-        cachedAt: string;
-        data: Incidencia[];
-      }>(SULLU_STORES.INCIDENCIAS_VISTA, Number(examenId));
-
-      if (record && record.data) {
-        cacheadas = record.data;
+      const { getIngresosExamen } = await import(
+        "@/features/registro-ingresos/api/ingresos.service"
+      );
+      const res = await getIngresosExamen(idStr);
+      if (res && Array.isArray(res.ingresos) && res.ingresos.length > 0) {
+        console.log(
+          "[obtenerIngresosPorExamen] Recuperados desde getIngresosExamen (fallback):",
+          res.ingresos,
+        );
+        return res.ingresos;
       }
     } catch {
-      // Continuar a localStorage
+      // Ignorar fallback
     }
 
-    if (cacheadas.length === 0 && typeof window !== "undefined") {
-      const raw = localStorage.getItem(`${INCIDENCIAS_CACHE_PREFIX}${examenId}`);
-      if (raw) {
-        try {
-          cacheadas = incidenciasSchema.parse(JSON.parse(raw));
-        } catch {
-          // Ignorar
-        }
-      }
+    if (USAR_MOCKS_INCIDENCIAS && MOCK_INGRESADOS[idStr]) {
+      return MOCK_INGRESADOS[idStr].map((m, idx) => ({
+        id: idx + 1,
+        sis: m.codigoSis,
+        estudiante: m.nombre,
+        estado: "Habilitado",
+        hora: "09:00:00",
+      }));
     }
 
-    // Si no hay conexión o no hay respuesta del servidor, no bloquear con error fatal:
-    // devolver las incidencias pendientes locales o lista vacía para permitir registrar nuevas offline.
-    const sinConexion =
-      (typeof navigator !== "undefined" && !navigator.onLine) ||
-      (isAxiosError(error) && (!error.response || error.code === "ERR_NETWORK"));
-
-    if (sinConexion || cacheadas.length > 0 || pendientesLocales.length > 0) {
-      return ordenarMasRecientes([...pendientesLocales, ...cacheadas]);
-    }
-
-    throw aServiceError(error);
+    console.warn(
+      `[obtenerIngresosPorExamen] No se pudieron obtener los ingresos de ${url}:`,
+      error,
+    );
+    return [];
   }
 }
 
-// POST /incidencias  (soporta offline proactivo y reactivo)
-export async function crearIncidencia(
-  payload: CrearIncidenciaPayload
-): Promise<Incidencia> {
-  if (USE_MOCKS) return mockCrearIncidencia(payload);
-
-  // Modo offline proactivo
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    return offlineIncidenciasService.guardarIncidenciaOffline(payload);
-  }
-
+/**
+ * --------------------------------------------------------------------------
+ * ENDPOINT 3: Búsqueda y filtrado de estudiantes para el modal de incidencia
+ * --------------------------------------------------------------------------
+ * 1. Origen de datos: Consulta el endpoint de ingresos del examen actual
+ *    (/examenes/:id/ingresos a través de obtenerIngresosPorExamen).
+ * 2. Filtro de estado:
+ *    a) Ya registraron su ingreso (estado 'Habilitado' o 'Presente', o con fechaHora registrada).
+ *    b) NO están expulsados previamente (excluir estado 'Expulsado' y aquellos con
+ *       expulsión o suplantación registrada previamente en este examen).
+ * 3. Coincidencia de búsqueda:
+ *    Compara el texto ignorando mayúsculas/minúsculas y acentos tanto con codigoSis
+ *    como con el nombre del estudiante.
+ */
+export async function buscarEstudiantesExpulsables(
+  examenId: string,
+  consulta = "",
+): Promise<EstudianteExpulsable[]> {
   try {
-    const { data } = await apiClient.post("/incidencias", payload);
-    return incidenciaSchema.parse(data);
-  } catch (error) {
-    if (esRutaInexistente(error)) return mockCrearIncidencia(payload);
+    const [ingresosRaw, incidencias] = await Promise.all([
+      obtenerIngresosPorExamen(examenId),
+      obtenerIncidenciasPorExamen(examenId).catch(() => []),
+    ]);
 
-    // Si falló por falta de red, guardar en cola offline
-    if (isAxiosError(error) && (!error.response || error.code === "ERR_NETWORK")) {
-      return offlineIncidenciasService.guardarIncidenciaOffline(payload);
+    // Conjunto de estudiantes expulsados previamente en este examen
+    const codigosExpulsados = new Set(
+      incidencias
+        .filter(
+          (inc) =>
+            inc.caso === "EXPULSION" ||
+            inc.caso === "SUPLANTACION_IDENTIDAD" ||
+            !inc.caso,
+        )
+        .map((inc) => String(inc.codigoSis).trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    const vistos = new Set<string>();
+    const elegibles: EstudianteExpulsable[] = [];
+
+    for (const item of ingresosRaw) {
+      if (!item || typeof item !== "object") continue;
+
+      const obj = item as Record<string, unknown>;
+
+      let rawSis = "";
+      if (obj.sis != null) rawSis = String(obj.sis);
+      else if (obj.codigoSis != null) rawSis = String(obj.codigoSis);
+      else if (obj.cod_sis != null) rawSis = String(obj.cod_sis);
+      else if (obj.codigo_sis != null) rawSis = String(obj.codigo_sis);
+      else if (obj.estudiante && typeof obj.estudiante === "object") {
+        const est = obj.estudiante as Record<string, unknown>;
+        rawSis = String(est.cod_sis ?? est.codigoSis ?? est.sis ?? "");
+      }
+      rawSis = rawSis.trim();
+
+      let rawNombre = "";
+      if (typeof obj.estudiante === "string") rawNombre = obj.estudiante;
+      else if (obj.nombre != null) rawNombre = String(obj.nombre);
+      else if (obj.estudianteNombre != null)
+        rawNombre = String(obj.estudianteNombre);
+      else if (obj.estudiante && typeof obj.estudiante === "object") {
+        const est = obj.estudiante as Record<string, unknown>;
+        rawNombre = [est.nombre, est.apellido].filter(Boolean).join(" ");
+      }
+      rawNombre = rawNombre.trim();
+
+      if (!rawSis || !rawNombre) continue;
+
+      const sisLower = rawSis.toLowerCase();
+      if (vistos.has(sisLower)) continue;
+      vistos.add(sisLower);
+
+      let estadoRaw = "";
+      if (obj.estado != null) estadoRaw = String(obj.estado);
+      else if (obj.estadoIngreso != null) estadoRaw = String(obj.estadoIngreso);
+      else if (obj.estado_ingreso != null)
+        estadoRaw = String(obj.estado_ingreso);
+      else if (obj.estado_habilitado === false) estadoRaw = "Inhabilitado";
+      else if (obj.estado_habilitado === true) estadoRaw = "Habilitado";
+      estadoRaw = estadoRaw.trim();
+
+      const estadoNorm = estadoRaw.toLowerCase();
+
+      // Regla 2.b: NO están expulsados previamente (excluir estado 'Expulsado')
+      if (estadoNorm === "expulsado" || codigosExpulsados.has(sisLower)) {
+        continue;
+      }
+
+      // Regla 2.a: ÚNICAMENTE los que ya registraron su ingreso
+      // Descartar inhabilitados, ausentes o rechazados
+      if (
+        estadoNorm === "inhabilitado" ||
+        estadoNorm === "ausente" ||
+        estadoNorm === "rechazado"
+      ) {
+        continue;
+      }
+
+      const tieneHora = Boolean(obj.hora || obj.fechaHora || obj.fecha_hora);
+      const esEstadoIngresoValido =
+        estadoNorm === "habilitado" ||
+        estadoNorm === "presente" ||
+        estadoNorm === "ingresado" ||
+        estadoNorm === "en aula" ||
+        estadoNorm === "en_aula" ||
+        estadoNorm === "" ||
+        tieneHora;
+
+      if (!esEstadoIngresoValido && !tieneHora) {
+        continue;
+      }
+
+      let id: string | undefined = undefined;
+      let estudianteId: string | undefined = undefined;
+
+      if (obj.estudianteId != null) {
+        estudianteId = String(obj.estudianteId);
+      } else if (obj.estudiante_id != null) {
+        estudianteId = String(obj.estudiante_id);
+      } else if (obj.estudiante && typeof obj.estudiante === "object") {
+        const est = obj.estudiante as Record<string, unknown>;
+        if (est.id != null) estudianteId = String(est.id);
+      }
+
+      if (obj.id != null) {
+        id = String(obj.id);
+      } else if (estudianteId != null) {
+        id = estudianteId;
+      }
+
+      if (!estudianteId && id) {
+        estudianteId = id;
+      }
+
+      elegibles.push({
+        id,
+        estudianteId,
+        codigoSis: rawSis,
+        nombre: rawNombre,
+      });
     }
 
-    throw aServiceError(error);
+    console.log(
+      "[buscarEstudiantesExpulsables] examenId:",
+      examenId,
+      "ingresos recibidos:",
+      ingresosRaw.length,
+      "elegibles en aula:",
+      elegibles.length,
+      elegibles,
+    );
+
+    // Regla 3: Si hay término de búsqueda, comparar ignorando mayúsculas/minúsculas y acentos
+    const q = consulta.trim();
+    if (!q) {
+      return elegibles;
+    }
+
+    return elegibles.filter((e) =>
+      coincideBusqueda(e.nombre, e.codigoSis, q),
+    );
+  } catch (error) {
+    console.warn("Error al buscar estudiantes expulsables en aula:", error);
+    return [];
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Mocks                                                                      */
-/* -------------------------------------------------------------------------- */
+/**
+ * --------------------------------------------------------------------------
+ * ENDPOINT 4: Registrar una nueva incidencia en pleno examen
+ * --------------------------------------------------------------------------
+ * BACKEND TO-DO:
+ * Ruta: POST /expulsiones  (o POST /incidencias)
+ * Payload enviado por el frontend (JSON Body):
+ * {
+ *   "examenId": "1",
+ *   "codigoSis": "202001456",
+ *   "caso": "EXPULSION",                  // Enum obligatorio
+ *   "motivo": "MATERIAL_NO_AUTORIZADO",    // Enum obligatorio
+ *   "detalle": "Texto opcional"           // string opcional (máx 500 caracteres)
+ * }
+ * Reglas de negocio del backend:
+ * - El docente/controlador autenticado (`registradoPor`) se extrae del JWT, NUNCA del body.
+ * - La `fechaHora` la asigna el servidor.
+ * - Si `caso === "EXPULSION"` o `"SUPLANTACION_IDENTIDAD"`, inhabilitar reingreso del alumno.
+ * - Retornar 400 con { code: "EXAMEN_NO_EN_CURSO" } si el examen no está activo.
+ * - Retornar 400 con { code: "ESTUDIANTE_YA_EXPULSADO" } si el alumno ya fue expulsado.
+ * - Retornar 201 Created con el objeto `Incidencia` creado.
+ */
+export async function registrarExpulsion(
+  payload: PayloadRegistrarExpulsion,
+): Promise<Incidencia> {
+  if (USAR_MOCKS_INCIDENCIAS) return mockRegistrarExpulsion(payload);
+  try {
+    const { data } = await apiClient.post("/expulsiones", {
+      examenId: String(payload.examenId),
+      codigoSis: String(payload.codigoSis),
+      caso: payload.caso ?? "EXPULSION",
+      motivo: payload.motivo,
+      detalle: (payload.detalle ?? "").trim(),
+    });
+    return incidenciaSchema.parse(normalizarIncidencia(data));
+  } catch (error) {
+    throw aErrorServicio(error);
+  }
+}
 
-const MOCK_DELAY_MS = 400;
-const MOCK_USUARIO = "Carlos Mendoza";
-const SIS_SIMULA_CAIDA = "999999999";
+/* ==========================================================================
+   DATOS Y SIMULACIÓN MOCK (SE USAN MIENTRAS NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS!==false)
+   ========================================================================== */
 
-const delay = (ms = MOCK_DELAY_MS) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+export const MOCK_DOCENTE = "Edgar";
+const esperar = (ms = 350) =>
+  new Promise<void>((resolver) => setTimeout(resolver, ms));
 
-const MOCK_EXAMENES: ExamenIncidencia[] = [
-  { id: "1", nombre: "Cálculo II – Examen Final", fecha: "2026-09-06" },
-  { id: "2", nombre: "Física I – Examen Parcial", fecha: "2026-09-07" },
-  { id: "3", nombre: "Programación II – Examen Final", fecha: "2026-09-08" },
+const MOCK_EXAMENES: ExamenExpulsion[] = [
+  {
+    id: "1",
+    nombre: "Bases de Datos II – Primer parcial",
+    ubicacion: "Laboratorio Informática 2 (FCyT) · Ingeniería de Sistemas",
+    enCurso: true,
+  },
+  {
+    id: "2",
+    nombre: "Redes de Computadoras – Examen final",
+    ubicacion: "Aula 305 (FCyT) · Ingeniería de Sistemas",
+    enCurso: true,
+  },
+  {
+    id: "3",
+    nombre: "Programación II – Examen final",
+    ubicacion: null,
+    enCurso: false,
+  },
 ];
 
-const MOCK_ESTUDIANTES: Record<string, string> = {
-  "202104321": "Sofía Aguilar Céspedes",
-  "202003456": "Andrés Villarroel Rocha",
-  "201905678": "Camila Méndez García",
-  "202102345": "Joaquín Torrico Rojas",
-  "201900123": "Ana Rojas Mamani",
-  "202001456": "Diego Flores Vargas",
-  "201902345": "Valeria López Quispe",
-  "202103678": "Mateo Pérez Arce",
-  "202002789": "Lucía Salazar Ríos",
-  "201901567": "Gabriel Fernández Soto",
+// Estudiantes que ya ingresaron a cada examen.
+const MOCK_INGRESADOS: Record<string, EstudianteExpulsable[]> = {
+  "1": [
+    { codigoSis: "201900123", nombre: "Ana Rojas Mamani" },
+    { codigoSis: "202103678", nombre: "Mateo Pérez Arce" },
+    { codigoSis: "202002789", nombre: "Lucía Salazar Ríos" },
+    { codigoSis: "202001456", nombre: "Diego Flores Vargas" },
+    { codigoSis: "201902345", nombre: "Valeria López Quispe" },
+    { codigoSis: "201901567", nombre: "Gabriel Fernández Soto" },
+  ],
+  "2": [
+    { codigoSis: "202104321", nombre: "Sofía Aguilar Céspedes" },
+    { codigoSis: "202003456", nombre: "Andrés Villarroel Rocha" },
+    { codigoSis: "201905678", nombre: "Camila Méndez García" },
+  ],
+  "3": [],
 };
 
-function mockIncidencia(
-  id: string,
-  examenId: string,
-  fechaHora: string,
-  codigoSis: string
-): Incidencia {
-  return {
-    id,
-    examenId,
-    fechaHora,
-    codigoSis,
-    estudianteNombre: MOCK_ESTUDIANTES[codigoSis] ?? "Estudiante",
-    motivo: "NO_HABILITADO",
-    observaciones: null,
-    registradoPor: MOCK_USUARIO,
-  };
-}
-
 const mockIncidencias: Incidencia[] = [
-  mockIncidencia("1", "1", "2026-09-06T09:03:44", "202104321"),
-  mockIncidencia("2", "1", "2026-09-06T09:02:15", "202003456"),
-  mockIncidencia("3", "1", "2026-09-06T09:00:52", "201905678"),
-  mockIncidencia("4", "1", "2026-09-06T08:59:18", "202102345"),
-  mockIncidencia("5", "3", "2026-09-08T10:15:30", "202002789"),
+  {
+    id: "1",
+    examenId: "1",
+    fechaHora: "2026-10-30T09:42:18",
+    codigoSis: "202001456",
+    estudianteNombre: "Diego Flores Vargas",
+    caso: "EXPULSION",
+    motivo: "MATERIAL_NO_AUTORIZADO",
+    detalle: "Apuntes debajo del examen.",
+    registradoPor: MOCK_DOCENTE,
+  },
+  {
+    id: "2",
+    examenId: "1",
+    fechaHora: "2026-10-30T09:35:46",
+    codigoSis: "201902345",
+    estudianteNombre: "Valeria López Quispe",
+    caso: "AMONESTACION",
+    motivo: "USO_CELULAR",
+    detalle: "Primer aviso verbal por tener el celular sobre la mesa.",
+    registradoPor: MOCK_DOCENTE,
+  },
+  {
+    id: "3",
+    examenId: "1",
+    fechaHora: "2026-10-30T09:28:09",
+    codigoSis: "201901567",
+    estudianteNombre: "Gabriel Fernández Soto",
+    caso: "EXPULSION",
+    motivo: "COMUNICACION_ENTRE_ESTUDIANTES",
+    detalle: "",
+    registradoPor: MOCK_DOCENTE,
+  },
+  {
+    id: "4",
+    examenId: "1",
+    fechaHora: "2026-10-30T09:15:22",
+    codigoSis: "201900123",
+    estudianteNombre: "Ana Rojas Mamani",
+    caso: "PROBLEMA_MEDICO",
+    motivo: "OTRO",
+    detalle: "Descompensación de salud, trasladada a enfermería.",
+    registradoPor: MOCK_DOCENTE,
+  },
 ];
 
-async function mockGetExamenes(): Promise<ExamenIncidencia[]> {
-  await delay();
-  return MOCK_EXAMENES.map((examen) => ({ ...examen }));
+async function mockObtenerExamenes(): Promise<ExamenExpulsion[]> {
+  await esperar();
+  return MOCK_EXAMENES.map((e) => ({ ...e }));
 }
 
-async function mockGetIncidencias(examenId: string): Promise<Incidencia[]> {
-  await delay();
+async function mockObtenerIncidencias(examenId: string): Promise<Incidencia[]> {
+  await esperar();
   return ordenarMasRecientes(
-    mockIncidencias.filter((incidencia) => incidencia.examenId === examenId)
+    mockIncidencias.filter((i) => i.examenId === examenId),
   );
 }
 
-async function mockCrearIncidencia(
-  payload: CrearIncidenciaPayload
+async function mockRegistrarExpulsion(
+  payload: PayloadRegistrarExpulsion,
 ): Promise<Incidencia> {
-  await delay();
+  await esperar();
+  const examen = MOCK_EXAMENES.find((e) => e.id === payload.examenId);
+  if (!examen || !examen.enCurso) {
+    throw new ErrorServicioIncidencias("EXAMEN_NO_EN_CURSO");
+  }
+  const yaExpulsado = mockIncidencias.some(
+    (i) =>
+      i.examenId === payload.examenId &&
+      i.codigoSis === payload.codigoSis &&
+      (i.caso === "EXPULSION" || i.caso === "SUPLANTACION_IDENTIDAD"),
+  );
+  if (
+    (payload.caso === "EXPULSION" ||
+      payload.caso === "SUPLANTACION_IDENTIDAD") &&
+    yaExpulsado
+  ) {
+    throw new ErrorServicioIncidencias("ESTUDIANTE_YA_EXPULSADO");
+  }
 
-  if (payload.codigoSis === SIS_SIMULA_CAIDA) {
-    throw new IncidenciaServiceError("SIN_CONEXION");
-  }
-  if (!MOCK_EXAMENES.some((examen) => examen.id === payload.examenId)) {
-    throw new IncidenciaServiceError("EXAMEN_INVALIDO");
-  }
-  const estudianteNombre = MOCK_ESTUDIANTES[payload.codigoSis];
-  if (!estudianteNombre) {
-    throw new IncidenciaServiceError("SIS_NO_EXISTE");
-  }
+  const estudiante = (MOCK_INGRESADOS[payload.examenId] ?? []).find(
+    (e) => e.codigoSis === payload.codigoSis,
+  );
+  if (!estudiante) throw new ErrorServicioIncidencias("DESCONOCIDO");
 
   const nueva: Incidencia = {
     id: `mock-${Date.now()}`,
     examenId: payload.examenId,
     fechaHora: new Date().toISOString(),
     codigoSis: payload.codigoSis,
-    estudianteNombre,
+    estudianteNombre: estudiante.nombre,
+    caso: payload.caso,
     motivo: payload.motivo,
-    observaciones: payload.observaciones ?? null,
-    registradoPor: MOCK_USUARIO,
+    detalle: (payload.detalle ?? "").trim(),
+    registradoPor: MOCK_DOCENTE,
   };
   mockIncidencias.push(nueva);
   return { ...nueva };
