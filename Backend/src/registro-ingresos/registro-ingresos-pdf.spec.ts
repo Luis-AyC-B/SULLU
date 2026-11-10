@@ -238,5 +238,112 @@ describe('HU17: Reporte de Asistencia en PDF (Registro de Ingresos)', () => {
       expect(resultado).toBeDefined();
       expect(Buffer.isBuffer(resultado.buffer)).toBe(true);
     });
+
+    it('debe incluir casoExcepcional del ingreso al construir los ítems del PDF', async () => {
+      const pdfSpy = jest.spyOn(pdfService, 'generarPdf');
+      prismaMock.examen.findUnique.mockResolvedValue(mockExamenPdf);
+      prismaMock.examen_Estudiante.findMany.mockResolvedValue([
+        { estudianteId: 101, estado_habilitado: true },
+        { estudianteId: 102, estado_habilitado: true },
+      ]);
+      prismaMock.ingreso.findMany.mockResolvedValue([
+        {
+          id: 1,
+          estudianteId: 101,
+          fechaHora: new Date('2026-10-19T12:20:00.000Z'),
+          metodo: 'MANUAL',
+          casoExcepcional: 'Prueba de registro',
+          estudiante: {
+            cod_sis: '202001003',
+            nombre: 'Daniela',
+            apellido: 'Cruz Herrera',
+          },
+        },
+        {
+          id: 2,
+          estudianteId: 102,
+          fechaHora: new Date('2026-10-19T12:25:00.000Z'),
+          metodo: 'QR',
+          casoExcepcional: null,
+          estudiante: {
+            cod_sis: '202001001',
+            nombre: 'Fernando',
+            apellido: 'Aguilar Rivas',
+          },
+        },
+      ]);
+      prismaMock.incidenciaIngreso.findMany.mockResolvedValue([]);
+
+      await service.generarReportePdf(1, 10);
+
+      expect(pdfSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ingresos: expect.arrayContaining([
+            expect.objectContaining({
+              codSis: '202001003',
+              casoExcepcional: 'Prueba de registro',
+            }),
+            expect.objectContaining({
+              codSis: '202001001',
+              casoExcepcional: '-',
+            }),
+          ]),
+        }),
+      );
+    });
+  });
+
+  describe('RegistroIngresosService.ingresos', () => {
+    it('debe incluir casoExcepcional al listar ingresos para Administrador', async () => {
+      prismaMock.examen.findUnique.mockResolvedValue({ id: 9, usuarioId: 10 });
+      prismaMock.examen.findFirst.mockResolvedValue(null);
+      prismaMock.usuario.findUnique.mockResolvedValue({
+        id: 1,
+        roles: [{ rol: { nombre: 'ADMINISTRADOR TOTAL' } }],
+      });
+      prismaMock.examen_Estudiante.count.mockResolvedValue(11);
+      prismaMock.ingreso.findMany.mockResolvedValue([
+        {
+          id: 14,
+          estudianteId: 1,
+          fechaHora: new Date('2026-11-10T12:59:57.000Z'),
+          metodo: 'QR',
+          casoExcepcional: null,
+          estudiante: {
+            cod_sis: '201901234',
+            nombre: 'Alejandro',
+            apellido: 'Mamani Quispe',
+          },
+        },
+        {
+          id: 23,
+          estudianteId: 2,
+          fechaHora: new Date('2026-11-10T13:50:18.000Z'),
+          metodo: 'MANUAL',
+          casoExcepcional: 'Prueba de registro',
+          estudiante: {
+            cod_sis: '202001003',
+            nombre: 'Daniela',
+            apellido: 'Cruz Herrera',
+          },
+        },
+      ]);
+      prismaMock.examen_Estudiante.findMany.mockResolvedValue([
+        { estudianteId: 1, estado_habilitado: true },
+        { estudianteId: 2, estado_habilitado: true },
+      ]);
+
+      const res = await service.ingresos(9, 1);
+
+      expect(res.ingresos).toHaveLength(2);
+      expect(res.ingresos[0]).toMatchObject({
+        sis: '202001003',
+        casoExcepcional: 'Prueba de registro',
+      });
+      expect(res.ingresos[1]).toMatchObject({
+        sis: '201901234',
+        casoExcepcional: null,
+      });
+    });
   });
 });

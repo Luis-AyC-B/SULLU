@@ -199,6 +199,7 @@ export class RegistroIngresosService {
         metodo: i.metodo.toUpperCase() === 'QR' ? 'QR' : 'Manual',
         estado:
           habil.get(i.estudianteId) === false ? 'Inhabilitado' : 'Habilitado',
+        casoExcepcional: i.casoExcepcional ?? null,
       }));
 
     return { examenId, ingresados: ingresos.length, total, ingresos };
@@ -316,7 +317,12 @@ export class RegistroIngresosService {
       });
 
       const esHabil = habilMap.get(ing.estudianteId) !== false;
-      const excepcion = incidenciaMap.get(ing.estudianteId) ?? '-';
+      const excepciones = [
+        ing.casoExcepcional,
+        incidenciaMap.get(ing.estudianteId),
+      ].filter((v): v is string => Boolean(v));
+      const excepcion =
+        excepciones.length > 0 ? [...new Set(excepciones)].join(' / ') : '-';
 
       return {
         numero: idx + 1,

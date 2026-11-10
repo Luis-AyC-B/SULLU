@@ -447,39 +447,17 @@ export async function getExamenesControl(): Promise<ExamenControl[]> {
   try {
     const { data } = await apiClient.get('/examenes/control');
     const parsed = examenesControlSchema.parse(data);
+    const enriquecidos = parsed.map((e) => enriquecerExamenControl(e));
 
-    // Enriquecer con exámenes creados en el sistema en IndexedDB (si existen)
-    try {
-      if (typeof window !== 'undefined' && window.indexedDB) {
-        const { dbService } = await import('@/shared/lib/db/indexedDB');
-        const localDbExams = await dbService.getAllExams().catch(() => []);
-        if (Array.isArray(localDbExams) && localDbExams.length > 0) {
-          const map = new Map<string | number, ExamenControl>();
-          localDbExams.forEach((e) => {
-            const enriched = enriquecerExamenControl(e);
-            map.set(String(enriched.id), enriched);
-          });
-          parsed.forEach((e) => {
-            const enriched = enriquecerExamenControl(e);
-            const existente = map.get(String(enriched.id));
-            map.set(String(enriched.id), existente ? { ...enriched, ...existente } : enriched);
-          });
-          return Array.from(map.values());
-        }
-      }
-    } catch {
-      // Ignorar
-    }
-
-    if (typeof window !== 'undefined' && parsed.length > 0) {
+    if (typeof window !== 'undefined' && enriquecidos.length > 0) {
       try {
-        localStorage.setItem(EXAMENES_CACHE_KEY, JSON.stringify(parsed));
+        localStorage.setItem(EXAMENES_CACHE_KEY, JSON.stringify(enriquecidos));
       } catch {
         // Ignorar
       }
     }
 
-    return parsed.map((e) => enriquecerExamenControl(e));
+    return enriquecidos;
   } catch (error) {
     if (isEndpointMissing(error)) {
       // Si el endpoint 404, pero hay exámenes creados localmente en el navegador, mostrarlos
