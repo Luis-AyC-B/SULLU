@@ -373,7 +373,7 @@ export function EscanearQrModal({
     detenerCamara();
     onClose();
     router.push(
-      `/incidencias?examenId=${examen.id}&codSis=${encodeURIComponent(
+      `/ingresos-rechazados?examenId=${examen.id}&codSis=${encodeURIComponent(
         codSis
       )}&nombre=${encodeURIComponent(nombre)}`
     );

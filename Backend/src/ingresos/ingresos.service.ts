@@ -10,6 +10,7 @@ import {
 import { EstadoExamen, Prisma, TipoIncidencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ParticionControladorService } from './particion-controlador.service';
+import { ExpulsionesService } from '../expulsiones/expulsiones.service';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { CreateIngresoDto } from './dto/create-ingreso.dto';
 import { UpdateIngresoDto } from './dto/update-ingreso.dto';
@@ -45,7 +46,38 @@ export class IngresosService {
     private readonly prisma: PrismaService,
     @Optional()
     private readonly particionService?: ParticionControladorService,
+    @Optional()
+    private readonly expulsionesService?: ExpulsionesService,
   ) {}
+
+  private async verificarBloqueoExpulsion(
+    examenId: number,
+    estudianteId: number,
+  ): Promise<void> {
+    if (this.expulsionesService) {
+      await this.expulsionesService.verificarBloqueoReingreso(
+        examenId,
+        estudianteId,
+      );
+      return;
+    }
+    const expulsion = await this.prisma.expulsion?.findFirst({
+      where: {
+        examenId,
+        estudianteId,
+        caso: {
+          in: ['EXPULSION', 'SUPLANTACION_IDENTIDAD'],
+        },
+      },
+    });
+    if (expulsion) {
+      throw new ForbiddenException({
+        code: 'ESTUDIANTE_EXPULSADO',
+        message:
+          'El estudiante fue expulsado de este examen y no puede ingresar nuevamente.',
+      });
+    }
+  }
 
   // ──────────────────────────────────────────────────────────────────
   private verificarFirmaQr(token: string): boolean {
@@ -673,6 +705,8 @@ export class IngresosService {
       );
     }
 
+    await this.verificarBloqueoExpulsion(dto.examenId, estudiante.id);
+
     const ingresoExistente = await this.prisma.ingreso.findFirst({
       where: {
         estudianteId: estudiante.id,
@@ -1007,6 +1041,8 @@ export class IngresosService {
         `Estudiante no habilitado: ${inscripcion.motivo_inhabilitacion || 'Sin motivo especificado'}`,
       );
     }
+
+    await this.verificarBloqueoExpulsion(dto.examenId, estudiante.id);
 
     const ingresoExistente = await this.prisma.ingreso.findFirst({
       where: {

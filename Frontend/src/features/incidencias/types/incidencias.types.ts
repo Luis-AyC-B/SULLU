@@ -1,149 +1,221 @@
 import { z } from "zod";
 
-/* -------------------------------------------------------------------------- */
-/* Motivos                                                                    */
-/* -------------------------------------------------------------------------- */
+/* Casos de incidencia */
 
-// Hoy solo existe "No habilitado". Para agregar más motivos basta con
-// sumarlos aquí y en MOTIVO_LABEL (el formulario y el listado se adaptan).
-export const MOTIVOS_INCIDENCIA = [
-  "NO_HABILITADO",
-  "DOBLE_MARCACION",
-  "QR_CADUCADO",
-  "NO_ENCONTRADO",
+export const CASOS_INCIDENCIA = [
+  "EXPULSION",
+  "SUPLANTACION_IDENTIDAD",
+  "AMONESTACION",
+  "PROBLEMA_MEDICO",
+  "RETIRO_VOLUNTARIO",
+  "INCIDENCIA_TECNICA",
+  "OTRO",
 ] as const;
 
-export type MotivoIncidencia = (typeof MOTIVOS_INCIDENCIA)[number];
+export type CasoIncidencia = (typeof CASOS_INCIDENCIA)[number];
 
-export const MOTIVO_LABEL: Record<MotivoIncidencia, string> = {
-  NO_HABILITADO: "No habilitado",
-  DOBLE_MARCACION: "Doble marcación",
-  QR_CADUCADO: "QR caducado",
-  NO_ENCONTRADO: "No encontrado",
+export const ETIQUETA_CASO_INCIDENCIA: Record<CasoIncidencia, string> = {
+  EXPULSION: "Expulsión",
+  SUPLANTACION_IDENTIDAD: "Suplantación de identidad",
+  AMONESTACION: "Amonestación verbal",
+  PROBLEMA_MEDICO: "Problema de salud / médico",
+  RETIRO_VOLUNTARIO: "Retiro voluntario",
+  INCIDENCIA_TECNICA: "Incidencia técnica / material",
+  OTRO: "Otro caso",
 };
 
-export const MOTIVO_POR_DEFECTO: MotivoIncidencia = "NO_HABILITADO";
-
-export const MOTIVO_OPCIONES = MOTIVOS_INCIDENCIA.map((value) => ({
-  value,
-  label: MOTIVO_LABEL[value],
+export const OPCIONES_CASO_INCIDENCIA = CASOS_INCIDENCIA.map((valor) => ({
+  valor,
+  etiqueta: ETIQUETA_CASO_INCIDENCIA[valor],
 }));
 
-/* -------------------------------------------------------------------------- */
-/* Respuestas del backend                                                     */
-/* -------------------------------------------------------------------------- */
+/* Motivos */
 
-// Examen que aparece en el selector (listado y formulario).
-export const examenIncidenciaSchema = z.object({
-  id: z.coerce.string(),
-  nombre: z.string(),
-  // "2026-09-06" o ISO completo; solo se usa la parte de la fecha.
-  fecha: z.string(),
-});
+export const MOTIVOS_EXPULSION = [
+  "MATERIAL_NO_AUTORIZADO",
+  "USO_CELULAR",
+  "COMUNICACION_ENTRE_ESTUDIANTES",
+  "SUPLANTACION_IDENTIDAD",
+  "OTRO",
+] as const;
 
-export type ExamenIncidencia = z.infer<typeof examenIncidenciaSchema>;
+export type MotivoExpulsion = (typeof MOTIVOS_EXPULSION)[number];
 
-export const examenesIncidenciaSchema = z.array(examenIncidenciaSchema);
-
-// Incidencia ya registrada. La hora y el usuario los asigna el backend.
-export const incidenciaSchema = z.object({
-  id: z.coerce.string(),
-  examenId: z.coerce.string(),
-  // Fecha y hora ISO asignada por el servidor.
-  fechaHora: z.string(),
-  codigoSis: z.string(),
-  estudianteNombre: z.string(),
-  motivo: z.enum(MOTIVOS_INCIDENCIA),
-  observaciones: z.string().nullish(),
-  registradoPor: z.string(),
-});
-
-export type Incidencia = z.infer<typeof incidenciaSchema>;
-
-// GET /examenes/:id/incidencias -> arreglo ordenado de más reciente a más antigua.
-export const incidenciasSchema = z.array(incidenciaSchema);
-
-/* -------------------------------------------------------------------------- */
-/* Formulario "Registrar incidencia"                                          */
-/* -------------------------------------------------------------------------- */
-
-export const OBSERVACIONES_MAX = 500;
-
-export const crearIncidenciaFormSchema = z.object({
-  codigoSis: z
-    .string()
-    .trim()
-    .min(1, "Ingresa el código SIS")
-    .regex(/^\d+$/, "El código SIS solo debe contener números")
-    .max(15, "El código SIS es demasiado largo"),
-  examenId: z.string().min(1, "Selecciona un examen"),
-  motivo: z.enum(MOTIVOS_INCIDENCIA, { error: "Selecciona un motivo" }),
-  observaciones: z
-    .string()
-    .trim()
-    .max(OBSERVACIONES_MAX, `Máximo ${OBSERVACIONES_MAX} caracteres`),
-});
-
-export type CrearIncidenciaFormValues = z.infer<
-  typeof crearIncidenciaFormSchema
->;
-
-export const CREAR_INCIDENCIA_DEFAULTS: CrearIncidenciaFormValues = {
-  codigoSis: "",
-  examenId: "",
-  motivo: MOTIVO_POR_DEFECTO,
-  observaciones: "",
+export const ETIQUETA_MOTIVO_EXPULSION: Record<MotivoExpulsion, string> = {
+  MATERIAL_NO_AUTORIZADO: "Material no autorizado",
+  USO_CELULAR: "Uso de celular",
+  COMUNICACION_ENTRE_ESTUDIANTES: "Comunicación entre estudiantes",
+  SUPLANTACION_IDENTIDAD: "Suplantación de identidad",
+  OTRO: "Otro",
 };
 
-// Lo que viaja al backend. La hora y el usuario NUNCA se envían desde el
-// cliente: los asigna el servidor a partir de la sesión.
-export interface CrearIncidenciaPayload {
-  codigoSis: string;
+export const OPCIONES_MOTIVO_EXPULSION = MOTIVOS_EXPULSION.map((valor) => ({
+  valor,
+  etiqueta: ETIQUETA_MOTIVO_EXPULSION[valor],
+}));
+
+export const DETALLE_MAXIMO = 500;
+
+/* Respuestas del backend */
+
+export const examenExpulsionSchema = z.object({
+  id: z
+    .coerce
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v != null ? String(v) : ""))
+    .default(""),
+  nombre: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "Examen")
+    .default("Examen"),
+  ubicacion: z.string().nullish(),
+  enCurso: z
+    .boolean()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? false)
+    .default(false),
+});
+export type ExamenExpulsion = z.infer<typeof examenExpulsionSchema>;
+export const examenesExpulsionSchema = z.array(examenExpulsionSchema);
+
+export const incidenciaSchema = z.object({
+  id: z
+    .coerce
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v != null ? String(v) : ""))
+    .default(""),
+  examenId: z
+    .coerce
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v != null ? String(v) : ""))
+    .default(""),
+  // ISO asignado por el servidor
+  fechaHora: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? new Date().toISOString())
+    .default(() => new Date().toISOString()),
+  codigoSis: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "")
+    .default(""),
+  estudianteNombre: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "")
+    .default(""),
+  caso: z
+    .enum(CASOS_INCIDENCIA)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "EXPULSION")
+    .default("EXPULSION"),
+  motivo: z
+    .enum(MOTIVOS_EXPULSION)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "OTRO")
+    .default("OTRO"),
+  detalle: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "")
+    .default(""),
+  registradoPor: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? "")
+    .default(""),
+});
+export type Incidencia = z.infer<typeof incidenciaSchema>;
+export const incidenciasSchema = z.array(incidenciaSchema);
+
+export const estudianteExpulsableSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  estudianteId: z.union([z.string(), z.number()]).optional(),
+  codigoSis: z.string(),
+  nombre: z.string(),
+});
+export type EstudianteExpulsable = z.infer<typeof estudianteExpulsableSchema>;
+export const estudiantesExpulsablesSchema = z.array(estudianteExpulsableSchema);
+
+/* Formulario */
+
+export const formularioExpulsionSchema = z.object({
+  estudiante: z.object(
+    {
+      id: z.union([z.string(), z.number()]).optional(),
+      estudianteId: z.union([z.string(), z.number()]).optional(),
+      codigoSis: z.string(),
+      nombre: z.string(),
+    },
+    { error: "Selecciona un estudiante" },
+  ),
+  caso: z.enum(CASOS_INCIDENCIA, { error: "Selecciona un caso" }),
+  motivo: z.enum(MOTIVOS_EXPULSION, { error: "Selecciona un motivo" }),
+  detalle: z
+    .string()
+    .trim()
+    .max(DETALLE_MAXIMO, `Máximo ${DETALLE_MAXIMO} caracteres`)
+    .default(""),
+});
+
+export type ValoresFormularioExpulsion = z.infer<
+  typeof formularioExpulsionSchema
+>;
+
+// La hora y el docente NUNCA viajan desde el cliente.
+export interface PayloadRegistrarExpulsion {
   examenId: string;
-  motivo: MotivoIncidencia;
-  observaciones?: string;
+  codigoSis: string;
+  estudianteId?: string | number;
+  id?: string | number;
+  caso: CasoIncidencia;
+  motivo: MotivoExpulsion;
+  detalle: string;
 }
 
-export function toCrearIncidenciaPayload(
-  values: CrearIncidenciaFormValues
-): CrearIncidenciaPayload {
-  const observaciones = values.observaciones.trim();
+export function aPayloadRegistrarExpulsion(
+  examenId: string,
+  valores: ValoresFormularioExpulsion,
+): PayloadRegistrarExpulsion {
+  const estudianteId =
+    valores.estudiante.estudianteId ?? valores.estudiante.id;
   return {
-    codigoSis: values.codigoSis.trim(),
-    examenId: values.examenId,
-    motivo: values.motivo,
-    ...(observaciones ? { observaciones } : {}),
+    examenId,
+    codigoSis: valores.estudiante.codigoSis,
+    ...(estudianteId !== undefined ? { estudianteId, id: estudianteId } : {}),
+    caso: valores.caso,
+    motivo: valores.motivo,
+    detalle: (valores.detalle ?? "").trim(),
   };
 }
 
-/* -------------------------------------------------------------------------- */
-/* Helpers de formato                                                         */
-/* -------------------------------------------------------------------------- */
+/* Utilidades de formato */
 
-// "2026-09-06" -> "06/09/2026". Se corta el texto en vez de usar Date para
-// evitar que la zona horaria (Bolivia, UTC-4) corra la fecha un día.
-export function formatFechaExamen(fecha: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
-  if (!match) return fecha;
-  const [, anio, mes, dia] = match;
-  return `${dia}/${mes}/${anio}`;
-}
-
-// "Cálculo II – Examen Final · 06/09/2026"
-export function labelExamen(examen: ExamenIncidencia): string {
-  return `${examen.nombre} · ${formatFechaExamen(examen.fecha)}`;
-}
-
-// ISO -> "09:03:44" (hora local del navegador).
-export function formatHoraIncidencia(fechaHora: string): string {
+export function formatearHoraIncidencia(fechaHora: string): string {
   const fecha = new Date(fechaHora);
   if (Number.isNaN(fecha.getTime())) return "--:--:--";
   const dos = (n: number) => String(n).padStart(2, "0");
   return `${dos(fecha.getHours())}:${dos(fecha.getMinutes())}:${dos(fecha.getSeconds())}`;
 }
 
-// "4 incidencias registradas para este examen"
-export function labelContadorIncidencias(total: number): string {
+export function etiquetaContadorIncidencias(total: number): string {
   return total === 1
     ? "1 incidencia registrada para este examen"
     : `${total} incidencias registradas para este examen`;
