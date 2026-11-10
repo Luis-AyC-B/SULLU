@@ -6,11 +6,13 @@ import { ConnectionStatusBadge } from "../shared/ConnectionStatusBadge";
 import { ExamenActivoHeaderCard } from "./ExamenActivoHeaderCard";
 import { AccionesOperativasGrid } from "./AccionesOperativasGrid";
 import { ResumenEnVivoCard } from "./ResumenEnVivoCard";
+import { RangoAsignadoBanner } from "./RangoAsignadoBanner";
 import { RegistroManualModal } from "../manual/RegistroManualModal";
 import { EscanearQrModal } from "../escanear/EscanearQrModal";
 import { useResumenEnVivo } from "../../hooks/useResumenEnVivo";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { useActiveExam } from "../../store/useActiveExamStore";
+import { useMiGrupo } from "../../hooks/useMiGrupo";
 import {
   controlIngresoService,
   obtenerTimestampNominaCache,
@@ -29,6 +31,7 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
   const { clearExamenActivo } = useActiveExam();
   const network = useNetworkStatus();
   const { resumen, isLoading, refetch } = useResumenEnVivo(examen.id);
+  const { miGrupo } = useMiGrupo(examen.id);
   const [isModalManualOpen, setIsModalManualOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -161,6 +164,9 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
         onCambiarExamen={clearExamenActivo}
       />
 
+      {/* HU17: Banner de rango de apellidos asignado al controlador */}
+      {miGrupo && <RangoAsignadoBanner miGrupo={miGrupo} />}
+
       {/* Layout único en columna: Resumen en vivo → Acciones operativas */}
       <div className="flex flex-col gap-4">
         <ResumenEnVivoCard resumen={resumen} isLoading={isLoading} />
@@ -189,6 +195,7 @@ export function ExamenActivoView({ examen }: ExamenActivoViewProps) {
           setIsScannerOpen(false);
           setIsModalManualOpen(true);
         }}
+        miGrupo={miGrupo}
       />
     </div>
   );
