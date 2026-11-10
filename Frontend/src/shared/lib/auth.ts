@@ -70,6 +70,7 @@ export const authOptions: NextAuthOptions = {
               id: 1,
               name: 'Administrador General',
               email: 'admin@exacontrol.com',
+              rol: 'Administrador',
               permisos: [
                 'usuarios.ver', 'usuarios.crear', 'usuarios.editar', 'usuarios.eliminar',
                 'roles.ver', 'roles.crear', 'roles.editar', 'roles.eliminar',
@@ -83,16 +84,21 @@ export const authOptions: NextAuthOptions = {
             } as any;
           }
 
-          if (email === 'docente@umss.edu' && password === 'docente123') {
+          if (
+            (email === 'docente@umss.edu' && password === 'docente123') ||
+            (email === 'ed.flores@umss.edu.bo' && (password === 'docente123' || password === 'password123' || password === 'admin123'))
+          ) {
             return {
               id: 2,
-              name: 'Lic. Juan Pérez (Docente)',
-              email: 'docente@umss.edu',
+              name: email === 'ed.flores@umss.edu.bo' ? 'Edgar Flores Tola' : 'Lic. Juan Pérez (Docente)',
+              email: email,
+              rol: 'Docente',
               permisos: [
                 'examenes.ver', 'examenes.crear', 'examenes.editar',
                 'estudiantes.ver',
                 'ambientes.ver',
-                'colaboradores.ver', 'colaboradores.crear', 'colaboradores.editar'
+                'colaboradores.ver', 'colaboradores.crear', 'colaboradores.editar',
+                'registro_ingresos.ver'
               ],
               accessToken: 'mock-jwt-token-docente',
             } as any;
@@ -103,8 +109,10 @@ export const authOptions: NextAuthOptions = {
               id: 3,
               name: 'Personal de Control',
               email: 'control@umss.edu',
+              rol: 'Personal de control',
               permisos: [
-                'estudiantes.ver', 'estudiantes.habilitar', 'examenes.ver'
+                'estudiantes.ver', 'estudiantes.habilitar', 'examenes.ver',
+                'registro_ingresos.ver', 'control_ingreso.escanear_qr'
               ],
               accessToken: 'mock-jwt-token-control',
             } as any;
@@ -120,22 +128,22 @@ export const authOptions: NextAuthOptions = {
             } as any;
           }
 
-             // Estudiantes de prueba (HU6) mientras el backend no esté conectado
-             const estudiantesMock: Record<string, { id: number; name: string; token: string }> = {
-               'ana.rojas@umss.edu': { id: 101, name: 'Ana Rojas Mamani', token: 'mock-jwt-token-estudiante-ana' },
-               'luis.quispe@umss.edu': { id: 102, name: 'Luis Quispe Vargas', token: 'mock-jwt-token-estudiante-empty' },
-               'marta.flores@umss.edu': { id: 103, name: 'Marta Flores Rojas', token: 'mock-jwt-token-estudiante-error' },
-             };
-             const estudiante = estudiantesMock[email];
-             if (estudiante && password === 'estudiante123') {
-               return {
-                 id: estudiante.id,
-                 name: estudiante.name,
-                 email,
-                 permisos: ['portal_estudiante'],
-                 accessToken: estudiante.token,
-               } as any;
-             }
+          // Estudiantes de prueba (HU6) mientras el backend no esté conectado
+          const estudiantesMock: Record<string, { id: number; name: string; token: string }> = {
+            'ana.rojas@umss.edu': { id: 101, name: 'Ana Rojas Mamani', token: 'mock-jwt-token-estudiante-ana' },
+            'luis.quispe@umss.edu': { id: 102, name: 'Luis Quispe Vargas', token: 'mock-jwt-token-estudiante-empty' },
+            'marta.flores@umss.edu': { id: 103, name: 'Marta Flores Rojas', token: 'mock-jwt-token-estudiante-error' },
+          };
+          const estudiante = estudiantesMock[email];
+          if (estudiante && password === 'estudiante123') {
+            return {
+              id: estudiante.id,
+              name: estudiante.name,
+              email,
+              permisos: ['portal_estudiante'],
+              accessToken: estudiante.token,
+            } as any;
+          }
 
           // Credenciales incorrectas
           throw new Error('INVALID_CREDENTIALS');

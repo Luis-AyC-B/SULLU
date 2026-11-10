@@ -137,7 +137,15 @@ export class IngresosController {
   buscarEstudiantesExamen(
     @Param('examenId', ParseIntPipe) examenId: number,
     @Query('q') q?: string,
+    @Query('soloMiGrupo') soloMiGrupo?: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
-    return this.ingresosService.buscarEstudiantesExamen(examenId, q);
+    const colaboradorId =
+      soloMiGrupo === 'true' && user?.id ? user.id : undefined;
+    return this.ingresosService.buscarEstudiantesExamen(
+      examenId,
+      q,
+      colaboradorId,
+    );
   }
 }

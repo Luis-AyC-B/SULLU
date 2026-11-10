@@ -18,15 +18,20 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { IngresosService } from './ingresos.service';
+import { ParticionControladorService } from './particion-controlador.service';
 import { ExamenAsignadoResponseDto } from './dto/examen-asignado-response.dto';
 import { ResumenExamenResponseDto } from './dto/resumen-examen-response.dto';
+import { GrupoControladorDescargaDto } from './dto/grupo-controlador-descarga.dto';
 
 @ApiTags('control-ingreso')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller(['control-ingreso', 'control'])
 export class ControlIngresoController {
-  constructor(private readonly ingresosService: IngresosService) {}
+  constructor(
+    private readonly ingresosService: IngresosService,
+    private readonly particionService: ParticionControladorService,
+  ) {}
 
   @Get(['mis-examenes', 'examenes'])
   @Permissions('control_ingreso.ver_examenes_asignados')
@@ -84,6 +89,42 @@ export class ControlIngresoController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<ResumenExamenResponseDto> {
     return this.ingresosService.getResumenExamen(id, user);
+  }
+
+  @Get(['examenes/:id/mi-grupo', ':id/mi-grupo'])
+  @Permissions(
+    'control_ingreso.ver_examenes_asignados',
+    'control_ingreso.registro_manual',
+    'control_ingreso.escanear_qr',
+  )
+  @ApiOperation({
+    summary:
+      'Descargar grupo y nómina asignada al controlador autenticado para control de ingreso',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'ID del examen',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Grupo y lista de estudiantes asignados al controlador',
+    type: GrupoControladorDescargaDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'No asignado al examen solicitado',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Examen no encontrado',
+  })
+  async getMiGrupo(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<GrupoControladorDescargaDto> {
+    return this.particionService.descargarGrupoControlador(id, user);
   }
 
   @Get(['examenes/:id', ':id'])
