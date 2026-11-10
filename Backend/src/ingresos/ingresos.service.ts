@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { EstadoExamen, Prisma, TipoIncidencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ParticionControladorService } from './particion-controlador.service';
 import { ExpulsionesService } from '../expulsiones/expulsiones.service';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { CreateIngresoDto } from './dto/create-ingreso.dto';
@@ -43,7 +44,10 @@ const MESES = [
 export class IngresosService {
   constructor(
     private readonly prisma: PrismaService,
-    @Optional() private readonly expulsionesService?: ExpulsionesService,
+    @Optional()
+    private readonly particionService?: ParticionControladorService,
+    @Optional()
+    private readonly expulsionesService?: ExpulsionesService,
   ) {}
 
   private async verificarBloqueoExpulsion(
