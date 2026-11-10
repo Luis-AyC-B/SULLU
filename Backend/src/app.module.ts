@@ -20,6 +20,7 @@ import { HabilitacionesModule } from './habilitaciones/habilitaciones.module';
 import { MailModule } from './mail/mail.module';
 import { ReservasModule } from './reservas/reservas.module';
 import { ColaboradoresModule } from './colaboradores/colaboradores.module';
+import { AuditoriaModule } from './auditoria/auditoria.module';
 import { ExpulsionesModule } from './expulsiones/expulsiones.module';
 
 @Module({
@@ -51,6 +52,7 @@ import { ExpulsionesModule } from './expulsiones/expulsiones.module';
     IngresosModule,
     HabilitacionesModule,
     ColaboradoresModule,
+    AuditoriaModule,
     ExpulsionesModule,
   ],
   controllers: [AppController],

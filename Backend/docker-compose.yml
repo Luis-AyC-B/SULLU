@@ -11,5 +11,31 @@ services:
     volumes:
       - exacontrol_pgdata:/var/lib/postgresql/data
 
+  backups:
+    image: postgres:15.10
+    profiles: [backups]
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: exacontrol
+      BACKUP_INTERVAL_SECONDS: 86400
+      BACKUP_RETENTION_DAYS: 30
+    volumes:
+      - exacontrol_backups:/backups
+      - ./ops:/ops:ro
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        tr -d '\r' < /ops/backup.sh > /tmp/hu21-backup.sh &&
+        exec sh /tmp/hu21-backup.sh "$$@"
+      - hu21-backup
+
 volumes:
   exacontrol_pgdata:
+  exacontrol_backups:
