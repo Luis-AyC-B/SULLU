@@ -7,56 +7,33 @@ import {
   SULLU_STORES,
 } from '@/shared/lib/offline-sullu-db';
 import {
+  ingresoSchema,
   examenesControlSchema,
   ingresosExamenSchema,
   type ExamenControl,
   type Ingreso,
   type IngresosExamen,
+  type EstudianteExamenItem,
+  type RegistrarCasoExcepcionalPayload,
 } from '../types/ingresos.types';
+import {
+  generarPdfReporteIngresos,
+  formatearNombreArchivoReporte,
+} from '../lib/generarPdfReporteIngresos';
 
 /* =============================================================================
    Endpoints:
    GET /examenes/control            -> [{ id, nombre, fecha }]
    GET /examenes/:id/ingresos       -> { examenId, ingresados, total, ingresos[] }
+   GET /examenes/:id/reporte-asistencia -> PDF Blob
+   POST /ingresos/caso-excepcional   -> Ingreso (HU-20)
    ============================================================================= */
-
-const FORCE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
 
 const EXAMENES_CACHE_KEY = 'sullu_examenes_control_cache';
 const INGRESOS_CACHE_PREFIX = 'sullu_ingresos_examen_';
 
 function isEndpointMissing(error: unknown): boolean {
   return isAxiosError(error) && error.response?.status === 404;
-}
-
-/* ---------- Mocks ---------- */
-
-const MOCK_EXAMENES: ExamenControl[] = [
-  { id: 1, nombre: 'Cálculo II – Examen Final', fecha: '2026-09-06' },
-  { id: 2, nombre: 'Física I – Examen Parcial', fecha: '2026-09-07' },
-  { id: 3, nombre: 'Programación II – Examen Final', fecha: '2026-09-08' },
-];
-
-const hora = (hms: string) => `2026-09-06T${hms}-04:00`;
-
-const MOCK_INGRESOS_EX1: Ingreso[] = [
-  { id: 6, hora: hora('09:04:32'), sis: '201900123', estudiante: 'Ana Rojas Mamani', metodo: 'QR', estado: 'Habilitado' },
-  { id: 5, hora: hora('09:03:57'), sis: '202001456', estudiante: 'Diego Flores Vargas', metodo: 'QR', estado: 'Habilitado' },
-  { id: 4, hora: hora('09:03:21'), sis: '201902345', estudiante: 'Valeria López Quispe', metodo: 'Manual', estado: 'Habilitado' },
-  { id: 3, hora: hora('09:02:48'), sis: '202103678', estudiante: 'Mateo Pérez Arce', metodo: 'QR', estado: 'Habilitado' },
-  { id: 2, hora: hora('09:02:06'), sis: '202002789', estudiante: 'Lucía Salazar Ríos', metodo: 'QR', estado: 'Habilitado' },
-  { id: 1, hora: hora('09:01:39'), sis: '201901567', estudiante: 'Gabriel Fernández Soto', metodo: 'Manual', estado: 'Habilitado' },
-];
-
-function mockIngresos(examenId: string | number): IngresosExamen {
-  const id = Number(examenId);
-  if (id === 1) {
-    return { examenId, ingresados: 42, total: 85, ingresos: MOCK_INGRESOS_EX1 };
-  }
-  if (id === 2) {
-    return { examenId, ingresados: 2, total: 60, ingresos: MOCK_INGRESOS_EX1.slice(0, 2) };
-  }
-  return { examenId, ingresados: 0, total: 40, ingresos: [] };
 }
 
 /* ---------- Helpers de caché offline ---------- */
@@ -184,8 +161,6 @@ export async function obtenerIngresosExamenOffline(
 /* ---------- API con Fallback Offline ---------- */
 
 export async function getExamenesControl(): Promise<ExamenControl[]> {
-  if (FORCE_MOCKS) return MOCK_EXAMENES;
-
   // Si no hay conexión en el navegador, responder desde el caché offline
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     const cached = obtenerExamenesControlOffline();
@@ -193,7 +168,7 @@ export async function getExamenesControl(): Promise<ExamenControl[]> {
   }
 
   try {
-    const { data } = await apiClient.get('/examenes/control');
+    const { data } = await apiClient.get('/ingresos/caso-excepcional/examenes');
     const parsed = examenesControlSchema.parse(data);
 
     if (typeof window !== 'undefined' && parsed.length > 0) {
@@ -206,8 +181,6 @@ export async function getExamenesControl(): Promise<ExamenControl[]> {
 
     return parsed;
   } catch (error) {
-    if (isEndpointMissing(error)) return MOCK_EXAMENES;
-
     // Si falló por falta de red, intentar recuperar del caché antes de propagar
     const cached = obtenerExamenesControlOffline();
     if (cached && (!isAxiosError(error) || !error.response)) {
@@ -221,8 +194,6 @@ export async function getExamenesControl(): Promise<ExamenControl[]> {
 export async function getIngresosExamen(
   examenId: string | number,
 ): Promise<IngresosExamen> {
-  if (FORCE_MOCKS) return mockIngresos(examenId);
-
   // Helper para armar ingresos locales offline y fusionar con la cola local
   const armarIngresosOffline = async (): Promise<IngresosExamen> => {
     const cached = await obtenerIngresosExamenOffline(examenId);
@@ -278,7 +249,7 @@ export async function getIngresosExamen(
   }
 
   try {
-    const { data } = await apiClient.get(`/examenes/${examenId}/ingresos`);
+    const { data } = await apiClient.get(`/ingresos/caso-excepcional/examen/${examenId}/ingresos`);
     const parsed = ingresosExamenSchema.parse(data);
 
     if (typeof window !== 'undefined') {
@@ -299,8 +270,6 @@ export async function getIngresosExamen(
 
     return parsed;
   } catch (error) {
-    if (isEndpointMissing(error)) return mockIngresos(examenId);
-
     // Si falló por falta de red, recuperar datos locales en vez de romper la interfaz
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       return armarIngresosOffline();
@@ -308,4 +277,86 @@ export async function getIngresosExamen(
 
     throw error;
   }
+}
+
+/**
+ * HU-17: Descarga el reporte de asistencia en formato PDF.
+ * Solicita el PDF generado por backend o genera el documento estándar
+ * en frontend con todos los criterios de la historia de usuario.
+ */
+export async function descargarReporteIngresosPdf(
+  examen: ExamenControl,
+  datos: IngresosExamen,
+  docenteNombre?: string
+): Promise<{ blob: Blob; filename: string }> {
+  const filename = formatearNombreArchivoReporte(examen.nombre, examen.fecha);
+
+
+  try {
+    const response = await apiClient.get(`/examenes/${examen.id}/reporte-asistencia`, {
+      responseType: 'blob',
+      timeout: 10000,
+    });
+    if (response.data) {
+      const blob =
+        response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], { type: 'application/pdf' });
+      return { blob, filename };
+    }
+  } catch (error) {
+    // Si el backend no tiene el endpoint (404) o da error de servidor no bloqueante,
+    // usamos la generación PDF directa para garantizar la entrega de la HU-17
+    if (
+      isEndpointMissing(error) ||
+      (isAxiosError(error) && (!error.response || error.response.status >= 500))
+    ) {
+      const blob = generarPdfReporteIngresos({
+        examen,
+        ingresos: datos.ingresos,
+        ingresados: datos.ingresados,
+        total: datos.total,
+        docenteNombre,
+      });
+      return { blob, filename };
+    }
+    throw error;
+  }
+
+  const fallbackBlob = generarPdfReporteIngresos({
+    examen,
+    ingresos: datos.ingresos,
+    ingresados: datos.ingresados,
+    total: datos.total,
+    docenteNombre,
+  });
+  return { blob: fallbackBlob, filename };
+}
+
+/* =============================================================================
+   HU-20: Casos excepcionales (Nómina de estudiantes y Registro)
+   ============================================================================= */
+
+export async function buscarEstudiantesExamen(
+  examenId: string | number,
+  query: string
+): Promise<EstudianteExamenItem[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const { data } = await apiClient.get<EstudianteExamenItem[]>(
+    `/ingresos/caso-excepcional/examen/${examenId}/estudiantes`, { params: { q } }
+  );
+  return data.map((estudiante) => ({
+    ...estudiante,
+    metodoIngresoPrevio: estudiante.metodoIngresoPrevio
+      ? estudiante.metodoIngresoPrevio === "QR" ? "QR" : "Manual"
+      : undefined,
+  }));
+}
+
+export async function registrarCasoExcepcional(
+  payload: RegistrarCasoExcepcionalPayload
+): Promise<Ingreso> {
+  const { data } = await apiClient.post('/ingresos/caso-excepcional', payload);
+  return ingresoSchema.parse(data);
 }

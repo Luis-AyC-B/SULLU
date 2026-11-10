@@ -571,6 +571,10 @@ async function main() {
     { nombre: 'Registro de ingresos', activo: true },
     { nombre: 'Incidencias', activo: true },
     { nombre: 'Colaboradores', activo: true },
+    // HU17/HU18/HU20: nuevos modulos Sprint 3
+    { nombre: 'Ingresos', activo: true },
+    { nombre: 'Observaciones', activo: true },
+    { nombre: 'Casos Excepcionales', activo: true },
   ];
   const moduloMap: Record<string, number> = {};
   for (const m of modulosData) {
@@ -757,6 +761,22 @@ async function main() {
       clave: 'colaboradores.aprobar',
       descripcion: 'Aprobar/rechazar solicitudes (Administrador)',
     },
+    // HU17/HU18/HU20: permisos nuevos Sprint 3
+    {
+      modulo: 'Ingresos',
+      clave: 'ingresos.descargar_reporte',
+      descripcion: 'Descargar reporte de ingresos del examen (HU17)',
+    },
+    {
+      modulo: 'Observaciones',
+      clave: 'observaciones.descargar_reporte',
+      descripcion: 'Descargar reporte de observaciones del examen (HU18)',
+    },
+    {
+      modulo: 'Casos Excepcionales',
+      clave: 'casos_excepcionales.registrar',
+      descripcion: 'Registrar ingreso por caso excepcional (HU20)',
+    },
   ];
   const permisoMap: Record<string, number> = {};
   for (const p of permisosData) {
@@ -793,6 +813,10 @@ async function main() {
     'colaboradores.dar_de_baja',
     'registro_ingresos.ver',
     'incidencias.ver',
+    // HU17/HU18/HU20
+    'ingresos.descargar_reporte',
+    'observaciones.descargar_reporte',
+    'casos_excepcionales.registrar',
   ];
   const permisosControl = [
     'control_ingreso.ver_examenes_asignados',
@@ -1758,6 +1782,37 @@ async function main() {
     },
   });
 
+  // APROBADO 2: Sofia Alvarado (202001051)
+  const edgar_col2_userId = await getEstUserId('202001051');
+  await prisma.usuario_Rol.upsert({
+    where: { usuarioId_rolId: { usuarioId: edgar_col2_userId, rolId: rolControl.id } },
+    create: { usuarioId: edgar_col2_userId, rolId: rolControl.id },
+    update: {},
+  });
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docEdgar,
+      colaboradorId: edgar_col2_userId,
+      estadoSolicitud: 'APROBADO',
+      aprobadoPor: adminUser.id,
+      fechaSolicitud: new Date(ahora.getTime() - 12 * 24 * 60 * 60 * 1000),
+      fechaRespuesta: new Date(ahora.getTime() - 11 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  // PENDIENTE: Miguel Vasquez (202001052)
+  const edgar_col3_userId = await getEstUserId('202001052');
+  await prisma.docenteColaborador.create({
+    data: {
+      docenteId: docEdgar,
+      colaboradorId: edgar_col3_userId,
+      estadoSolicitud: 'PENDIENTE',
+      fechaSolicitud: new Date(ahora.getTime() - 3 * 24 * 60 * 60 * 1000),
+    },
+  });
+  void edgar_col2_userId;
+  void edgar_col3_userId;
+
   // 2.12 ExamenControlador — asignar colaboradores APROBADOS a exámenes
   await prisma.examenControlador.create({
     data: {
@@ -1781,6 +1836,14 @@ async function main() {
       colaboradorId: edgar_col1_userId, // Javier Mendoza — examen de Edgar
       asignadoPor: docEdgar,
       rolAsignacion: 'Control principal',
+    },
+  });
+  await prisma.examenControlador.create({
+    data: {
+      examenId: examen3.id,
+      colaboradorId: edgar_col2_userId, // Sofia Alvarado — apoyo en examen de Edgar
+      asignadoPor: docEdgar,
+      rolAsignacion: 'Apoyo de ingreso',
     },
   });
   console.log('OK: Relaciones colaborador (HU13) creadas.\n');
@@ -1895,6 +1958,13 @@ async function main() {
   console.log(
     'Incidencias: 5 (NO_HABILITADO, NO_ENCONTRADO, QR_CADUCADO, DOBLE_MARCACION, IDENTIDAD_NO_COINCIDE)',
   );
+  console.log('');
+  console.log('CAMBIOS SPRINT 3 (HU17/HU18/HU20):');
+  console.log('  Ingreso: +casoExcepcional, @@unique(estudianteId,examenId), @@index(examenId,fechaHora)');
+  console.log('  TipoIncidencia: +QR_OTRO_EXAMEN, +QR_NO_VALIDO, +NO_LLEGO');
+  console.log('  IncidenciaIngreso.registradoPor: ahora opcional (null = Sistema)');
+  console.log('  Permisos nuevos: ingresos.descargar_reporte, observaciones.descargar_reporte, casos_excepcionales.registrar');
+  console.log('  Colaboradores Edgar: Javier(APROBADO), Sofia(APROBADO), Miguel(PENDIENTE)');
   console.log('='.repeat(60));
 }
 
