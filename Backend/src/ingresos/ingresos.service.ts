@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { EstadoExamen, Prisma, TipoIncidencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ParticionControladorService } from './particion-controlador.service';
 import { ExpulsionesService } from '../expulsiones/expulsiones.service';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { CreateIngresoDto } from './dto/create-ingreso.dto';
@@ -43,7 +44,10 @@ const MESES = [
 export class IngresosService {
   constructor(
     private readonly prisma: PrismaService,
-    @Optional() private readonly expulsionesService?: ExpulsionesService,
+    @Optional()
+    private readonly particionService?: ParticionControladorService,
+    @Optional()
+    private readonly expulsionesService?: ExpulsionesService,
   ) {}
 
   private async verificarBloqueoExpulsion(
@@ -765,8 +769,42 @@ export class IngresosService {
       },
     });
 
+    let fueraDeGrupo = false;
+    let advertencia: string | undefined;
+    let grupoCorrecto:
+      | {
+          colaboradorId: number;
+          nombreControlador: string;
+          rango: string;
+        }
+      | undefined;
+
+    if (this.particionService) {
+      try {
+        const valGrupo = await this.particionService.validarEstudianteEnGrupo(
+          dto.examenId,
+          registradoPorId,
+          estudiante.id,
+        );
+        if (!valGrupo.pertenece && valGrupo.grupoCorrecto) {
+          fueraDeGrupo = true;
+          advertencia = valGrupo.mensaje;
+          grupoCorrecto = {
+            colaboradorId: valGrupo.grupoCorrecto.colaboradorId,
+            nombreControlador: valGrupo.grupoCorrecto.nombreControlador,
+            rango: valGrupo.grupoCorrecto.rango,
+          };
+        }
+      } catch {
+        // Fallback defensivo
+      }
+    }
+
     return {
       mensaje: 'Ingreso registrado exitosamente',
+      fueraDeGrupo,
+      advertencia,
+      grupoCorrecto,
       ingreso: nuevoIngreso,
     };
   }
@@ -1073,8 +1111,42 @@ export class IngresosService {
       where: { token: tokenLimpio },
     });
 
+    let fueraDeGrupo = false;
+    let advertencia: string | undefined;
+    let grupoCorrecto:
+      | {
+          colaboradorId: number;
+          nombreControlador: string;
+          rango: string;
+        }
+      | undefined;
+
+    if (this.particionService) {
+      try {
+        const valGrupo = await this.particionService.validarEstudianteEnGrupo(
+          dto.examenId,
+          registradoPorId,
+          estudiante.id,
+        );
+        if (!valGrupo.pertenece && valGrupo.grupoCorrecto) {
+          fueraDeGrupo = true;
+          advertencia = valGrupo.mensaje;
+          grupoCorrecto = {
+            colaboradorId: valGrupo.grupoCorrecto.colaboradorId,
+            nombreControlador: valGrupo.grupoCorrecto.nombreControlador,
+            rango: valGrupo.grupoCorrecto.rango,
+          };
+        }
+      } catch {
+        // Fallback defensivo
+      }
+    }
+
     return {
       mensaje: 'Ingreso por QR registrado exitosamente',
+      fueraDeGrupo,
+      advertencia,
+      grupoCorrecto,
       ingreso: nuevoIngreso,
     };
   }
@@ -1407,7 +1479,11 @@ export class IngresosService {
     });
   }
 
-  async buscarEstudiantesExamen(examenId: number, query?: string) {
+  async buscarEstudiantesExamen(
+    examenId: number,
+    query?: string,
+    colaboradorId?: number,
+  ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
     });
@@ -1416,10 +1492,24 @@ export class IngresosService {
       throw new NotFoundException('Examen no encontrado');
     }
 
+    let estudianteIdsFiltrados: number[] | undefined;
+    if (colaboradorId && this.particionService) {
+      const grupo = await this.particionService.obtenerGrupoDeControlador(
+        examenId,
+        colaboradorId,
+      );
+      if (grupo) {
+        estudianteIdsFiltrados = grupo.estudianteIds;
+      }
+    }
+
     const q = query?.trim();
 
     const where: Prisma.Examen_EstudianteWhereInput = {
       examenId,
+      ...(estudianteIdsFiltrados && {
+        estudianteId: { in: estudianteIdsFiltrados },
+      }),
       ...(q && {
         estudiante: {
           OR: [
