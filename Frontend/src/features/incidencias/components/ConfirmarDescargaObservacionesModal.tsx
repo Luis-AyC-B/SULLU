@@ -1,7 +1,7 @@
 // src/features/incidencias/components/ConfirmarDescargaObservacionesModal.tsx
 "use client";
 
-import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,14 @@ interface ConfirmarDescargaObservacionesModalProps {
   onClose: () => void;
   onConfirm: () => void;
   materiaNombre: string;
+  gestion?: string;
+  filtrosAplicados?: {
+    facultad?: string;
+    carrera?: string;
+    docente?: string;
+    examen?: string;
+    motivo?: string;
+  };
   isDownloading: boolean;
   errorDescarga: string | null;
   onRetry?: () => void;
@@ -25,10 +33,20 @@ export function ConfirmarDescargaObservacionesModal({
   onClose,
   onConfirm,
   materiaNombre,
+  gestion = "Gestión 2/2026",
+  filtrosAplicados,
   isDownloading,
   errorDescarga,
   onRetry,
 }: ConfirmarDescargaObservacionesModalProps) {
+  const tieneFiltrosAdicionales =
+    filtrosAplicados &&
+    (filtrosAplicados.facultad ||
+      filtrosAplicados.carrera ||
+      filtrosAplicados.docente ||
+      filtrosAplicados.examen ||
+      filtrosAplicados.motivo);
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isDownloading && onClose()}>
       <DialogContent
@@ -45,10 +63,49 @@ export function ConfirmarDescargaObservacionesModal({
         </DialogHeader>
 
         <div className="mt-4 space-y-4 text-left">
+          {/* Criterio 16: ¿Desea descargar las observaciones de ingreso de [materia / todas las materias] — [Gestión]? */}
           <p className="text-sm text-gray-700 leading-relaxed">
             ¿Desea descargar las observaciones de ingreso de{" "}
-            <span className="font-semibold text-gray-900">{materiaNombre}</span>?
+            <span className="font-semibold text-gray-900">{materiaNombre}</span>{" "}
+            — <span className="font-semibold text-gray-900">{gestion}</span>?
           </p>
+
+          {/* Filtros adicionales aplicados */}
+          {tieneFiltrosAdicionales && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-3 text-xs text-gray-700 space-y-1">
+              <p className="font-semibold text-gray-900 mb-1.5">Filtros aplicados:</p>
+              {filtrosAplicados?.facultad && (
+                <p>
+                  <span className="font-medium text-gray-600">Facultad:</span>{" "}
+                  {filtrosAplicados.facultad}
+                </p>
+              )}
+              {filtrosAplicados?.carrera && (
+                <p>
+                  <span className="font-medium text-gray-600">Carrera:</span>{" "}
+                  {filtrosAplicados.carrera}
+                </p>
+              )}
+              {filtrosAplicados?.docente && (
+                <p>
+                  <span className="font-medium text-gray-600">Docente:</span>{" "}
+                  {filtrosAplicados.docente}
+                </p>
+              )}
+              {filtrosAplicados?.examen && (
+                <p>
+                  <span className="font-medium text-gray-600">Examen:</span>{" "}
+                  {filtrosAplicados.examen}
+                </p>
+              )}
+              {filtrosAplicados?.motivo && (
+                <p>
+                  <span className="font-medium text-gray-600">Motivo:</span>{" "}
+                  {filtrosAplicados.motivo}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 p-3.5 text-xs text-amber-900 leading-relaxed">
             <p className="font-medium">Aviso de sincronización:</p>
@@ -57,6 +114,7 @@ export function ConfirmarDescargaObservacionesModal({
             </p>
           </div>
 
+          {/* Criterio 19: Mensaje de error con opción Reintentar */}
           {errorDescarga && (
             <div
               role="alert"
@@ -70,7 +128,7 @@ export function ConfirmarDescargaObservacionesModal({
                   size="sm"
                   onClick={onRetry}
                   disabled={isDownloading}
-                  className="self-start gap-1.5 h-8 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+                  className="self-start gap-1.5 h-8 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 cursor-pointer"
                 >
                   <RefreshCw
                     className={`h-3.5 w-3.5 ${isDownloading ? "animate-spin" : ""}`}
@@ -82,13 +140,14 @@ export function ConfirmarDescargaObservacionesModal({
           )}
         </div>
 
+        {/* Criterio 34: Botones del modal del mismo ancho en móvil */}
         <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 w-full">
           <Button
             type="button"
             variant="outline"
             onClick={onClose}
             disabled={isDownloading}
-            className="w-full sm:w-auto h-11 px-5 rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="flex-1 sm:flex-none sm:w-auto h-11 px-5 rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
           >
             Cancelar
           </Button>
@@ -97,16 +156,9 @@ export function ConfirmarDescargaObservacionesModal({
             type="button"
             onClick={onConfirm}
             disabled={isDownloading}
-            className="w-full sm:w-auto h-11 px-6 rounded-lg bg-[#003770] hover:bg-[#002850] text-white font-medium shadow-xs disabled:opacity-50"
+            className="flex-1 sm:flex-none sm:w-auto h-11 px-6 rounded-lg bg-[#003770] hover:bg-[#002850] text-white font-medium shadow-xs disabled:opacity-50 cursor-pointer"
           >
-            {isDownloading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generando PDF...
-              </>
-            ) : (
-              "Confirmar"
-            )}
+            {isDownloading ? "Generando PDF…" : "Confirmar"}
           </Button>
         </div>
       </DialogContent>

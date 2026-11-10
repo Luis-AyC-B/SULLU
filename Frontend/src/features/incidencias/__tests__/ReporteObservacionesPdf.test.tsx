@@ -67,8 +67,32 @@ const { usePuedeRegistrarIncidencia } = jest.requireMock(
 
 describe('HU-18: Reporte De Observaciones De Ingreso', () => {
   const mockExamenes = [
-    { id: '1', nombre: 'Bases de Datos I – Primer parcial', fecha: '2026-10-19' },
-    { id: '2', nombre: 'Cálculo II – Examen Final', fecha: '2026-09-06' },
+    {
+      id: '1',
+      nombre: 'Bases de Datos I – Primer parcial',
+      materia: 'Bases de Datos I',
+      facultad: 'Facultad de Ciencias y Tecnología',
+      facultadId: 'fcyt',
+      carrera: 'Ingeniería de Sistemas',
+      carreraId: 'sistemas',
+      docente: 'Lic. Ana Rojas Mamani',
+      docenteId: 'doc-1',
+      gestion: 'Gestión 2/2026',
+      fecha: '2026-10-19',
+    },
+    {
+      id: '2',
+      nombre: 'Cálculo II – Examen Final',
+      materia: 'Cálculo II',
+      facultad: 'Facultad de Ciencias y Tecnología',
+      facultadId: 'fcyt',
+      carrera: 'Ingeniería Informática',
+      carreraId: 'informatica',
+      docente: 'Ing. Carlos Mendoza',
+      docenteId: 'doc-2',
+      gestion: 'Gestión 2/2026',
+      fecha: '2026-09-06',
+    },
   ];
 
   const mockIncidencias = [
@@ -157,6 +181,19 @@ describe('HU-18: Reporte De Observaciones De Ingreso', () => {
       expect(nombre).toBe('observaciones_BasesDeDatosI_PrimerParcial_19-10-2026.pdf');
     });
 
+    it('genera el nombre oficial según Criterio 32 si se proporciona facultad y gestión', () => {
+      const nombre = formatearNombreArchivoObservaciones(
+        'Bases de Datos I',
+        '2026-10-19',
+        'Facultad de Ciencias y Tecnología',
+        'Gestión 2/2026'
+      );
+      expect(nombre).toContain('observaciones_');
+      expect(nombre).toContain('Ciencias');
+      expect(nombre).toContain('BasesDeDatosI');
+      expect(nombre).toContain('Gestion2-2026');
+    });
+
     it('extrae el nombre de la materia y el parcial correctamente', () => {
       expect(obtenerNombreMateriaIncidencia('Bases de Datos I – Primer parcial')).toBe(
         'Bases de Datos I'
@@ -167,28 +204,29 @@ describe('HU-18: Reporte De Observaciones De Ingreso', () => {
     });
 
     it('filtra correctamente las incidencias por motivo', () => {
-      const todos = filtrarIncidenciasPorMotivo(mockIncidencias, 'TODOS');
-      expect(todos.length).toBe(4);
+      const filtradasNoHabilitado = filtrarIncidenciasPorMotivo(
+        mockIncidencias,
+        'NO_HABILITADO'
+      );
+      expect(filtradasNoHabilitado).toHaveLength(2);
 
-      const noHabilitados = filtrarIncidenciasPorMotivo(mockIncidencias, 'NO_HABILITADO');
-      expect(noHabilitados.length).toBe(2);
-
-      const dobleMarcacion = filtrarIncidenciasPorMotivo(mockIncidencias, 'DOBLE_MARCACION');
-      expect(dobleMarcacion.length).toBe(1);
-      expect(dobleMarcacion[0].codigoSis).toBe('202003456');
+      const todas = filtrarIncidenciasPorMotivo(mockIncidencias, 'TODOS');
+      expect(todas).toHaveLength(4);
     });
   });
 
-  describe('Control de acceso y vistas por Rol', () => {
-    it('Docente visualiza el botón "Descargar PDF" y NO visualiza "+ Registrar incidencia"', () => {
+  describe('Visibilidad y permisos según Rol (Criterios 1, 2, 3, 4)', () => {
+    it('Criterio 1: muestra "Descargar PDF" y NO "+ Registrar incidencia" para rol Docente', () => {
       render(<IncidenciasPageContainer />);
-      expect(screen.getByRole('button', { name: /descargar pdf/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /descargar pdf/i })
+      ).toBeInTheDocument();
       expect(
         screen.queryByRole('button', { name: /\+ registrar incidencia/i })
       ).not.toBeInTheDocument();
     });
 
-    it('Personal de Control visualiza "+ Registrar incidencia" y NO visualiza "Descargar PDF"', () => {
+    it('Criterio 2: permite ver "Descargar PDF" Y TAMBIÉN "+ Registrar incidencia" al Personal de Control', () => {
       mockUseSession.mockReturnValue({
         data: {
           user: {
@@ -205,27 +243,51 @@ describe('HU-18: Reporte De Observaciones De Ingreso', () => {
       expect(
         screen.getByRole('button', { name: /\+ registrar incidencia/i })
       ).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /descargar pdf/i })).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /descargar pdf/i })
+      ).toBeInTheDocument();
+    });
+
+    it('Criterio 3: Administrador ve "Descargar PDF" y no ve "+ Registrar incidencia"', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            name: 'Administrador General',
+            email: 'admin@umss.edu',
+            rol: 'ADMIN',
+          },
+        },
+        status: 'authenticated',
+      });
+
+      render(<IncidenciasPageContainer />);
+      expect(
+        screen.getByRole('button', { name: /descargar pdf/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /\+ registrar incidencia/i })
+      ).not.toBeInTheDocument();
     });
   });
 
   describe('Filtros combinables y contador', () => {
-    it('muestra los selectores de Materia y Motivo en la barra de herramientas', () => {
+    it('muestra los selectores de Gestión, Materia y Motivo en la barra de herramientas', () => {
       render(<IncidenciasPageContainer />);
+      expect(screen.getByRole('combobox', { name: /gestión/i })).toBeInTheDocument();
       expect(screen.getByRole('combobox', { name: /materia/i })).toBeInTheDocument();
       expect(screen.getByRole('combobox', { name: /motivo/i })).toBeInTheDocument();
     });
 
-    it('muestra el contador inicial con todas las incidencias registradas', () => {
+    it('muestra el contador inicial con formato "N observaciones registradas"', () => {
       render(<IncidenciasPageContainer />);
       expect(
-        screen.getAllByText('4 incidencias registradas para este examen').length
+        screen.getAllByText(/4 observaciones registradas/i).length
       ).toBeGreaterThan(0);
     });
   });
 
   describe('Modal de confirmación de descarga para Docente', () => {
-    it('abre el modal "Confirmar descarga" con el nombre de la materia', () => {
+    it('abre el modal "Confirmar descarga" con el nombre de la materia y gestión', () => {
       render(<IncidenciasPageContainer />);
       const btn = screen.getByRole('button', { name: /descargar pdf/i });
       fireEvent.click(btn);

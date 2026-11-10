@@ -1,9 +1,12 @@
-import { useMemo } from "react";
+// src/features/incidencias/components/ControlIncidenciasView.tsx
+"use client";
+
 import type {
   ExamenIncidencia,
+  FiltrosIncidencias,
   Incidencia,
+  RolIncidencias,
 } from "../types/incidencias.types";
-import { filtrarIncidenciasPorMotivo } from "../types/incidencias.types";
 import { IncidenciasFiltrosToolbar } from "./IncidenciasFiltrosToolbar";
 import {
   IncidenciasError,
@@ -13,16 +16,14 @@ import {
 import { IncidenciasLista } from "./IncidenciasLista";
 
 interface ControlIncidenciasViewProps {
+  rol: RolIncidencias;
   examenes: ExamenIncidencia[];
   examenesLoading: boolean;
   examenesError: string | null;
   onReintentarExamenes: () => void;
 
-  examenId: string | null;
-  onExamenChange: (examenId: string) => void;
-
-  motivoSeleccionado?: string;
-  onMotivoChange?: (motivo: string) => void;
+  filtros: FiltrosIncidencias;
+  onFiltrosChange: (nuevosFiltros: FiltrosIncidencias) => void;
 
   incidencias: Incidencia[] | null;
   incidenciasLoading: boolean;
@@ -31,24 +32,18 @@ interface ControlIncidenciasViewProps {
 }
 
 export function ControlIncidenciasView({
+  rol,
   examenes,
   examenesLoading,
   examenesError,
   onReintentarExamenes,
-  examenId,
-  onExamenChange,
-  motivoSeleccionado = "TODOS",
-  onMotivoChange,
+  filtros,
+  onFiltrosChange,
   incidencias,
   incidenciasLoading,
   incidenciasError,
   onReintentarIncidencias,
 }: ControlIncidenciasViewProps) {
-  const incidenciasFiltradas = useMemo(() => {
-    if (!incidencias) return null;
-    return filtrarIncidenciasPorMotivo(incidencias, motivoSeleccionado);
-  }, [incidencias, motivoSeleccionado]);
-
   if (examenesLoading) {
     return <IncidenciasSkeleton conSelector />;
   }
@@ -62,32 +57,20 @@ export function ControlIncidenciasView({
     );
   }
 
-  if (examenes.length === 0) {
-    return (
-      <IncidenciasVacio
-        titulo="No hay exámenes disponibles"
-        descripcion="Cuando haya exámenes asignados podrás consultar y registrar incidencias."
-      />
-    );
-  }
-
-  const hayFiltroActivo = motivoSeleccionado !== "TODOS";
-
   return (
     <div className="flex flex-col gap-6">
-      {/* HU-18: Barra con filtros combinables de Materia y Motivo */}
+      {/* HU-18: Barra con filtros combinables y cascada según rol */}
       <IncidenciasFiltrosToolbar
+        rol={rol}
         examenes={examenes}
-        examenId={examenId}
-        onExamenChange={onExamenChange}
-        motivoSeleccionado={motivoSeleccionado}
-        onMotivoChange={onMotivoChange ?? (() => {})}
+        filtros={filtros}
+        onFiltrosChange={onFiltrosChange}
         disabled={incidenciasLoading}
       />
 
       {incidenciasLoading && <IncidenciasSkeleton />}
 
-      {/* Error sin datos previos: reemplaza la lista */}
+      {/* Error sin datos previos */}
       {!incidenciasLoading && incidenciasError && incidencias === null && (
         <IncidenciasError
           mensaje={incidenciasError}
@@ -95,7 +78,7 @@ export function ControlIncidenciasView({
         />
       )}
 
-      {/* Error al recargar con datos ya visibles: aviso encima de la lista */}
+      {/* Error al recargar con datos ya visibles */}
       {incidencias !== null && incidenciasError && (
         <IncidenciasError
           mensaje={incidenciasError}
@@ -103,29 +86,22 @@ export function ControlIncidenciasView({
         />
       )}
 
-      {/* Caso sin incidencias en el examen */}
-      {incidencias !== null && incidencias.length === 0 && (
-        <IncidenciasVacio
-          titulo="No hay incidencias registradas para este examen"
-          descripcion="Los intentos de ingreso de estudiantes no habilitados aparecerán aquí."
-        />
-      )}
-
-      {/* Caso con incidencias pero ninguna coincide con el motivo filtrado */}
-      {incidencias !== null &&
-        incidencias.length > 0 &&
-        incidenciasFiltradas !== null &&
-        incidenciasFiltradas.length === 0 && (
+      {/* Criterio 15: Caso sin observaciones para los filtros elegidos */}
+      {!incidenciasLoading &&
+        incidencias !== null &&
+        incidencias.length === 0 && (
           <IncidenciasVacio
-            titulo="No se encontraron observaciones para el motivo seleccionado"
-            descripcion="Prueba seleccionando otro motivo o vuelve a 'Todos los motivos'."
+            titulo="Sin observaciones"
+            descripcion="No se encontraron observaciones registradas para los filtros seleccionados."
           />
         )}
 
-      {/* Lista con los resultados filtrados */}
-      {incidenciasFiltradas !== null && incidenciasFiltradas.length > 0 && (
-        <IncidenciasLista incidencias={incidenciasFiltradas} />
-      )}
+      {/* Lista con los resultados filtrados y contador */}
+      {!incidenciasLoading &&
+        incidencias !== null &&
+        incidencias.length > 0 && (
+          <IncidenciasLista incidencias={incidencias} />
+        )}
     </div>
   );
 }

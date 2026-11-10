@@ -12,8 +12,15 @@ import { useExamenesIncidencias } from "../hooks/useExamenesIncidencias";
 import { useIncidenciasExamen } from "../hooks/useIncidenciasExamen";
 import { usePuedeRegistrarIncidencia } from "../hooks/usePuedeRegistrarIncidencia";
 import { offlineIncidenciasService } from "../services/offline-incidencias.service";
-import type { Incidencia } from "../types/incidencias.types";
-import { filtrarIncidenciasPorMotivo } from "../types/incidencias.types";
+import type {
+  FiltrosIncidencias,
+  Incidencia,
+  RolIncidencias,
+} from "../types/incidencias.types";
+import {
+  filtrarIncidenciasPorMotivo,
+  obtenerGestionVigente,
+} from "../types/incidencias.types";
 import { ControlIncidenciasView } from "./ControlIncidenciasView";
 import { IncidenciasSkeleton } from "./IncidenciasEstados";
 import {
@@ -21,11 +28,13 @@ import {
   type ValoresInicialesIncidencia,
 } from "./RegisterIncidenceModal";
 import { ConfirmarDescargaObservacionesModal } from "./ConfirmarDescargaObservacionesModal";
-import { descargarReporteObservacionesPdf } from "../api/incidencias.service";
+import {
+  descargarReporteObservacionesPdf,
+  getIncidenciasConsolidadas,
+} from "../api/incidencias.service";
 import { obtenerNombreMateriaIncidencia } from "../lib/generarPdfReporteObservaciones";
 
 // Precarga por URL: /incidencias?sis=202104321&examenId=1
-// (la usa el flujo "Registrar incidencia" de un ingreso rechazado en HU11).
 function leerPrecarga(params: {
   get: (nombre: string) => string | null;
 }): ValoresInicialesIncidencia | null {
@@ -43,30 +52,69 @@ function IncidenciasContenido() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
 
-  // HU-18: Identificación de rol (Docente vs Personal de Control)
-  const userRole = (session?.user?.rol || "").toLowerCase();
-  const userEmail = (session?.user?.email || "").toLowerCase();
-  const isDocente =
-    userRole.includes("docente") ||
-    userEmail.includes("docente") ||
-    Boolean(session?.user?.permisos?.some((p: string) => p.includes("docente")));
+  // Determinación segura y robusta del rol
+  const rol: RolIncidencias = useMemo(() => {
+    const rawRole = (session?.user?.rol || "").toLowerCase();
+    const rawEmail = (session?.user?.email || "").toLowerCase();
+    const permisos = session?.user?.permisos || [];
 
-  const examenes = useExamenesIncidencias();
+    if (
+      rawRole.includes("admin") ||
+      rawEmail.includes("admin") ||
+      permisos.some((p: string) => p.includes("admin"))
+    ) {
+      return "admin";
+    }
+
+    if (
+      rawRole.includes("docente") ||
+      rawEmail.includes("docente") ||
+      permisos.some((p: string) => p.includes("docente"))
+    ) {
+      return "docente";
+    }
+
+    if (
+      rawRole.includes("control") ||
+      rawEmail.includes("control") ||
+      permisos.some((p: string) => p.includes("control"))
+    ) {
+      return "control";
+    }
+
+    return "custom";
+  }, [session]);
+
+  const examenesHook = useExamenesIncidencias();
   const puedeRegistrar = usePuedeRegistrarIncidencia();
 
   const [precarga, setPrecarga] = useState(() => leerPrecarga(searchParams));
-  const [seleccion, setSeleccion] = useState<string | null>(
-    precarga?.examenId ?? null
-  );
-  // Solo se abre sola si la URL trae un SIS válido.
   const [modalAbierto, setModalAbierto] = useState(() =>
     Boolean(precarga?.codigoSis)
   );
 
-  // HU-18: Estado del filtro por motivo
-  const [motivoFiltro, setMotivoFiltro] = useState<string>("TODOS");
+  // Inicializar examen con precarga o primer examen si existe
+  const examenInicial = precarga?.examenId ?? examenesHook.examenes[0]?.id ?? "TODOS";
 
-  // HU-18: Estado de descarga del PDF de observaciones
+  // Filtros combinables de HU-18
+  const [filtros, setFiltros] = useState<FiltrosIncidencias>({
+    facultadId: "TODAS",
+    carreraId: "TODAS",
+    docenteId: "TODOS",
+    gestion: obtenerGestionVigente(),
+    materiaId: "TODAS",
+    examenId: examenInicial,
+    motivo: "TODOS",
+  });
+
+  // Si se cargan exámenes y examenId sigue en TODOS o vacío, sincronizar si es conveniente
+  useEffect(() => {
+    if (filtros.examenId === "TODOS" && examenesHook.examenes.length > 0 && !precarga) {
+      // mantenemos examenId según preferencia del usuario o lista disponible
+    }
+  }, [examenesHook.examenes, filtros.examenId, precarga]);
+
+  // Estado de descarga del PDF de observaciones
   const [isModalDescargaOpen, setIsModalDescargaOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
@@ -74,33 +122,101 @@ function IncidenciasContenido() {
   const [pendientesOffline, setPendientesOffline] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Si no hay selección válida se usa el primer examen de la lista.
-  const examenId =
-    seleccion && examenes.examenes.some((e) => e.id === seleccion)
-      ? seleccion
-      : (examenes.examenes[0]?.id ?? null);
+  // Filtrado de exámenes según filtros seleccionados
+  const examenesFiltrados = useMemo(() => {
+    return examenesHook.examenes.filter((e) => {
+      if (filtros.facultadId !== "TODAS" && e.facultadId && e.facultadId !== filtros.facultadId) {
+        return false;
+      }
+      if (filtros.carreraId !== "TODAS" && e.carreraId && e.carreraId !== filtros.carreraId) {
+        return false;
+      }
+      if (filtros.docenteId !== "TODOS" && e.docenteId && e.docenteId !== filtros.docenteId) {
+        return false;
+      }
+      if (filtros.gestion && e.gestion && e.gestion !== filtros.gestion) {
+        return false;
+      }
+      if (filtros.materiaId !== "TODAS" && (e.materiaId ?? e.materia ?? e.nombre) !== filtros.materiaId) {
+        return false;
+      }
+      return true;
+    });
+  }, [examenesHook.examenes, filtros]);
 
-  const lista = useIncidenciasExamen(examenId);
+  // Manejo de carga de incidencias:
+  // Cuando se selecciona un examen específico (!== "TODOS"), se consulta con el hook.
+  // Cuando está en "TODOS", el hook recibe null para no disparar peticiones innecesarias.
+  const examenIdParaHook = filtros.examenId !== "TODOS" ? filtros.examenId : null;
 
-  const examenSeleccionado = useMemo(
-    () => examenes.examenes.find((e) => e.id === examenId) || null,
-    [examenes.examenes, examenId]
-  );
+  const listaHook = useIncidenciasExamen(examenIdParaHook);
+
+  const [incidenciasConsolidadas, setIncidenciasConsolidadas] = useState<Incidencia[]>([]);
+  const [cargandoConsolidadas, setCargandoConsolidadas] = useState(false);
+
+  useEffect(() => {
+    if (filtros.examenId === "TODOS") {
+      let isCurrent = true;
+      setCargandoConsolidadas(true);
+      const ids = examenesFiltrados.map((e) => e.id);
+      getIncidenciasConsolidadas(ids)
+        .then((res) => {
+          if (isCurrent) {
+            setIncidenciasConsolidadas(res);
+            setCargandoConsolidadas(false);
+          }
+        })
+        .catch(() => {
+          if (isCurrent) {
+            setIncidenciasConsolidadas([]);
+            setCargandoConsolidadas(false);
+          }
+        });
+      return () => {
+        isCurrent = false;
+      };
+    }
+  }, [filtros.examenId, examenesFiltrados]);
+
+  // Incidencias base a mostrar
+  const incidenciasBase = useMemo(() => {
+    if (filtros.examenId === "TODOS" && incidenciasConsolidadas.length > 0) {
+      return incidenciasConsolidadas;
+    }
+    return listaHook.incidencias ?? [];
+  }, [filtros.examenId, incidenciasConsolidadas, listaHook.incidencias]);
+
+  // Filtrado final por motivo
+  const incidenciasFiltradas = useMemo(() => {
+    return filtrarIncidenciasPorMotivo(incidenciasBase, filtros.motivo);
+  }, [incidenciasBase, filtros.motivo]);
+
+  const isLoadingIncidencias =
+    filtros.examenId === "TODOS" && cargandoConsolidadas ? true : listaHook.isLoading;
+
+  const examenSeleccionado = useMemo(() => {
+    if (filtros.examenId !== "TODOS") {
+      return examenesHook.examenes.find((e) => e.id === filtros.examenId) || null;
+    }
+    return examenesFiltrados[0] || examenesHook.examenes[0] || null;
+  }, [filtros.examenId, examenesHook.examenes, examenesFiltrados]);
 
   const materiaNombre = useMemo(() => {
-    return examenSeleccionado
-      ? obtenerNombreMateriaIncidencia(examenSeleccionado.nombre)
-      : "la materia";
-  }, [examenSeleccionado]);
-
-  const incidenciasFiltradas = useMemo(() => {
-    return filtrarIncidenciasPorMotivo(lista.incidencias ?? [], motivoFiltro);
-  }, [lista.incidencias, motivoFiltro]);
+    if (filtros.materiaId !== "TODAS") {
+      return filtros.materiaId;
+    }
+    if (examenSeleccionado) {
+      return obtenerNombreMateriaIncidencia(examenSeleccionado.nombre);
+    }
+    return "todas las materias";
+  }, [filtros.materiaId, examenSeleccionado]);
 
   useEffect(() => {
     const updateCount = () => {
       setPendientesOffline(
-        offlineIncidenciasService.contarPendientesSync(examenId ?? undefined)
+        offlineIncidenciasService.contarPendientesSync(
+          filtros.examenId !== "TODOS" ? filtros.examenId : undefined
+        )
       );
     };
     updateCount();
@@ -113,7 +229,7 @@ function IncidenciasContenido() {
       );
       window.removeEventListener("online", updateCount);
     };
-  }, [examenId]);
+  }, [filtros.examenId]);
 
   const handleSincronizar = async () => {
     setIsSyncing(true);
@@ -122,7 +238,7 @@ function IncidenciasContenido() {
       toast.success(
         `Sincronización completada: ${res.totalSincronizados} procesadas, ${res.totalOmitidos} omitidas.`
       );
-      lista.recargar();
+      listaHook.recargar();
     } catch {
       toast.error("Error al sincronizar incidencias. Verifica la conexión.");
     } finally {
@@ -130,9 +246,13 @@ function IncidenciasContenido() {
     }
   };
 
-  // Solo el Personal de Control (o quien no sea Docente pero tenga permisos) ve el botón de registrar
+  // Botón "+ Registrar incidencia": SOLO Personal de control (Criterio 2)
+  const esPersonalDeControl = rol === "control";
   const puedeAbrirModal =
-    !isDocente && puedeRegistrar && !examenes.isLoading && examenes.examenes.length > 0;
+    esPersonalDeControl &&
+    puedeRegistrar &&
+    !examenesHook.isLoading &&
+    examenesHook.examenes.length > 0;
 
   function handleModalOpenChange(abierto: boolean) {
     setModalAbierto(abierto);
@@ -143,20 +263,17 @@ function IncidenciasContenido() {
   }
 
   function handleRegistrada(incidencia: Incidencia) {
-    if (incidencia.examenId !== examenId) {
-      setSeleccion(incidencia.examenId);
+    if (incidencia.examenId !== filtros.examenId) {
+      setFiltros((prev) => ({ ...prev, examenId: incidencia.examenId }));
     } else {
-      lista.recargar();
+      listaHook.recargar();
     }
   }
 
-  // HU-18: Clic en "Descargar PDF" para el Docente
-  const handleSolicitarDescarga = () => {
-    if (!examenId || !examenSeleccionado) {
-      toast.error("Selecciona una materia para descargar el reporte");
-      return;
-    }
+  // Criterios 1, 2, 3, 4: Todos los roles con acceso ven "Descargar PDF"
+  const puedeDescargarReporte = true;
 
+  const handleSolicitarDescarga = () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       toast.error("Necesitas conexión para descargar el reporte");
       return;
@@ -171,21 +288,22 @@ function IncidenciasContenido() {
     setIsModalDescargaOpen(true);
   };
 
-  // HU-18: Confirmar descarga desde el modal
   const handleConfirmarDescarga = async () => {
-    if (!examenSeleccionado) return;
+    if (!examenSeleccionado && examenesHook.examenes.length === 0) return;
     if (isDownloading) return;
 
     setIsDownloading(true);
     setErrorDescarga(null);
 
     try {
-      const docenteNombre = session?.user?.name || "Docente titular";
+      const targetExamen = examenSeleccionado || examenesHook.examenes[0];
+      const generadorNombre = session?.user?.name || "Usuario del sistema";
       const { blob, filename } = await descargarReporteObservacionesPdf(
-        examenSeleccionado,
+        targetExamen,
         incidenciasFiltradas,
-        motivoFiltro,
-        docenteNombre
+        filtros.motivo,
+        generadorNombre,
+        filtros
       );
 
       const url = URL.createObjectURL(blob);
@@ -211,16 +329,16 @@ function IncidenciasContenido() {
 
   return (
     <PageContainer
-      title="Registro de incidencias"
+      title="Observaciones de ingreso"
       subtitle="Observaciones de ingreso por examen"
       actionLabel={puedeAbrirModal ? "+ Registrar incidencia" : undefined}
       onAction={() => setModalAbierto(true)}
       headerExtra={
-        isDocente ? (
+        puedeDescargarReporte ? (
           <Button
             type="button"
             onClick={handleSolicitarDescarga}
-            disabled={!examenId || isDownloading}
+            disabled={isDownloading}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-[#003770] px-4 py-2.5 text-sm font-medium text-white shadow-xs hover:bg-[#002850] active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
             aria-label="Descargar PDF"
           >
@@ -260,40 +378,51 @@ function IncidenciasContenido() {
         </div>
       )}
 
-      {/* Vista con filtros combinables de Materia y Motivo */}
+      {/* Vista con Toolbar de Filtros HU-18 */}
       <ControlIncidenciasView
-        examenes={examenes.examenes}
-        examenesLoading={examenes.isLoading}
-        examenesError={examenes.error}
-        onReintentarExamenes={examenes.reintentar}
-        examenId={examenId}
-        onExamenChange={setSeleccion}
-        motivoSeleccionado={motivoFiltro}
-        onMotivoChange={setMotivoFiltro}
-        incidencias={lista.incidencias}
-        incidenciasLoading={lista.isLoading}
-        incidenciasError={lista.error}
-        onReintentarIncidencias={lista.recargar}
+        rol={rol}
+        filtros={filtros}
+        onFiltrosChange={setFiltros}
+        examenes={examenesHook.examenes}
+        examenesLoading={examenesHook.isLoading}
+        examenesError={examenesHook.error}
+        onReintentarExamenes={examenesHook.reintentar}
+        examenId={filtros.examenId}
+        onExamenChange={(id) => setFiltros((prev) => ({ ...prev, examenId: id }))}
+        motivoSeleccionado={filtros.motivo}
+        onMotivoChange={(m) => setFiltros((prev) => ({ ...prev, motivo: m }))}
+        incidencias={incidenciasFiltradas}
+        incidenciasLoading={isLoadingIncidencias}
+        incidenciasError={filtros.examenId !== "TODOS" ? listaHook.error : null}
+        onReintentarIncidencias={() => {
+          if (filtros.examenId !== "TODOS") {
+            listaHook.recargar();
+          } else {
+            examenesHook.reintentar();
+          }
+        }}
       />
 
-      {/* Modal para Personal de Control */}
+      {/* Modal solo para Personal de Control */}
       {puedeAbrirModal && (
         <RegisterIncidenceModal
           open={modalAbierto}
           onOpenChange={handleModalOpenChange}
-          examenes={examenes.examenes}
-          examenIdActual={examenId}
+          examenes={examenesHook.examenes}
+          examenIdActual={filtros.examenId !== "TODOS" ? filtros.examenId : examenesHook.examenes[0]?.id ?? null}
           valoresIniciales={precarga}
           onRegistrada={handleRegistrada}
         />
       )}
 
-      {/* HU-18: Modal de confirmación de descarga para Docente */}
+      {/* Modal de confirmación de descarga para todos los roles */}
       <ConfirmarDescargaObservacionesModal
         isOpen={isModalDescargaOpen}
         onClose={() => setIsModalDescargaOpen(false)}
         onConfirm={handleConfirmarDescarga}
         materiaNombre={materiaNombre}
+        gestion={filtros.gestion}
+        filtrosAplicados={filtros}
         isDownloading={isDownloading}
         errorDescarga={errorDescarga}
         onRetry={handleConfirmarDescarga}
@@ -302,7 +431,6 @@ function IncidenciasContenido() {
   );
 }
 
-// useSearchParams requiere un Suspense para que `next build` no falle.
 export function IncidenciasPageContainer() {
   return (
     <Suspense fallback={<IncidenciasSkeleton conSelector />}>
