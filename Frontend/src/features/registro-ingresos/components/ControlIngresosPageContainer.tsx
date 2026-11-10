@@ -11,6 +11,8 @@ import { IngresosFiltrosToolbar, type RolIngresos } from "./IngresosFiltrosToolb
 import { IngresosTableToolbar } from "./IngresosTableToolbar";
 import { IngresosTable } from "./IngresosTable";
 import { BotonDescargarReportePdf } from "./BotonDescargarReportePdf";
+import { BotonCasoExcepcional } from "./BotonCasoExcepcional";
+import { RegistrarCasoExcepcionalModal } from "./RegistrarCasoExcepcionalModal";
 import { ConfirmarDescargaModal } from "./ConfirmarDescargaModal";
 import { useExamenesControl } from "../hooks/useExamenesControl";
 import { useIngresosExamen } from "../hooks/useIngresosExamen";
@@ -147,6 +149,12 @@ export function ControlIngresosPageContainer() {
     [userRole, userEmail, userName, permisos]
   );
 
+  const isDocente =
+    rol === "docente" ||
+    userRole.toLowerCase().includes("docente") ||
+    userEmail.toLowerCase().includes("docente") ||
+    permisos.some((p) => p.includes("docente"));
+
   // Criterio 24: Cualquier usuario con acceso al módulo puede descargar el PDF
   const puedeDescargarPdf = Boolean(session?.user);
 
@@ -235,6 +243,31 @@ export function ControlIngresosPageContainer() {
 
   const [busqueda, setBusqueda] = useState("");
 
+  // Ingresos locales agregados en la sesión (HU-20 casos excepcionales)
+  const [ingresosAgregados, setIngresosAgregados] = useState<Ingreso[]>([]);
+  const [isCasoModalOpen, setIsCasoModalOpen] = useState(false);
+
+  useEffect(() => {
+    setIngresosAgregados([]);
+  }, [filtros.examenId]);
+
+  const handleAbrirCasoExcepcional = () => {
+    if (!examenSeleccionado) {
+      toast.error("Selecciona un examen para registrar un caso excepcional");
+      return;
+    }
+    if (examenSeleccionado.estado === "FINALIZADO") {
+      toast.error("El examen ya ha finalizado");
+      return;
+    }
+    setIsCasoModalOpen(true);
+  };
+
+  const handleCasoRegistrado = (nuevoIngreso: Ingreso) => {
+    setIngresosAgregados((prev) => [nuevoIngreso, ...prev]);
+    toast.success("Caso excepcional registrado");
+  };
+
   // Estado para la descarga del PDF (HU-17)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -249,6 +282,8 @@ export function ControlIngresosPageContainer() {
     }
     return examenesFiltrados[0] || examenesEnriquecidos[0] || null;
   }, [examenesEnriquecidos, examenesFiltrados, filtros.examenId]);
+
+  const examenId = examenSeleccionado ? String(examenSeleccionado.id) : null;
 
   const materiaNombre = useMemo(() => {
     if (filtros.materiaId !== "TODAS") {
@@ -295,9 +330,25 @@ export function ControlIngresosPageContainer() {
     };
   }, [examenesEnriquecidos, filtros]);
 
+  const todosLosIngresos = useMemo(() => {
+    const base = dataActiva?.ingresos ?? [];
+    if (ingresosAgregados.length === 0) return base;
+    const baseFiltrada = base.filter(
+      (b) => !ingresosAgregados.some((a) => a.sis === b.sis)
+    );
+    return [...ingresosAgregados, ...baseFiltrada];
+  }, [dataActiva?.ingresos, ingresosAgregados]);
+
+  const totalIngresadosCalculado = useMemo(() => {
+    const baseCount = dataActiva?.ingresados ?? 0;
+    return baseCount + ingresosAgregados.filter(
+      (nuevo) => !dataActiva?.ingresos.some((ingreso) => ingreso.sis === nuevo.sis)
+    ).length;
+  }, [dataActiva?.ingresados, dataActiva?.ingresos, ingresosAgregados]);
+
   const ingresosFiltrados = useMemo(
-    () => filtrarIngresos(dataActiva?.ingresos ?? [], busqueda),
-    [dataActiva, busqueda]
+    () => filtrarIngresos(todosLosIngresos, busqueda),
+    [todosLosIngresos, busqueda]
   );
 
   const cargandoIngresos =
@@ -416,16 +467,31 @@ export function ControlIngresosPageContainer() {
 
           {/* HU-17 Criterios 1, 2, 3, 24: Botón visible para Docente, Control y Administrador */}
           {puedeDescargarPdf && (
-            <BotonDescargarReportePdf
-              onClick={handleSolicitarDescarga}
-              disabled={examenes.length === 0}
-              disabledReason={
-                examenes.length === 0
-                  ? "Selecciona un examen para descargar el reporte"
-                  : undefined
-              }
-              isDownloading={isDownloading}
-            />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+              {isDocente && (
+                <BotonCasoExcepcional
+                  onClick={handleAbrirCasoExcepcional}
+                  disabled={!examenSeleccionado || examenSeleccionado?.estado === "FINALIZADO"}
+                  disabledReason={
+                    !examenSeleccionado
+                      ? "Selecciona un examen para registrar casos excepcionales"
+                      : examenSeleccionado?.estado === "FINALIZADO"
+                      ? "El examen está finalizado"
+                      : undefined
+                  }
+                />
+              )}
+              <BotonDescargarReportePdf
+                onClick={handleSolicitarDescarga}
+                disabled={examenes.length === 0}
+                disabledReason={
+                  examenes.length === 0
+                    ? "Selecciona un examen para descargar el reporte"
+                    : undefined
+                }
+                isDownloading={isDownloading}
+              />
+            </div>
           )}
         </div>
       }
@@ -469,7 +535,7 @@ export function ControlIngresosPageContainer() {
           ingresos={ingresosFiltrados}
           isLoading={cargandoIngresos}
           hayBusqueda={busqueda.trim() !== ""}
-          ingresados={dataActiva?.ingresados ?? 0}
+          ingresados={totalIngresadosCalculado ?? dataActiva?.ingresados ?? 0}
           total={dataActiva?.total ?? 0}
         />
 

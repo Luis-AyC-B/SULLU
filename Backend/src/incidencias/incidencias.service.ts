@@ -33,7 +33,7 @@ type Fila = {
     nombre: string;
     apellido: string | null;
   } | null;
-  controlador: { nombre: string; apellido: string | null };
+  controlador: { nombre: string; apellido: string | null } | null;
 };
 
 const nombre = (n: string, a?: string | null) => `${n} ${a ?? ''}`.trim();
@@ -53,7 +53,9 @@ export class IncidenciasService {
         : (f.nombreReferencial ?? ''),
       motivo: f.tipoIncidencia,
       observaciones: f.descripcion,
-      registradoPor: nombre(f.controlador.nombre, f.controlador.apellido),
+      registradoPor: f.controlador
+        ? nombre(f.controlador.nombre, f.controlador.apellido)
+        : 'Sistema',
     };
   }
 

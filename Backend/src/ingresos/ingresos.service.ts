@@ -769,42 +769,8 @@ export class IngresosService {
       },
     });
 
-    let fueraDeGrupo = false;
-    let advertencia: string | undefined;
-    let grupoCorrecto:
-      | {
-          colaboradorId: number;
-          nombreControlador: string;
-          rango: string;
-        }
-      | undefined;
-
-    if (this.particionService) {
-      try {
-        const valGrupo = await this.particionService.validarEstudianteEnGrupo(
-          dto.examenId,
-          registradoPorId,
-          estudiante.id,
-        );
-        if (!valGrupo.pertenece && valGrupo.grupoCorrecto) {
-          fueraDeGrupo = true;
-          advertencia = valGrupo.mensaje;
-          grupoCorrecto = {
-            colaboradorId: valGrupo.grupoCorrecto.colaboradorId,
-            nombreControlador: valGrupo.grupoCorrecto.nombreControlador,
-            rango: valGrupo.grupoCorrecto.rango,
-          };
-        }
-      } catch {
-        // Fallback defensivo
-      }
-    }
-
     return {
       mensaje: 'Ingreso registrado exitosamente',
-      fueraDeGrupo,
-      advertencia,
-      grupoCorrecto,
       ingreso: nuevoIngreso,
     };
   }
@@ -1111,42 +1077,8 @@ export class IngresosService {
       where: { token: tokenLimpio },
     });
 
-    let fueraDeGrupo = false;
-    let advertencia: string | undefined;
-    let grupoCorrecto:
-      | {
-          colaboradorId: number;
-          nombreControlador: string;
-          rango: string;
-        }
-      | undefined;
-
-    if (this.particionService) {
-      try {
-        const valGrupo = await this.particionService.validarEstudianteEnGrupo(
-          dto.examenId,
-          registradoPorId,
-          estudiante.id,
-        );
-        if (!valGrupo.pertenece && valGrupo.grupoCorrecto) {
-          fueraDeGrupo = true;
-          advertencia = valGrupo.mensaje;
-          grupoCorrecto = {
-            colaboradorId: valGrupo.grupoCorrecto.colaboradorId,
-            nombreControlador: valGrupo.grupoCorrecto.nombreControlador,
-            rango: valGrupo.grupoCorrecto.rango,
-          };
-        }
-      } catch {
-        // Fallback defensivo
-      }
-    }
-
     return {
       mensaje: 'Ingreso por QR registrado exitosamente',
-      fueraDeGrupo,
-      advertencia,
-      grupoCorrecto,
       ingreso: nuevoIngreso,
     };
   }
@@ -1479,11 +1411,7 @@ export class IngresosService {
     });
   }
 
-  async buscarEstudiantesExamen(
-    examenId: number,
-    query?: string,
-    colaboradorId?: number,
-  ) {
+  async buscarEstudiantesExamen(examenId: number, query?: string) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
     });
@@ -1492,24 +1420,10 @@ export class IngresosService {
       throw new NotFoundException('Examen no encontrado');
     }
 
-    let estudianteIdsFiltrados: number[] | undefined;
-    if (colaboradorId && this.particionService) {
-      const grupo = await this.particionService.obtenerGrupoDeControlador(
-        examenId,
-        colaboradorId,
-      );
-      if (grupo) {
-        estudianteIdsFiltrados = grupo.estudianteIds;
-      }
-    }
-
     const q = query?.trim();
 
     const where: Prisma.Examen_EstudianteWhereInput = {
       examenId,
-      ...(estudianteIdsFiltrados && {
-        estudianteId: { in: estudianteIdsFiltrados },
-      }),
       ...(q && {
         estudiante: {
           OR: [

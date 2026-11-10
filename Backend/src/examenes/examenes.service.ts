@@ -17,6 +17,7 @@ import { UpdateExamenDto } from './dto/update-examen.dto';
 import { QueryExamenDto } from './dto/query-examen.dto';
 import { estadoEfectivo } from '../common/estado-examen.util';
 import { DashboardAsistenciaResponseDto } from './dto/dashboard-asistencia-response.dto';
+import { estadoEfectivo } from '../common/estado-examen.util';
 
 import { PrismaService } from '../prisma/prisma.service';
 
