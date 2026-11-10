@@ -16,9 +16,9 @@ import {
   obtenerTimestampNominaCache,
 } from "../../services/control-ingreso.service";
 import { offlineIngresosService } from "../../services/offline-ingresos.service";
-import { offlineIncidenciasService } from "../../../incidencias/services/offline-incidencias.service";
+import { offlineIncidenciasService } from "../../../ingresos-rechazados/services/offline-incidencias.service";
 import { getIngresosExamen } from "../../../registro-ingresos/api/ingresos.service";
-import { getIncidenciasExamen } from "../../../incidencias/api/incidencias.service";
+import { getIncidenciasExamen } from "../../../ingresos-rechazados/api/incidencias.service";
 import type { ExamenAsignado } from "../../types/control-ingreso.types";
 
 interface ExamenActivoViewProps {

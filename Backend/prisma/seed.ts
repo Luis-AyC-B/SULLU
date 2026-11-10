@@ -571,6 +571,7 @@ async function main() {
     { nombre: 'Registro de ingresos', activo: true },
     { nombre: 'Incidencias', activo: true },
     { nombre: 'Colaboradores', activo: true },
+    { nombre: 'Expulsiones', activo: true },
   ];
   const moduloMap: Record<string, number> = {};
   for (const m of modulosData) {
@@ -757,6 +758,16 @@ async function main() {
       clave: 'colaboradores.aprobar',
       descripcion: 'Aprobar/rechazar solicitudes (Administrador)',
     },
+    {
+      modulo: 'Expulsiones',
+      clave: 'expulsiones.ver',
+      descripcion: 'Ver expulsiones de estudiantes',
+    },
+    {
+      modulo: 'Expulsiones',
+      clave: 'expulsiones.registrar',
+      descripcion: 'Registrar expulsion de estudiante',
+    },
   ];
   const permisoMap: Record<string, number> = {};
   for (const p of permisosData) {
@@ -793,6 +804,8 @@ async function main() {
     'colaboradores.dar_de_baja',
     'registro_ingresos.ver',
     'incidencias.ver',
+    'expulsiones.ver',
+    'expulsiones.registrar',
   ];
   const permisosControl = [
     'control_ingreso.ver_examenes_asignados',

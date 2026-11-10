@@ -13,7 +13,7 @@ import type {
   ValidacionQrResponse,
 } from "../types/control-ingreso.types";
 import { offlineIngresosService } from "./offline-ingresos.service";
-import { offlineIncidenciasService } from "../../incidencias/services/offline-incidencias.service";
+import { offlineIncidenciasService } from "../../ingresos-rechazados/services/offline-incidencias.service";
 
 const EXAMENES_STORAGE_KEY = "sullu_examenes_asignados_cache";
 const RESUMEN_STORAGE_PREFIX = "sullu_resumen_examen_";

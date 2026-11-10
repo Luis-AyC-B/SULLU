@@ -45,6 +45,7 @@ model Usuario {
   examenesControlados        ExamenControlador[]  @relation("ColaboradorControla")
   examenesAsignados          ExamenControlador[]  @relation("DocenteAsigna")
   incidenciasRegistradas     IncidenciaIngreso[]  @relation("ControlRegistraIncidencia")
+  expulsiones Expulsion[]
 
   @@map("usuarios")
 }
@@ -286,6 +287,7 @@ model Examen {
   carrerasMaterias  Examen_Carrera_Materia[]
   estudiantes       Examen_Estudiante[]
   ingresos          Ingreso[]
+  expulsiones Expulsion[]
   controladores     ExamenControlador[]     // HU7/HU13
   incidencias       IncidenciaIngreso[]     // HU12
     codigosQr         CodigoQr[]              // HU6: QR por examen
@@ -343,6 +345,7 @@ model Estudiante {
   incidencias IncidenciaIngreso[] // HU12: incidencias asociadas al estudiante
   
   fotos     FotoEstudiante[]
+  expulsiones Expulsion[]
 
   @@map("estudiantes")
 }
@@ -525,4 +528,37 @@ model Bitacora_Auditoria {
   usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@map("bitacora_auditoria")
+}
+
+enum CasoIncidencia {
+  EXPULSION
+  SUPLANTACION_IDENTIDAD
+  AMONESTACION
+  PROBLEMA_MEDICO
+  RETIRO_VOLUNTARIO
+  INCIDENCIA_TECNICA
+  OTRO
+
+  @@map("caso_incidencia")
+}
+
+model Expulsion {
+  id           Int            @id @default(autoincrement())
+  examenId     Int            @map("examen_id")
+  estudianteId Int            @map("estudiante_id")
+  docenteId    Int            @map("docente_id")
+  caso         CasoIncidencia @default(EXPULSION) @map("caso")
+  motivo       String         @map("motivo") @db.VarChar(50)
+  detalle      String         @default("") @map("detalle") @db.VarChar(500)
+  fechaHora    DateTime       @default(now()) @map("fecha_hora")
+
+  examen     Examen     @relation(fields: [examenId], references: [id])
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id])
+  docente    Usuario    @relation(fields: [docenteId], references: [id])
+
+  // Un estudiante no puede ser expulsado dos veces del mismo examen
+  // (cubre también el doble clic y las llamadas directas)
+  @@unique([examenId, estudianteId])
+  @@index([examenId, fechaHora(sort: Desc)])
+  @@map("expulsion")
 }
