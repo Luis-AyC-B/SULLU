@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
-import type { ExamenAsignado } from "../../types/control-ingreso.types";
+import type {
+  ExamenAsignado,
+  MiGrupoControlador,
+} from "../../types/control-ingreso.types";
 import { useRegistroManual } from "../../hooks/useRegistroManual";
 import { BusquedaEstudianteStep } from "./BusquedaEstudianteStep";
 import { ConfirmarIngresoStep } from "./ConfirmarIngresoStep";
@@ -14,6 +17,7 @@ interface RegistroManualModalProps {
   isOpen: boolean;
   onClose: () => void;
   onIngresoExitoso?: () => void;
+  miGrupo?: MiGrupoControlador | null;
 }
 
 export function RegistroManualModal({
@@ -21,6 +25,7 @@ export function RegistroManualModal({
   isOpen,
   onClose,
   onIngresoExitoso,
+  miGrupo,
 }: RegistroManualModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const controller = useRegistroManual(examen, onIngresoExitoso);
@@ -115,6 +120,7 @@ export function RegistroManualModal({
               isLoading={controller.isLoadingBusqueda}
               busquedaRealizada={controller.busquedaRealizada}
               queryActual={controller.queryActual}
+              miGrupo={miGrupo}
             />
           )}
 
@@ -127,6 +133,7 @@ export function RegistroManualModal({
               onConfirmar={controller.handleConfirmarIngreso}
               isSubmitting={controller.isSubmitting}
               errorEnvio={controller.errorEnvio}
+              miGrupo={miGrupo}
             />
           )}
 
