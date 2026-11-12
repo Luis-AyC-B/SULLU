@@ -90,10 +90,15 @@ export function ControlIncidenciasView({
       {!incidenciasLoading &&
         incidencias !== null &&
         incidencias.length === 0 && (
-          <IncidenciasVacio
-            titulo="Sin observaciones"
-            descripcion="No se encontraron observaciones registradas para los filtros seleccionados."
-          />
+          <div className="flex flex-col gap-4">
+            <IncidenciasVacio
+              titulo="sin observaciones"
+              descripcion="No se encontraron observaciones registradas para los filtros seleccionados."
+            />
+            <p aria-live="polite" className="text-sm text-muted-foreground">
+              0 observaciones registradas
+            </p>
+          </div>
         )}
 
       {/* Lista con los resultados filtrados y contador */}

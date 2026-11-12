@@ -1,4 +1,5 @@
 // src/features/incidencias/api/incidencias.service.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { isAxiosError } from "axios";
 import { apiClient } from "@/shared/lib/api-client";
 import {
@@ -11,9 +12,11 @@ import {
   incidenciaSchema,
   incidenciasSchema,
   obtenerGestionPorFecha,
+  filtrarIncidenciasPorMotivo,
   type CrearIncidenciaPayload,
   type ExamenIncidencia,
   type Incidencia,
+  type FiltrosIncidencias,
 } from "../types/incidencias.types";
 import { offlineIncidenciasService } from "../services/offline-incidencias.service";
 import {
@@ -407,7 +410,7 @@ export async function getIncidenciasExamen(
       (isAxiosError(error) && error.response?.status === 404) ||
       codigoError === "EXAMEN_INVALIDO"
     ) {
-      const mockData = mockGetIncidencias(examenId);
+      const mockData = await mockGetIncidencias(examenId);
       if (mockData.length > 0) return mockData;
       return [];
     }
@@ -470,6 +473,98 @@ export async function crearIncidencia(
 }
 
 /**
+ * HU-18: Obtener observaciones de ingreso filtrables desde el backend con soporte de roles.
+ * Endpoint principal: GET /observaciones-ingreso
+ */
+export async function getObservacionesIngreso(
+  filtros: FiltrosIncidencias
+): Promise<{ total: number; items: Incidencia[] }> {
+  if (USE_MOCKS) {
+    let list = mockIncidencias;
+    if (filtros.examenId && filtros.examenId !== "TODOS") {
+      list = list.filter((i) => String(i.examenId) === String(filtros.examenId));
+    }
+    const filtradas = filtrarIncidenciasPorMotivo(list, filtros.motivo);
+    return { total: filtradas.length, items: filtradas };
+  }
+
+  const params: Record<string, string> = {};
+  if (filtros.gestion) params.gestion = filtros.gestion;
+  if (filtros.facultadId && filtros.facultadId !== "TODAS") {
+    params.facultadId = filtros.facultadId;
+  }
+  if (filtros.carreraId && filtros.carreraId !== "TODAS") {
+    params.carreraId = filtros.carreraId;
+  }
+  if (filtros.docenteId && filtros.docenteId !== "TODOS") {
+    params.docenteId = filtros.docenteId;
+  }
+  if (filtros.materiaId && filtros.materiaId !== "TODAS") {
+    params.materiaId = filtros.materiaId;
+  }
+  if (filtros.examenId && filtros.examenId !== "TODOS") {
+    params.examenId = filtros.examenId;
+  }
+  if (filtros.motivo && filtros.motivo !== "TODOS") {
+    params.motivo = filtros.motivo;
+  }
+
+  try {
+    const { data } = await apiClient.get<{ total: number; items: any[] }>(
+      "/observaciones-ingreso",
+      { params }
+    );
+
+    const rawItems = Array.isArray(data) ? data : (data?.items || []);
+    const items: Incidencia[] = rawItems.map((r: any) => ({
+      id: String(r.id),
+      examenId: String(r.examenId ?? ""),
+      fechaHora: r.fechaHora || (r.hora ? `2026-01-01T${r.hora}` : new Date().toISOString()),
+      codigoSis: String(r.codigoSis ?? ""),
+      estudianteNombre: r.estudiante || r.estudianteNombre || "Estudiante",
+      motivo: r.motivo,
+      observaciones: r.observaciones ?? null,
+      registradoPor: r.registradoPor || "Controlador",
+    }));
+
+    return {
+      total: typeof data?.total === "number" ? data.total : items.length,
+      items: ordenarMasRecientes(items),
+    };
+  } catch (error) {
+    if (esRutaInexistente(error)) {
+      if (filtros.examenId && filtros.examenId !== "TODOS") {
+        const local = await getIncidenciasExamen(filtros.examenId);
+        const filtradas = filtrarIncidenciasPorMotivo(local, filtros.motivo);
+        return { total: filtradas.length, items: filtradas };
+      }
+      const all = await getIncidenciasConsolidadas([]);
+      const filtradas = filtrarIncidenciasPorMotivo(all, filtros.motivo);
+      return { total: filtradas.length, items: filtradas };
+    }
+
+    if (isAxiosError(error)) {
+      if (error.response?.status === 403) {
+        const msg = error.response.data?.message || "No tienes permisos para consultar estas observaciones.";
+        throw new Error(Array.isArray(msg) ? msg.join(", ") : msg);
+      }
+      if (error.response?.status === 400) {
+        const msg = error.response.data?.message || "Parámetros de búsqueda inválidos.";
+        throw new Error(Array.isArray(msg) ? msg.join(", ") : msg);
+      }
+      if (error.response?.status === 401) {
+        throw new Error("Sesión no autorizada o expirada. Por favor, inicia sesión nuevamente.");
+      }
+      if (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") {
+        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.");
+      }
+    }
+
+    throw aServiceError(error);
+  }
+}
+
+/**
  * HU-18: Descargar Reporte de Observaciones de Ingreso en PDF (Criterios 16-21, 23-27, 32).
  * Disponible para todos los roles con acceso al módulo.
  */
@@ -480,17 +575,22 @@ export async function descargarReporteObservacionesPdf(
   generadoPor?: string,
   filtrosAplicados?: {
     facultad?: string;
+    facultadId?: string;
     carrera?: string;
+    carreraId?: string;
     docente?: string;
+    docenteId?: string;
     materia?: string;
+    materiaId?: string;
     gestion?: string;
     examen?: string;
+    examenId?: string;
     motivo?: string;
   }
 ): Promise<{ blob: Blob; filename: string }> {
-  const filename = formatearNombreArchivoObservaciones({
+  let filename = formatearNombreArchivoObservaciones({
     facultad: filtrosAplicados?.facultad,
-    materia: filtrosAplicados?.materia,
+    materia: filtrosAplicados?.materia || (filtrosAplicados?.materiaId !== "TODAS" ? filtrosAplicados?.materiaId : undefined),
     gestion: filtrosAplicados?.gestion,
     fecha: examen?.fecha || new Date().toISOString().slice(0, 10),
     nombreExamen: examen?.nombre,
@@ -507,35 +607,62 @@ export async function descargarReporteObservacionesPdf(
     return { blob, filename };
   }
 
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    throw new Error("Necesitas conexión para descargar el reporte");
+  }
+
   try {
-    const params = {
-      ...(filtroMotivo && filtroMotivo !== "TODOS" ? { motivo: filtroMotivo } : {}),
-      ...(filtrosAplicados?.gestion ? { gestion: filtrosAplicados.gestion } : {}),
-      ...(filtrosAplicados?.facultad && filtrosAplicados.facultad !== "TODAS"
-        ? { facultad: filtrosAplicados.facultad }
-        : {}),
-      ...(filtrosAplicados?.carrera && filtrosAplicados.carrera !== "TODAS"
-        ? { carrera: filtrosAplicados.carrera }
-        : {}),
-      ...(filtrosAplicados?.docente && filtrosAplicados.docente !== "TODOS"
-        ? { docente: filtrosAplicados.docente }
-        : {}),
-      ...(filtrosAplicados?.materia && filtrosAplicados.materia !== "TODAS"
-        ? { materia: filtrosAplicados.materia }
-        : {}),
-    };
+    const params: Record<string, string> = {};
+    if (filtrosAplicados?.gestion) params.gestion = filtrosAplicados.gestion;
+    if (filtrosAplicados?.facultadId && filtrosAplicados.facultadId !== "TODAS") {
+      params.facultadId = filtrosAplicados.facultadId;
+    } else if (filtrosAplicados?.facultad && filtrosAplicados.facultad !== "TODAS") {
+      params.facultadId = filtrosAplicados.facultad;
+    }
+    if (filtrosAplicados?.carreraId && filtrosAplicados.carreraId !== "TODAS") {
+      params.carreraId = filtrosAplicados.carreraId;
+    } else if (filtrosAplicados?.carrera && filtrosAplicados.carrera !== "TODAS") {
+      params.carreraId = filtrosAplicados.carrera;
+    }
+    if (filtrosAplicados?.docenteId && filtrosAplicados.docenteId !== "TODOS") {
+      params.docenteId = filtrosAplicados.docenteId;
+    } else if (filtrosAplicados?.docente && filtrosAplicados.docente !== "TODOS") {
+      params.docenteId = filtrosAplicados.docente;
+    }
+    if (filtrosAplicados?.materiaId && filtrosAplicados.materiaId !== "TODAS") {
+      params.materiaId = filtrosAplicados.materiaId;
+    } else if (filtrosAplicados?.materia && filtrosAplicados.materia !== "TODAS") {
+      params.materiaId = filtrosAplicados.materia;
+    }
+    if (filtrosAplicados?.examenId && filtrosAplicados.examenId !== "TODOS") {
+      params.examenId = filtrosAplicados.examenId;
+    } else if (filtrosAplicados?.examen && filtrosAplicados.examen !== "TODOS") {
+      params.examenId = filtrosAplicados.examen;
+    } else if (examen?.id && examen.id !== "TODOS") {
+      params.examenId = String(examen.id);
+    }
+    const motivoFinal = filtrosAplicados?.motivo || filtroMotivo;
+    if (motivoFinal && motivoFinal !== "TODOS") {
+      params.motivo = motivoFinal;
+    }
 
-    const endpoint = examen
-      ? `/examenes/${encodeURIComponent(examen.id)}/reporte-observaciones`
-      : `/incidencias/reporte-observaciones`;
-
-    const response = await apiClient.get(endpoint, {
+    const response = await apiClient.get("/observaciones-ingreso/pdf", {
       params,
       responseType: "blob",
-      timeout: 10000,
+      timeout: 15000,
     });
 
     if (response.data) {
+      const disposition =
+        response.headers["content-disposition"] ||
+        response.headers["Content-Disposition"];
+      if (disposition) {
+        const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+        if (match && match[1]) {
+          filename = decodeURIComponent(match[1].trim());
+        }
+      }
+
       const blob =
         response.data instanceof Blob
           ? response.data
@@ -543,6 +670,39 @@ export async function descargarReporteObservacionesPdf(
       return { blob, filename };
     }
   } catch (error) {
+    if (isAxiosError(error) && error.response?.data) {
+      const data = error.response.data;
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text();
+          const parsed = JSON.parse(text);
+          if (parsed && parsed.message) {
+            const msg = Array.isArray(parsed.message)
+              ? parsed.message.join(", ")
+              : parsed.message;
+            throw new Error(msg);
+          }
+        } catch (e: any) {
+          if (e instanceof Error && e.message && !e.message.includes("JSON")) {
+            throw e;
+          }
+        }
+      }
+      if (error.response.status === 400) {
+        throw new Error(
+          "No hay observaciones de ingreso que coincidan con los filtros seleccionados."
+        );
+      }
+      if (error.response.status === 403) {
+        throw new Error(
+          "No tienes permisos para descargar el reporte de observaciones."
+        );
+      }
+      if (error.response.status === 401) {
+        throw new Error("Sesión expirada. Por favor, inicia sesión nuevamente.");
+      }
+    }
+
     if (
       esRutaInexistente(error) ||
       (isAxiosError(error) && (!error.response || error.response.status >= 500))

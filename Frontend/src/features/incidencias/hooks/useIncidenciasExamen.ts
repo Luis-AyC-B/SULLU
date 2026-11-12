@@ -1,27 +1,46 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getIncidenciasExamen } from "../api/incidencias.service";
-import type { Incidencia } from "../types/incidencias.types";
+import {
+  getIncidenciasExamen,
+  getObservacionesIngreso,
+} from "../api/incidencias.service";
+import type { FiltrosIncidencias, Incidencia } from "../types/incidencias.types";
 
-// `incidencias` es null mientras no hay datos para el examen seleccionado.
+// `incidencias` es null mientras no hay datos para el examen o filtros seleccionados.
 // `recargar` vuelve a pedir la lista sin vaciar la que ya se está mostrando.
-export function useIncidenciasExamen(examenId: string | null) {
+export function useIncidenciasExamen(
+  examenId: string | null,
+  filtros?: FiltrosIncidencias
+) {
   const [incidencias, setIncidencias] = useState<Incidencia[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
 
-  // Al cambiar de examen se descartan los datos del anterior.
+  // Al cambiar de filtros o examen se descartan los datos anteriores
   useEffect(() => {
     setIncidencias(null);
     setError(null);
-  }, [examenId]);
+  }, [
+    examenId,
+    filtros?.gestion,
+    filtros?.facultadId,
+    filtros?.carreraId,
+    filtros?.docenteId,
+    filtros?.materiaId,
+    filtros?.motivo,
+  ]);
 
   useEffect(() => {
-    if (!examenId) return;
     let cancelado = false;
 
-    getIncidenciasExamen(examenId)
+    const peticion = filtros
+      ? getObservacionesIngreso(filtros).then((res) => res.items)
+      : examenId
+      ? getIncidenciasExamen(examenId)
+      : Promise.resolve([]);
+
+    peticion
       .then((data) => {
         if (cancelado) return;
         setIncidencias(data);
@@ -32,14 +51,14 @@ export function useIncidenciasExamen(examenId: string | null) {
         setError(
           e instanceof Error
             ? e.message
-            : "No se pudieron cargar las incidencias."
+            : "No se pudieron cargar las observaciones de ingreso."
         );
       });
 
     return () => {
       cancelado = true;
     };
-  }, [examenId, recarga]);
+  }, [examenId, filtros, recarga]);
 
   const recargar = useCallback(() => {
     setError(null);
@@ -56,7 +75,7 @@ export function useIncidenciasExamen(examenId: string | null) {
     };
   }, [recargar]);
 
-  const isLoading = examenId !== null && incidencias === null && error === null;
+  const isLoading = incidencias === null && error === null;
 
   return { incidencias, isLoading, error, recargar };
 }

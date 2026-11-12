@@ -30,7 +30,6 @@ import {
 import { ConfirmarDescargaObservacionesModal } from "./ConfirmarDescargaObservacionesModal";
 import {
   descargarReporteObservacionesPdf,
-  getIncidenciasConsolidadas,
 } from "../api/incidencias.service";
 import { obtenerNombreMateriaIncidencia } from "../lib/generarPdfReporteObservaciones";
 
@@ -144,55 +143,22 @@ function IncidenciasContenido() {
     });
   }, [examenesHook.examenes, filtros]);
 
-  // Manejo de carga de incidencias:
-  // Cuando se selecciona un examen específico (!== "TODOS"), se consulta con el hook.
-  // Cuando está en "TODOS", el hook recibe null para no disparar peticiones innecesarias.
+  // Manejo de carga de observaciones de ingreso:
+  // Hook conectado directamente a la API GET /observaciones-ingreso con alcance por rol
   const examenIdParaHook = filtros.examenId !== "TODOS" ? filtros.examenId : null;
-
-  const listaHook = useIncidenciasExamen(examenIdParaHook);
-
-  const [incidenciasConsolidadas, setIncidenciasConsolidadas] = useState<Incidencia[]>([]);
-  const [cargandoConsolidadas, setCargandoConsolidadas] = useState(false);
-
-  useEffect(() => {
-    if (filtros.examenId === "TODOS") {
-      let isCurrent = true;
-      setCargandoConsolidadas(true);
-      const ids = examenesFiltrados.map((e) => e.id);
-      getIncidenciasConsolidadas(ids)
-        .then((res) => {
-          if (isCurrent) {
-            setIncidenciasConsolidadas(res);
-            setCargandoConsolidadas(false);
-          }
-        })
-        .catch(() => {
-          if (isCurrent) {
-            setIncidenciasConsolidadas([]);
-            setCargandoConsolidadas(false);
-          }
-        });
-      return () => {
-        isCurrent = false;
-      };
-    }
-  }, [filtros.examenId, examenesFiltrados]);
+  const listaHook = useIncidenciasExamen(examenIdParaHook, filtros);
 
   // Incidencias base a mostrar
   const incidenciasBase = useMemo(() => {
-    if (filtros.examenId === "TODOS" && incidenciasConsolidadas.length > 0) {
-      return incidenciasConsolidadas;
-    }
     return listaHook.incidencias ?? [];
-  }, [filtros.examenId, incidenciasConsolidadas, listaHook.incidencias]);
+  }, [listaHook.incidencias]);
 
-  // Filtrado final por motivo
+  // Filtrado final por motivo (garantiza sincronía si los datos locales no lo filtraron)
   const incidenciasFiltradas = useMemo(() => {
     return filtrarIncidenciasPorMotivo(incidenciasBase, filtros.motivo);
   }, [incidenciasBase, filtros.motivo]);
 
-  const isLoadingIncidencias =
-    filtros.examenId === "TODOS" && cargandoConsolidadas ? true : listaHook.isLoading;
+  const isLoadingIncidencias = listaHook.isLoading;
 
   const examenSeleccionado = useMemo(() => {
     if (filtros.examenId !== "TODOS") {
@@ -317,10 +283,11 @@ function IncidenciasContenido() {
 
       toast.success("Reporte descargado");
       setIsModalDescargaOpen(false);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error al descargar reporte de observaciones:", err);
+      const detalle = err instanceof Error && err.message && err.message !== "Network error" ? `${err.message}. ` : "";
       setErrorDescarga(
-        "Ocurrió un error al generar el reporte de observaciones. Por favor, reintenta la operación."
+        `${detalle}Ocurrió un error al generar el reporte de observaciones. Por favor, reintenta la operación.`
       );
     } finally {
       setIsDownloading(false);
@@ -387,20 +354,10 @@ function IncidenciasContenido() {
         examenesLoading={examenesHook.isLoading}
         examenesError={examenesHook.error}
         onReintentarExamenes={examenesHook.reintentar}
-        examenId={filtros.examenId}
-        onExamenChange={(id) => setFiltros((prev) => ({ ...prev, examenId: id }))}
-        motivoSeleccionado={filtros.motivo}
-        onMotivoChange={(m) => setFiltros((prev) => ({ ...prev, motivo: m }))}
         incidencias={incidenciasFiltradas}
         incidenciasLoading={isLoadingIncidencias}
-        incidenciasError={filtros.examenId !== "TODOS" ? listaHook.error : null}
-        onReintentarIncidencias={() => {
-          if (filtros.examenId !== "TODOS") {
-            listaHook.recargar();
-          } else {
-            examenesHook.reintentar();
-          }
-        }}
+        incidenciasError={listaHook.error}
+        onReintentarIncidencias={listaHook.recargar}
       />
 
       {/* Modal solo para Personal de Control */}
