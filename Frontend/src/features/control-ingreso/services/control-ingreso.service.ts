@@ -13,7 +13,7 @@ import type {
   ValidacionQrResponse,
 } from "../types/control-ingreso.types";
 import { offlineIngresosService } from "./offline-ingresos.service";
-import { offlineIncidenciasService } from "../../incidencias/services/offline-incidencias.service";
+import { offlineIncidenciasService } from "../../ingresos-rechazados/services/offline-incidencias.service";
 
 const EXAMENES_STORAGE_KEY = "sullu_examenes_asignados_cache";
 const RESUMEN_STORAGE_PREFIX = "sullu_resumen_examen_";
@@ -480,6 +480,13 @@ export const controlIngresoService = {
     try {
       const response = await apiClient.post<{
         mensaje: string;
+        fueraDeGrupo?: boolean;
+        advertencia?: string;
+        grupoCorrecto?: {
+          colaboradorId: number;
+          nombreControlador: string;
+          rango: string;
+        };
         ingreso: {
           id: number;
           estudianteId: number;
@@ -530,6 +537,8 @@ export const controlIngresoService = {
             yaIngreso: true,
           },
           mensaje: response.data.mensaje || "Ingreso registrado exitosamente",
+          fueraDeGrupo: response.data.fueraDeGrupo ?? false,
+          advertencia: response.data.advertencia,
         };
       }
     } catch (err: unknown) {
@@ -950,6 +959,9 @@ export const controlIngresoService = {
 
       const response = await apiClient.post<{
         mensaje: string;
+        fueraDeGrupo?: boolean;
+        advertencia?: string;
+        grupoCorrecto?: { colaboradorId: number; nombreControlador: string; rango: string };
         ingreso: {
           id: number;
           estudianteId: number;
@@ -1005,6 +1017,9 @@ export const controlIngresoService = {
             carrera: "Ingeniería de Sistemas",
             horaIngreso: horaFormateada,
           },
+          // HU17: propagar advertencia de grupo incorrecto
+          fueraDeGrupo: response.data.fueraDeGrupo ?? false,
+          advertencia: response.data.advertencia,
         };
       }
     } catch (err: unknown) {

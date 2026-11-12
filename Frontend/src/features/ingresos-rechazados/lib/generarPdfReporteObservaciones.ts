@@ -166,7 +166,7 @@ function escapePdfText(str: string): string {
  */
 export function generarPdfReporteObservaciones({
   examen,
-  examenesLista = [],
+  examenesLista: _examenesLista = [],
   incidencias,
   filtroMotivo = "TODOS",
   filtrosAplicados,

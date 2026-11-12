@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { User, Mail, Shield, ArrowLeft } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
+import { AuditoriaModal } from '@/features/auditoria/components/AuditoriaModal';
 
 export default function PerfilPage() {
   const { data: session } = useSession();
@@ -67,7 +68,8 @@ export default function PerfilPage() {
           </div>
         </div>
 
-        <div className="mt-8 pt-4 border-t border-border flex justify-end">
+        <div className="mt-8 pt-4 border-t border-border flex justify-end gap-2">
+          {['administrador', 'administrador total'].includes(session?.user?.rol?.toLowerCase() ?? '') && <AuditoriaModal />}
           <Button variant="outline" asChild size="sm">
             <Link href={rutaInicio}>Regresar</Link>
           </Button>

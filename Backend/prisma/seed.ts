@@ -13,7 +13,7 @@
  * Formato de correo institucional docentes: inicial.apellido@umss.edu.bo
  * Contraseña de todos los usuarios de prueba: Test1234!
  */
-import { PrismaClient, EstadoAula, EstadoExamen } from '@prisma/client';
+import { Prisma, PrismaClient, EstadoAula, EstadoExamen } from '@prisma/client';
 
 // EstadoReserva y EstadoSolicitud como string literals (hasta prisma generate)
 import * as bcrypt from 'bcrypt';
@@ -519,7 +519,308 @@ const ESTUDIANTES_DATA = [
     ci: '5500443',
   },
 ];
+const tablas = [
+  'facultades',
+  'carreras',
+  'materias',
+  'carrera_materia',
+  'ambientes',
+  'tipo_aula',
+  'horario_fijo',
+  'modulos',
+  'permisos',
+  'usuario_alcance',
+  'usuario_rol',
+  'rol_permiso',
+  'rol_modulo',
+  'roles',
+];
+
+/**
+ * npx ts-node prisma/seed.ts --hu21
+ * Operaciones reales sobre ejemplos propios en 14 tablas permitidas.
+ * Nunca reinicia la BD ni fabrica eventos; las retiradas se conservan en
+ * archivo_registros_hu21 y los roles se dan de baja con deletedAt.
+ * Excluye fotos y las áreas con trabajo reciente de compañeros.
+ * Catálogo académico: https://sistemas.cs.umss.edu.bo/plan-estudios
+ * Facultad: https://www.umss.edu.bo/facultad-de-ciencias-y-tecnologia/
+ * Aula 691A: https://www.fcyt.umss.edu.bo/wp-content/uploads/2025/09/Mesa-Informatica-Sistemas.pdf
+ * Nombres/códigos académicos verificados; operaciones y cupos son ejemplos,
+ * no transacciones ni datos administrativos oficiales de la UMSS.
+ */
+async function seedAuditoria(prisma: PrismaClient) {
+  const periodo = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/La_Paz',
+    year: 'numeric',
+    month: '2-digit',
+  })
+    .format(new Date())
+    .replaceAll('/', '-');
+  const marca = `Gestión de ambientes FCyT · ${periodo}`;
+  const resultado = await prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('hu21_seed_auditoria'))::text`;
+      const existe = await tx.bitacora_Auditoria.findFirst({
+        where: {
+          tablaAfectada: 'modulos',
+          accion: 'CREACION',
+          detallesNuevo: { path: ['nombre'], equals: marca },
+        },
+        select: { id: true },
+      });
+      if (existe) return null;
+      const administrador = await tx.usuario.findFirstOrThrow({
+        where: {
+          deletedAt: null,
+          roles: {
+            some: {
+              rol: {
+                deletedAt: null,
+                OR: [{ id: 1 }, { nombre: 'Administrador' }],
+              },
+            },
+          },
+        },
+        orderBy: { id: 'asc' },
+        select: { id: true },
+      });
+      await tx.$queryRaw`SELECT set_config('app.usuario_id', ${String(administrador.id)}, true),
+      set_config('app.ip', '127.0.0.1', true)`;
+      const modulo = await tx.modulo.create({
+        data: { nombre: marca, activo: true },
+      });
+      const moduloApoyo = await tx.modulo.create({
+        data: { nombre: `Planificación académica FCyT · ${periodo}`, activo: false },
+      });
+      await tx.modulo.update({
+        where: { id: modulo.id },
+        data: { activo: false },
+      });
+      const permiso = await tx.permiso.create({
+        data: {
+          moduloId: modulo.id,
+          clave: 'ambientes.consultar_disponibilidad',
+          descripcion: 'Consultar disponibilidad de ambientes',
+        },
+      });
+      const permisoApoyo = await tx.permiso.create({
+        data: {
+          moduloId: moduloApoyo.id,
+          clave: 'ambientes.administrar_reservas',
+          descripcion: 'Administrar reservas de ambientes',
+        },
+      });
+      await tx.permiso.update({
+        where: { id: permiso.id },
+        data: { descripcion: 'Consultar ambientes y capacidad disponible' },
+      });
+      const rol = await tx.rol.create({
+        data: {
+          nombre: `Responsable de ambientes FCyT · ${periodo}`,
+          descripcion: 'Consulta de disponibilidad de ambientes',
+        },
+      });
+      const rolApoyo = await tx.rol.create({
+        data: {
+          nombre: `Coordinador académico de Ingeniería de Sistemas · ${periodo}`,
+          descripcion: 'Planificación de materias y asignación de ambientes',
+        },
+      });
+      await tx.rol.update({
+        where: { id: rol.id },
+        data: { descripcion: 'Consulta y revisión de capacidad de ambientes' },
+      });
+
+      const facultad = await tx.facultad.create({
+        data: { nombre: 'Facultad de Ciencias y Tecnologia' },
+      });
+      await tx.facultad.update({
+        where: { id: facultad.id },
+        data: { nombre: 'Facultad de Ciencias y Tecnología' },
+      });
+      const carrera = await tx.carrera.create({
+        data: { facultadId: facultad.id, nombre: 'Ingenieria de Sistemas' },
+      });
+      await tx.carrera.update({
+        where: { id: carrera.id },
+        data: { nombre: 'Ingeniería de Sistemas' },
+      });
+      const materia = await tx.materia.create({
+        data: { sigla: 'BD2', nombre: 'Base de Datos 2' },
+      });
+      const materiaApoyo = await tx.materia.create({
+        data: {
+          sigla: '2010024',
+          nombre: 'Taller de Ingeniería de Software',
+        },
+      });
+      await tx.materia.update({
+        where: { id: materia.id },
+        data: { sigla: '2010016', nombre: 'Base de Datos II' },
+      });
+      const tipo = await tx.tipoAula.create({
+        data: { nombre: 'Aula' },
+      });
+      await tx.tipoAula.update({
+        where: { id: tipo.id },
+        data: { nombre: 'Aula de clases' },
+      });
+      const ambiente = await tx.ambiente.create({
+        data: {
+          nombre: 'Aula 691A',
+          capacidad: 40,
+          facultadId: facultad.id,
+          tipoAulaId: tipo.id,
+        },
+      });
+      await tx.ambiente.update({
+        where: { id: ambiente.id },
+        data: { capacidad: 48 },
+      });
+      const horario = await tx.horarioFijo.create({
+        data: {
+          periodoNombre: 'Primer periodo de la mañana',
+          diaSemana: 'LUNES',
+          horaIni: new Date('1970-01-01T08:15:00Z'),
+          horaFin: new Date('1970-01-01T09:45:00Z'),
+        },
+      });
+      await tx.horarioFijo.update({
+        where: { id: horario.id },
+        data: { horaFin: new Date('1970-01-01T10:00:00Z') },
+      });
+
+      await tx.carrera_Materia.create({
+        data: { carreraId: carrera.id, materiaId: materia.id },
+      });
+      await tx.carrera_Materia.update({
+        where: {
+          carreraId_materiaId: { carreraId: carrera.id, materiaId: materia.id },
+        },
+        data: { materiaId: materiaApoyo.id },
+      });
+      const alcance = await tx.usuario_Alcance.create({
+        data: {
+          usuarioId: administrador.id,
+          facultadId: facultad.id,
+          carreraId: carrera.id,
+          materiaId: materia.id,
+        },
+      });
+      await tx.usuario_Alcance.update({
+        where: { id: alcance.id },
+        data: { materiaId: materiaApoyo.id },
+      });
+      await tx.usuario_Rol.create({
+        data: { usuarioId: administrador.id, rolId: rol.id },
+      });
+      await tx.usuario_Rol.update({
+        where: {
+          usuarioId_rolId: { usuarioId: administrador.id, rolId: rol.id },
+        },
+        data: { rolId: rolApoyo.id },
+      });
+      await tx.rol_Permiso.create({
+        data: { rolId: rol.id, permisoId: permiso.id },
+      });
+      await tx.rol_Permiso.update({
+        where: { rolId_permisoId: { rolId: rol.id, permisoId: permiso.id } },
+        data: { permisoId: permisoApoyo.id },
+      });
+      await tx.rol_Modulo.create({
+        data: { rolId: rol.id, moduloId: modulo.id },
+      });
+      await tx.rol_Modulo.update({
+        where: { rolId_moduloId: { rolId: rol.id, moduloId: modulo.id } },
+        data: { moduloId: moduloApoyo.id },
+      });
+
+      // Solo se retiran filas creadas arriba. Los triggers conservan sus datos en el archivo.
+      await tx.usuario_Rol.delete({
+        where: {
+          usuarioId_rolId: { usuarioId: administrador.id, rolId: rolApoyo.id },
+        },
+      });
+      await tx.rol_Permiso.delete({
+        where: {
+          rolId_permisoId: { rolId: rol.id, permisoId: permisoApoyo.id },
+        },
+      });
+      await tx.rol_Modulo.delete({
+        where: { rolId_moduloId: { rolId: rol.id, moduloId: moduloApoyo.id } },
+      });
+      await tx.usuario_Alcance.delete({ where: { id: alcance.id } });
+      await tx.carrera_Materia.delete({
+        where: {
+          carreraId_materiaId: {
+            carreraId: carrera.id,
+            materiaId: materiaApoyo.id,
+          },
+        },
+      });
+      await tx.ambiente.delete({ where: { id: ambiente.id } });
+      await tx.horarioFijo.delete({ where: { id: horario.id } });
+      await tx.tipoAula.delete({ where: { id: tipo.id } });
+      await tx.carrera.delete({ where: { id: carrera.id } });
+      await tx.materia.delete({ where: { id: materia.id } });
+      await tx.materia.delete({ where: { id: materiaApoyo.id } });
+      await tx.facultad.delete({ where: { id: facultad.id } });
+      await tx.permiso.delete({ where: { id: permiso.id } });
+      await tx.permiso.delete({ where: { id: permisoApoyo.id } });
+      await tx.modulo.delete({ where: { id: modulo.id } });
+      await tx.modulo.delete({ where: { id: moduloApoyo.id } });
+      await tx.rol.updateMany({
+        where: { id: { in: [rol.id, rolApoyo.id] } },
+        data: { deletedAt: new Date() },
+      });
+
+      const cobertura = await tx.$queryRaw<
+        {
+          tabla: string;
+          creaciones: bigint;
+          modificaciones: bigint;
+          eliminaciones: bigint;
+        }[]
+      >`
+      SELECT tabla_afectada AS tabla,
+        count(*) FILTER (WHERE accion='CREACION') AS creaciones,
+        count(*) FILTER (WHERE accion='MODIFICACION') AS modificaciones,
+        count(*) FILTER (WHERE accion='ELIMINACION') AS eliminaciones
+      FROM bitacora_auditoria WHERE fecha_hora=transaction_timestamp()::timestamp
+        AND tabla_afectada IN (${Prisma.join(tablas)})
+      GROUP BY tabla_afectada ORDER BY tabla_afectada`;
+      if (
+        cobertura.length !== tablas.length ||
+        cobertura.some(
+          (c) => !c.creaciones || !c.modificaciones || !c.eliminaciones,
+        )
+      ) {
+        throw new Error('Cobertura incompleta: se revierte todo el seed HU21.');
+      }
+      return cobertura.map((c) => ({
+        tabla: c.tabla,
+        creaciones: Number(c.creaciones),
+        modificaciones: Number(c.modificaciones),
+        eliminaciones: Number(c.eliminaciones),
+      }));
+    },
+    { timeout: 60000 },
+  );
+  process.stdout.write(
+    !resultado
+      ? `HU21: ejemplos de ${periodo} ya cargados; no se duplicaron.\n`
+      : [
+          'Tabla | Creaciones | Modificaciones | Eliminaciones',
+          ...resultado.map(
+            (c) =>
+              `${c.tabla} | ${c.creaciones} | ${c.modificaciones} | ${c.eliminaciones}`,
+          ),
+        ].join('\n') + '\n',
+  );
+}
+
 async function main() {
+  if (process.argv.includes('--hu21')) return seedAuditoria(prisma);
   console.log('\n Iniciando seed UMSS (Sprint 2)...\n');
 
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
@@ -571,6 +872,7 @@ async function main() {
     { nombre: 'Registro de ingresos', activo: true },
     { nombre: 'Incidencias', activo: true },
     { nombre: 'Colaboradores', activo: true },
+    { nombre: 'Expulsiones', activo: true },
     // HU17/HU18/HU20: nuevos modulos Sprint 3
     { nombre: 'Ingresos', activo: true },
     { nombre: 'Observaciones', activo: true },
@@ -761,6 +1063,16 @@ async function main() {
       clave: 'colaboradores.aprobar',
       descripcion: 'Aprobar/rechazar solicitudes (Administrador)',
     },
+    {
+      modulo: 'Expulsiones',
+      clave: 'expulsiones.ver',
+      descripcion: 'Ver expulsiones de estudiantes',
+    },
+    {
+      modulo: 'Expulsiones',
+      clave: 'expulsiones.registrar',
+      descripcion: 'Registrar expulsion de estudiante',
+    },
     // HU17/HU18/HU20: permisos nuevos Sprint 3
     {
       modulo: 'Ingresos',
@@ -813,6 +1125,8 @@ async function main() {
     'colaboradores.dar_de_baja',
     'registro_ingresos.ver',
     'incidencias.ver',
+    'expulsiones.ver',
+    'expulsiones.registrar',
     // HU17/HU18/HU20
     'ingresos.descargar_reporte',
     'observaciones.descargar_reporte',
@@ -1958,13 +2272,6 @@ async function main() {
   console.log(
     'Incidencias: 5 (NO_HABILITADO, NO_ENCONTRADO, QR_CADUCADO, DOBLE_MARCACION, IDENTIDAD_NO_COINCIDE)',
   );
-  console.log('');
-  console.log('CAMBIOS SPRINT 3 (HU17/HU18/HU20):');
-  console.log('  Ingreso: +casoExcepcional, @@unique(estudianteId,examenId), @@index(examenId,fechaHora)');
-  console.log('  TipoIncidencia: +QR_OTRO_EXAMEN, +QR_NO_VALIDO, +NO_LLEGO');
-  console.log('  IncidenciaIngreso.registradoPor: ahora opcional (null = Sistema)');
-  console.log('  Permisos nuevos: ingresos.descargar_reporte, observaciones.descargar_reporte, casos_excepcionales.registrar');
-  console.log('  Colaboradores Edgar: Javier(APROBADO), Sofia(APROBADO), Miguel(PENDIENTE)');
   console.log('='.repeat(60));
 }
 

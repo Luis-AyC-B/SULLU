@@ -148,7 +148,18 @@ export class CasosExcepcionalesService {
             'Solo un docente autorizado puede registrar casos excepcionales.',
           );
         // Serializa los casos del examen y protege la inscripción mientras se confirma.
-        await tx.$queryRaw`SELECT id FROM examenes WHERE id=${dto.examenId} FOR UPDATE`;
+        const [bloqueado] = await tx.$queryRaw<
+          { usuarioId: number; estado: EstadoExamen }[]
+        >`
+          SELECT id_usuario AS "usuarioId", estado FROM examenes
+          WHERE id=${dto.examenId} FOR UPDATE
+        `;
+        if (!bloqueado) throw new NotFoundException('El examen no existe.');
+        if (bloqueado.usuarioId !== usuarioId)
+          throw new ForbiddenException('El examen pertenece a otro docente.');
+        // La vista de Prisma oculta cancelados. Se valida el estado desde la fila bloqueada.
+        if (bloqueado.estado === EstadoExamen.CANCELADO)
+          throw new ConflictException('El examen está finalizado o cancelado.');
         const examen = await tx.examen.findUnique({
           where: { id: dto.examenId },
           include: {
@@ -156,8 +167,6 @@ export class CasosExcepcionalesService {
           },
         });
         if (!examen) throw new NotFoundException('El examen no existe.');
-        if (examen.usuarioId !== usuarioId)
-          throw new ForbiddenException('El examen pertenece a otro docente.');
         const ahora = new Date();
         const estado = estadoCasoExamen(examen, ahora);
         if (

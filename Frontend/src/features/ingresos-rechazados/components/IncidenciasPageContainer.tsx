@@ -33,7 +33,8 @@ import {
 } from "../api/incidencias.service";
 import { obtenerNombreMateriaIncidencia } from "../lib/generarPdfReporteObservaciones";
 
-// Precarga por URL: /incidencias?sis=202104321&examenId=1
+// Precarga por URL: /ingresos-rechazados?sis=202104321&examenId=1
+// (la usa el flujo "Registrar incidencia" de un ingreso rechazado en HU11).
 function leerPrecarga(params: {
   get: (nombre: string) => string | null;
 }): ValoresInicialesIncidencia | null {
@@ -224,7 +225,7 @@ function IncidenciasContenido() {
     setModalAbierto(abierto);
     if (!abierto && precarga) {
       setPrecarga(null);
-      router.replace("/incidencias");
+      router.replace("/ingresos-rechazados");
     }
   }
 
@@ -296,8 +297,8 @@ function IncidenciasContenido() {
 
   return (
     <PageContainer
-      title="Observaciones de ingreso"
-      subtitle="Observaciones de ingreso por examen"
+      title="Ingresos rechazados"
+      subtitle="Intentos de ingreso de estudiantes no habilitados"
       actionLabel={puedeAbrirModal ? "+ Registrar incidencia" : undefined}
       onAction={() => setModalAbierto(true)}
       headerExtra={

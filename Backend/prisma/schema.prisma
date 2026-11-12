@@ -45,6 +45,7 @@ model Usuario {
   examenesControlados        ExamenControlador[]  @relation("ColaboradorControla")
   examenesAsignados          ExamenControlador[]  @relation("DocenteAsigna")
   incidenciasRegistradas     IncidenciaIngreso[]  @relation("ControlRegistraIncidencia")
+  expulsiones Expulsion[]
 
   @@map("usuarios")
 }
@@ -271,7 +272,7 @@ enum EstadoExamen {
 
 model Examen {
   id                Int          @id @default(autoincrement())
-  reservaAmbienteId Int          @unique @map("id_reservaAmbiente") // Sprint 2: @unique â€” 1 examen por reserva
+  reservaAmbienteId Int          @map("id_reservaAmbiente") // HU21: unicidad de reservas activas mediante índice parcial SQL
   usuarioId         Int          @map("id_usuario")
   tipoExamen        String       @map("tipo_examen")
   normasEx          String?      @map("normas_ex") @db.Text
@@ -286,6 +287,7 @@ model Examen {
   carrerasMaterias  Examen_Carrera_Materia[]
   estudiantes       Examen_Estudiante[]
   ingresos          Ingreso[]
+  expulsiones Expulsion[]
   controladores     ExamenControlador[]     // HU7/HU13
   incidencias       IncidenciaIngreso[]     // HU12
     codigosQr         CodigoQr[]              // HU6: QR por examen
@@ -343,6 +345,7 @@ model Estudiante {
   incidencias IncidenciaIngreso[] // HU12: incidencias asociadas al estudiante
   
   fotos     FotoEstudiante[]
+  expulsiones Expulsion[]
 
   @@map("estudiantes")
 }
@@ -449,6 +452,7 @@ model DocenteColaborador {
 // HU7/HU13: AsignaciÃ³n operativa puntual de colaborador a examen
 model ExamenControlador {
   id              Int      @id @default(autoincrement())
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamp()
   examenId        Int      @map("id_examen")
   colaboradorId   Int      @map("id_colaborador")
   asignadoPor     Int      @map("asignado_por")
@@ -524,6 +528,8 @@ model Bitacora_Auditoria {
   modulo           String   @db.VarChar(50)
   tablaAfectada    String?  @map("tabla_afectada") @db.VarChar(50)
   registroId       Int?     @map("registro_id")
+  registroClave    Json?    @map("registro_clave")
+  usuarioNombre    String?  @map("usuario_nombre")
   detallesAnterior Json?    @map("detalles_anterior")
   detallesNuevo    Json?    @map("detalles_nuevo")
   ipOrigen         String?  @map("ip_origen") @db.VarChar(45)
@@ -531,5 +537,42 @@ model Bitacora_Auditoria {
 
   usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
+  @@index([fechaHora, id])
+  @@index([usuarioId, fechaHora])
+  @@index([accion, fechaHora])
+  @@index([tablaAfectada, fechaHora])
   @@map("bitacora_auditoria")
+}
+
+enum CasoIncidencia {
+  EXPULSION
+  SUPLANTACION_IDENTIDAD
+  AMONESTACION
+  PROBLEMA_MEDICO
+  RETIRO_VOLUNTARIO
+  INCIDENCIA_TECNICA
+  OTRO
+
+  @@map("caso_incidencia")
+}
+
+model Expulsion {
+  id           Int            @id @default(autoincrement())
+  examenId     Int            @map("examen_id")
+  estudianteId Int            @map("estudiante_id")
+  docenteId    Int            @map("docente_id")
+  caso         CasoIncidencia @default(EXPULSION) @map("caso")
+  motivo       String         @map("motivo") @db.VarChar(50)
+  detalle      String         @default("") @map("detalle") @db.VarChar(500)
+  fechaHora    DateTime       @default(now()) @map("fecha_hora")
+
+  examen     Examen     @relation(fields: [examenId], references: [id])
+  estudiante Estudiante @relation(fields: [estudianteId], references: [id])
+  docente    Usuario    @relation(fields: [docenteId], references: [id])
+
+  // Un estudiante no puede ser expulsado dos veces del mismo examen
+  // (cubre también el doble clic y las llamadas directas)
+  @@unique([examenId, estudianteId])
+  @@index([examenId, fechaHora(sort: Desc)])
+  @@map("expulsion")
 }
