@@ -33,8 +33,6 @@ import {
 } from '../lib/offline-portal';
 
 export interface ExamQrModalProps {
-  demo?: boolean;
-  registrarReferencia?: (foto: Blob) => Promise<void>;
   open: boolean;
   examen: Examen | null;
   verificacionFotoActiva?: boolean;
@@ -48,8 +46,6 @@ export interface ExamQrModalProps {
 type PasoModal = 'CAMARA' | 'COMPARANDO' | 'TU_QR' | 'FALLO' | 'ERROR_RED';
 
 export function ExamQrModal({
-  demo=false,
-  registrarReferencia,
   open,
   examen,
   fotoPerfilUrl,
@@ -145,7 +141,6 @@ export function ExamQrModal({
       setPaso('COMPARANDO');
 
       try {
-        if(registrarReferencia){await registrarReferencia(blobFoto);return;}
         const service = await getExamQrService();
         // Genera QR pasando la foto para validación biométrica en backend
         const res = await service.generarQrExamen(examen.id, blobFoto);
@@ -153,7 +148,7 @@ export function ExamQrModal({
         setResultadoQr(res);
 
         // Guardar QR del examen en almacenamiento offline
-        if(!demo)guardarQrExamenOffline(examen.id, {
+        guardarQrExamenOffline(examen.id, {
           qrUrl: res.qrUrl,
           vigenteHasta: res.vigenteHasta,
           token: res.token,
@@ -181,7 +176,7 @@ export function ExamQrModal({
                 : Math.max(0, intentosRestantes - 1);
 
             setIntentosRestantes(nuevosIntentos);
-            if(!demo)guardarIntentosExamen(examen.id, nuevosIntentos);
+            guardarIntentosExamen(examen.id, nuevosIntentos);
 
             if (nuevosIntentos <= 0) {
               setIntentosAgotados(true);
@@ -195,7 +190,7 @@ export function ExamQrModal({
           ) {
             setIntentosRestantes(0);
             setIntentosAgotados(true);
-            if(!demo)guardarIntentosExamen(examen.id, 0);
+            guardarIntentosExamen(examen.id, 0);
             setErrorVerificacion(err.message || 'Has agotado los 3 intentos de verificación.');
             setPaso('FALLO');
           } else if (
@@ -212,7 +207,6 @@ export function ExamQrModal({
             setPaso('FALLO');
           }
         } else {
-          if(registrarReferencia){const error=err as {response?:{data?:{message?:string}}};setErrorVerificacion(error.response?.data?.message||'Referencia rechazada');setPaso('FALLO');return;}
           // Fallo general de red
           setErrorVerificacion(
             'No pudimos conectarnos con el servidor. Revisa tu conexión a internet.',
@@ -220,11 +214,11 @@ export function ExamQrModal({
           setPaso('ERROR_RED');
         }
       } finally {
-        if(demo)limpiarSelfieUrl();
+        limpiarSelfieUrl();
         setIsSubmitting(false);
       }
     },
-    [examen, intentosRestantes, onExamenActualizado, demo, registrarReferencia, limpiarSelfieUrl],
+    [examen, intentosRestantes, onExamenActualizado, limpiarSelfieUrl],
   );
 
   // Tomar captura fotográfica de la cámara
@@ -293,11 +287,11 @@ export function ExamQrModal({
     setErrorVerificacion(null);
 
     // Cargar intentos persistidos para este examen
-    const restantes = demo ? 3 : obtenerIntentosExamen(examenId);
+    const restantes = obtenerIntentosExamen(examenId);
     setIntentosRestantes(restantes);
     setIntentosAgotados(restantes <= 0);
 
-    if (!registrarReferencia && examenYaGenerado && examen?.qrUrl) {
+    if (examenYaGenerado && examen?.qrUrl) {
       // Si el examen ya tiene el QR generado y vigente, mostrar directamente el QR
       setResultadoQr({
         qrUrl: examen.qrUrl,
@@ -342,7 +336,6 @@ export function ExamQrModal({
 
     try {
       const canvas = qrCanvasRef.current;
-      if(demo){const a=document.createElement('a');a.href=canvas.toDataURL('image/png');a.download=`QR-demo-${examen.id}.png`;a.click();return;}
       const cardCanvas = document.createElement('canvas');
       const w = 700;
       const h = 880;
@@ -462,10 +455,10 @@ export function ExamQrModal({
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                  {registrarReferencia ? 'Fotografía de referencia' : 'Verificación de identidad'}
+                  Verificación de identidad
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  {registrarReferencia ? 'Registra tu fotografía original para esta demostración.' : 'Tómate una foto actual. Se comparará con tu foto de perfil.'}
+                  Tómate una foto actual. Se comparará con tu foto de perfil.
                 </p>
               </div>
               <button
@@ -526,7 +519,6 @@ export function ExamQrModal({
                       variant="ghost"
                       size="sm"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={demo}
                       className="mt-2 text-xs text-slate-300 hover:text-white"
                     >
                       <Camera className="h-3.5 w-3.5 mr-1.5" />
@@ -558,7 +550,7 @@ export function ExamQrModal({
 
             {/* Nota de pie */}
             <p className="text-center text-xs text-slate-500">
-              La foto quedará asociada a este QR y a este examen.
+              La selfie se procesa temporalmente para verificar tu identidad.
             </p>
 
             {/* Botones de acción */}
@@ -924,7 +916,6 @@ export function ExamQrModal({
               <Button
                 type="button"
                 onClick={() => {
-                  if(demo){handleReintentar();return;}
                   if (selfieBlob) {
                     void ejecutarGeneracionQr(selfieBlob);
                   } else {

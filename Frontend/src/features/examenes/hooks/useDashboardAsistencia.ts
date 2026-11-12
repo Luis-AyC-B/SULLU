@@ -139,7 +139,7 @@ export function useDashboardAsistencia(
     }
 
     const intervalId = setInterval(() => {
-      fetchData(false);
+      fetchData();
     }, pollingIntervalMs);
 
     return () => {

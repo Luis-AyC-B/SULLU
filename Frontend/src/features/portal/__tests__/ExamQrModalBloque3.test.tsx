@@ -72,7 +72,7 @@ describe('HU 23: ExamQrModal (Verificación con foto actual)', () => {
 
     // Nota
     expect(
-      screen.getByText('La foto quedará asociada a este QR y a este examen.'),
+      screen.getByText('La selfie se procesa temporalmente para verificar tu identidad.'),
     ).toBeInTheDocument();
 
     // Botones

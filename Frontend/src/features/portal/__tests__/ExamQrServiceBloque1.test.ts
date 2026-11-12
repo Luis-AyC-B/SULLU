@@ -10,7 +10,7 @@ import {
 import {
   MockExamQrService,
   setEscenarioMock,
-} from '../api/mock-exam-qr.service';
+} from './fixtures/mock-exam-qr.service';
 
 describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
   describe('1. Adaptador de compatibilidad (Forma antigua vs Nueva)', () => {

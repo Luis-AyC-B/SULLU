@@ -80,7 +80,17 @@ export class IngresosController {
     @Body() dto: VerificarIngresoQrDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.ingresosService.registrarIngresoQr(dto, user.id);
+    return this.ingresosService.registrarIngresoQr(dto, user.id, false);
+  }
+
+  @Post('qr/confirmar')
+  @Permissions('control_ingreso.escanear_qr')
+  @HttpCode(HttpStatus.OK)
+  confirmarQr(
+    @Body() dto: VerificarIngresoQrDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ingresosService.registrarIngresoQr(dto, user.id, true);
   }
 
   @Post('sincronizar')

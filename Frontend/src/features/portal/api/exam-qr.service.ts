@@ -10,7 +10,6 @@ import {
   type ResultadoValidacionQr,
 } from '../types/qr-examen';
 import { adaptarRespuestaExamenes } from '../lib/adaptador-examenes';
-import { isHu23Demo } from './hu23-demo';
 
 export interface IExamQrService {
   getExamenes(): Promise<RespuestaExamenes>;
@@ -142,20 +141,6 @@ export class RealExamQrService implements IExamQrService {
   }
 }
 
-/**
- * Retorna el servicio correspondiente según el entorno.
- * Si NEXT_PUBLIC_USE_MOCKS es 'true' y no estamos en producción, importa dinámicamente MockExamQrService.
- */
 export async function getExamQrService(): Promise<IExamQrService> {
-  const isMockEnabled =
-    process.env.NEXT_PUBLIC_USE_MOCKS === 'true' &&
-    process.env.NODE_ENV !== 'production';
-
-  if (isMockEnabled && !(await isHu23Demo())) {
-    const { MockExamQrService } = await import('./mock-exam-qr.service');
-    return new MockExamQrService();
-  }
-
   return new RealExamQrService();
 }
-

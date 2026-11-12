@@ -15,7 +15,6 @@ import {
   limpiarSesionOffline,
 } from "@/shared/lib/offline-auth";
 import { User, LogOut } from "lucide-react";
-import { isDemoToken } from '@/features/portal/api/hu23-demo';
 
 /**
  * Función auxiliar para inferir o formatear el nombre del rol asignado al usuario actual.
@@ -185,7 +184,7 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
       <div className="relative flex items-center gap-2 md:gap-3 shrink-0" ref={menuRef}>
         {/* Rol Badge (diseño oficial: azul oscuro, borde sutil, texto blanco en mayúsculas) */}
         <div className="hidden sm:inline-flex items-center justify-center rounded-full bg-[#001f45]/70 border border-white/20 px-3 py-1 text-xs font-bold tracking-wider text-white shadow-inner uppercase">
-          {isDemoToken(session?.user?.accessToken) ? `DEMO HU23 — Datos simulados · ${rol}` : rol}
+          {rol}
         </div>
 
         {/* Nombre del Usuario (oculto en pantallas muy angostas) */}

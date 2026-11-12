@@ -10,19 +10,8 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Contraseña', type: 'password' },
       },
-      async authorize(credentials, req) {
-        const email = credentials?.email?.trim().toLowerCase() || '';
-        const password = credentials?.password || '';
-        if(email.endsWith('@hu23.local')) {
-          if(process.env.HU23_DEMO_MODE!=='true'||process.env.NODE_ENV==='production'||!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers?.host||''))throw new Error('INVALID_CREDENTIALS');
-          const res=await fetch('http://127.0.0.1:3003/demo/hu23/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password}),cache:'no-store'});
-          if(!res.ok)throw new Error('INVALID_CREDENTIALS'); return await res.json();
-        }
+      async authorize(credentials) {
 
-        // Caso de prueba para usuario inactivo o dado de baja (Escenario Negativo 3)
-        if (email.includes('inactivo') || email.includes('baja')) {
-          throw new Error('ACCOUNT_INACTIVE');
-        }
 
         try {
           const credencialesLimpias = {
@@ -63,89 +52,6 @@ export const authOptions: NextAuthOptions = {
             throw error;
           }
 
-          // Fallback de desarrollo local si el backend no está iniciado o conectado
-          console.warn('[AUTH FALLBACK]: Verificando usuarios de desarrollo local para HU 5...');
-          if (email === 'admin@exacontrol.com' && password === 'admin123') {
-            return {
-              id: 1,
-              name: 'Administrador General',
-              email: 'admin@exacontrol.com',
-              rol: 'Administrador',
-              permisos: [
-                'usuarios.ver', 'usuarios.crear', 'usuarios.editar', 'usuarios.eliminar',
-                'roles.ver', 'roles.crear', 'roles.editar', 'roles.eliminar',
-                'examenes.ver', 'examenes.crear', 'examenes.editar', 'examenes.eliminar',
-                'estudiantes.ver', 'estudiantes.registrar', 'estudiantes.habilitar',
-                'reportes.ver',
-                'ambientes.ver', 'ambientes.editar',
-                'colaboradores.ver', 'colaboradores.crear', 'colaboradores.editar', 'colaboradores.eliminar', 'colaboradores.aprobar'
-              ],
-              accessToken: 'mock-jwt-token-admin',
-            } as any;
-          }
-
-          if (
-            (email === 'docente@umss.edu' && password === 'docente123') ||
-            (email === 'ed.flores@umss.edu.bo' && (password === 'docente123' || password === 'password123' || password === 'admin123'))
-          ) {
-            return {
-              id: 2,
-              name: email === 'ed.flores@umss.edu.bo' ? 'Edgar Flores Tola' : 'Lic. Juan Pérez (Docente)',
-              email: email,
-              rol: 'Docente',
-              permisos: [
-                'examenes.ver', 'examenes.crear', 'examenes.editar',
-                'estudiantes.ver',
-                'ambientes.ver',
-                'colaboradores.ver', 'colaboradores.crear', 'colaboradores.editar',
-                'registro_ingresos.ver'
-              ],
-              accessToken: 'mock-jwt-token-docente',
-            } as any;
-          }
-
-          if (email === 'control@umss.edu' && password === 'control123') {
-            return {
-              id: 3,
-              name: 'Personal de Control',
-              email: 'control@umss.edu',
-              rol: 'Personal de control',
-              permisos: [
-                'estudiantes.ver', 'estudiantes.habilitar', 'examenes.ver',
-                'registro_ingresos.ver', 'control_ingreso.escanear_qr'
-              ],
-              accessToken: 'mock-jwt-token-control',
-            } as any;
-          }
-
-          if ((email === 'concurrente@umss.edu' || email === 'doble@umss.edu') && password === 'password123') {
-            return {
-              id: 4,
-              name: 'Usuario Concurrente',
-              email: email,
-              permisos: ['usuarios.ver', 'roles.ver'],
-              accessToken: 'mock-jwt-token-concurrente',
-            } as any;
-          }
-
-          // Estudiantes de prueba (HU6) mientras el backend no esté conectado
-          const estudiantesMock: Record<string, { id: number; name: string; token: string }> = {
-            'ana.rojas@umss.edu': { id: 101, name: 'Ana Rojas Mamani', token: 'mock-jwt-token-estudiante-ana' },
-            'luis.quispe@umss.edu': { id: 102, name: 'Luis Quispe Vargas', token: 'mock-jwt-token-estudiante-empty' },
-            'marta.flores@umss.edu': { id: 103, name: 'Marta Flores Rojas', token: 'mock-jwt-token-estudiante-error' },
-          };
-          const estudiante = estudiantesMock[email];
-          if (estudiante && password === 'estudiante123') {
-            return {
-              id: estudiante.id,
-              name: estudiante.name,
-              email,
-              permisos: ['portal_estudiante'],
-              accessToken: estudiante.token,
-            } as any;
-          }
-
-          // Credenciales incorrectas
           throw new Error('INVALID_CREDENTIALS');
         }
       },
@@ -154,7 +60,6 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
   callbacks: {
     async jwt({ token, user }) {
-      if(String(token.accessToken||'').startsWith('hu23-demo:')&&(process.env.HU23_DEMO_MODE!=='true'||process.env.NODE_ENV==='production'))return {};
       if (user) {
         token.accessToken = (user as any).accessToken;
         token.permisos = (user as any).permisos;

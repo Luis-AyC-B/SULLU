@@ -153,15 +153,17 @@ export function EscanearQrModal({
       try {
         const resultado = await controlIngresoService.validarYRegistrarQr(
           examen.id,
-          cleanToken,
-          examen.ambiente
+          cleanToken
         );
 
         if (resultado.success && resultado.estudiante) {
           // CASO EXITOSO (Task-9.3)
           playSuccessChime();
           setEstudianteExitoso(resultado.estudiante);
-          if(resultado.estudiante.requiereConfirmacion)return;
+          if(resultado.estudiante.requiereConfirmacion) {
+            if (resultado.fueraDeGrupo && resultado.advertencia) toast.warning(resultado.advertencia, { duration: 6000 });
+            return;
+          }
           onIngresoExitosoRef.current?.();
 
           // HU17: Si el estudiante es de otro grupo, mostrar advertencia amber
@@ -204,7 +206,7 @@ export function EscanearQrModal({
         setIsVerificando(false);
       }
     },
-    [examen.id, examen.ambiente]
+    [examen.id]
   );
 
   const procesarTokenQrRef = useRef(procesarTokenQr);

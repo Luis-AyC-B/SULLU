@@ -3,7 +3,6 @@ import axios from 'axios';
 import { getSession, signOut } from 'next-auth/react';
 import { toast } from 'sonner';
 import { limpiarCacheOfflineEstudiante } from '@/features/portal/lib/offline-portal';
-import { HU23_API,isDemoToken } from '@/features/portal/api/hu23-demo';
 
 export const apiClient = axios.create({
   baseURL:
@@ -26,10 +25,6 @@ apiClient.interceptors.request.use(async (config) => {
   }
 
   const session = await getSession();
-  if(isDemoToken(session?.user?.accessToken)) {
-    if(!/^\/(estudiantes\/me\/(perfil|foto|examenes(?:\/\d+\/qr)?)|control-ingreso\/(mis-examenes|examenes\/\d+\/resumen)|ingresos\/qr(?:\/confirmar)?)$/.test(config.url||''))throw new Error('Operación fuera del alcance demo');
-    config.baseURL=HU23_API; config.headers['X-HU23-Session']=session!.user!.accessToken!.slice(10); delete config.headers.Authorization; return config;
-  }
   if (session?.user?.accessToken) {
     config.headers.Authorization = `Bearer ${session.user.accessToken}`;
   }

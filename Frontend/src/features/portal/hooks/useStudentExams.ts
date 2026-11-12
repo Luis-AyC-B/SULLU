@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getMisExamenes } from '../api/student-exam.service';
-import { isHu23Demo } from '../api/hu23-demo';
-import { getExamQrService } from '../api/exam-qr.service';
 import {
   guardarExamenesOffline,
   obtenerExamenesOffline,
@@ -59,24 +57,22 @@ export function useStudentExams() {
   const [fechaGuardado, setFechaGuardado] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const demo=await isHu23Demo();
     setIsLoading(true);
     setHasError(false);
 
     // Elimina del dispositivo los QRs de examen cuya vigencia ya terminó
-    if(!demo)purgarQrsExamenVencidos();
+    purgarQrsExamenVencidos();
 
     try {
-      const data = demo ? await (await getExamQrService()).getExamenes() : await getMisExamenes();
+      const data = await getMisExamenes();
       const adaptado = adaptarRespuestaExamenes(data);
-      const lista = demo ? adaptado.examenes : conQrsGuardados(adaptado.examenes);
+      const lista = conQrsGuardados(adaptado.examenes);
       setExamenes(lista);
       setVerificacionFotoActiva(adaptado.verificacionFotoActiva);
       setIsOffline(false);
       setFechaGuardado(null);
-      if(!demo)guardarExamenesOffline(lista);
+      guardarExamenesOffline(lista);
     } catch {
-      if(demo){setHasError(true);setIsLoading(false);return;}
       const cached = obtenerExamenesOffline();
       if (cached && cached.data && Array.isArray(cached.data)) {
         const adaptado = adaptarRespuestaExamenes(cached.data);

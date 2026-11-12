@@ -45,7 +45,7 @@ export function QrSuccessCard({ estudiante, onConfirmar }: QrSuccessCardProps) {
         {/* Fila de Hora y Confirmación Sonora */}
         <div className="flex items-center justify-center gap-2 mt-4 text-xs font-medium text-emerald-200/90 bg-[#0A492E]/60 px-3.5 py-1.5 rounded-full border border-emerald-500/20">
           <Clock className="h-3.5 w-3.5" />
-          <span>{estudiante.horaIngreso || "12:18:41"}</span>
+          <span>{estudiante.horaIngreso || 'Pendiente de confirmación'}</span>
           <span>·</span>
           <Volume2 className="h-3.5 w-3.5" />
           <span>Confirmación sonora</span>

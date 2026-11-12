@@ -13,9 +13,7 @@ import { useStudentExams } from '../hooks/useStudentExams';
 import { ExamCard } from './ExamCard';
 import { ExamQrModal } from './ExamQrModal';
 import { StudentPasswordChangeModal } from './StudentPasswordChangeModal';
-import { MockScenarioSelector } from './MockScenarioSelector';
-import { getMiPerfil, subirMiFoto } from '../api/student-exam.service';
-import { isHu23Demo } from '../api/hu23-demo';
+import { getMiPerfil } from '../api/student-exam.service';
 import type { StudentProfile } from '../types/student-exam.types';
 import type { Examen } from '../types/qr-examen';
 import { guardarPerfilOffline, obtenerPerfilOffline } from '../lib/offline-portal';
@@ -37,7 +35,6 @@ export function StudentExamsView() {
   } = useStudentExams();
 
   const [perfil, setPerfil] = useState<StudentProfile | null>(null);
-  const [demo,setDemo]=useState(false),[referencia,setReferencia]=useState(false);
 
   // Estado para el modal de QR por examen (Bloque 3)
   const [examenSeleccionado, setExamenSeleccionado] = useState<Examen | null>(null);
@@ -49,13 +46,11 @@ export function StudentExamsView() {
     'http://localhost:3001';
 
   const cargarPerfil = useCallback(async () => {
-    const demoActivo=await isHu23Demo();setDemo(demoActivo);
     try {
       const data = await getMiPerfil();
       setPerfil(data);
-      if(!demoActivo)guardarPerfilOffline(data);
+      guardarPerfilOffline(data);
     } catch {
-      if(demoActivo)return;
       // Sin conexión: se muestra el último perfil guardado. Se desactiva el modal de
       // cambio de contraseña porque no se puede completar sin red.
       const cached = obtenerPerfilOffline();
@@ -109,13 +104,11 @@ export function StudentExamsView() {
   }, [minutosActualizado]);
 
   const handleGenerarQrExamen = (examen: Examen) => {
-    setReferencia(false);
     setExamenSeleccionado(examen);
     setExamQrModalOpen(true);
   };
 
   const handleVerQrExamen = (examen: Examen) => {
-    setReferencia(false);
     setExamenSeleccionado(examen);
     setExamQrModalOpen(true);
   };
@@ -194,7 +187,6 @@ export function StudentExamsView() {
           </div>
         </div>
 
-        {demo && <Button variant="outline" disabled={!examenes.length} onClick={()=>{setReferencia(true);setExamenSeleccionado(examenes[0]);setExamQrModalOpen(true);}}>Registrar fotografía de referencia</Button>}
         {/* Sección de exámenes */}
         <section aria-live="polite" className="flex flex-col gap-8">
           {isLoading && (
@@ -306,8 +298,6 @@ export function StudentExamsView() {
 
       {/* Modales integrados */}
       <ExamQrModal
-        demo={demo}
-        registrarReferencia={referencia ? async foto=>{await subirMiFoto(foto);await cargarPerfil();retry();setExamQrModalOpen(false);} : undefined}
         open={examQrModalOpen}
         examen={examenSeleccionado}
         verificacionFotoActiva={verificacionFotoActiva}
@@ -335,8 +325,6 @@ export function StudentExamsView() {
         />
       )}
 
-      {/* Selector flotante de escenarios (solo desarrollo con mock activado) */}
-      <MockScenarioSelector onScenarioChange={retry} />
     </div>
   );
 }
