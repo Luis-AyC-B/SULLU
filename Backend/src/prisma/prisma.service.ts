@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { auditContext, clienteAuditoria } from '../auditoria/auditoria.prisma';
+import { auditContext } from '../auditoria/auditoria.prisma';
 
 interface TransactionOptions {
   maxWait?: number;
@@ -57,7 +57,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
         },
       },
     });
-    const clienteConBajas = clienteAuditoria(extended);
     return new Proxy(this, {
       get(target, prop, receiver): unknown {
         if (prop === '$transaction') {
@@ -73,7 +72,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
                 if (typeof input === 'function') {
                   return transaction(async (tx) => {
                     await configurar(tx);
-                    return input(clienteAuditoria(tx));
+                    return input(tx);
                   }, options);
                 }
                 return transaction([contextoSql(), ...input], options).then(
@@ -88,7 +87,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
           prop in extended &&
           !(prop in PrismaService.prototype)
         ) {
-          return Reflect.get(clienteConBajas, prop) as unknown;
+          return Reflect.get(extended, prop) as unknown;
         }
         const value: unknown = Reflect.get(target, prop, receiver);
         return typeof value === 'function'

@@ -35,7 +35,6 @@ model Usuario {
   reservas           ReservaAmbiente[]       @relation("DocenteReserva")
   cargasEstudiantes  CargaEstudiantes[]      @relation("UsuarioCarga")
   ingresos           Ingreso[]               @relation("UsuarioRegistra")
-  auditorias         Bitacora_Auditoria[]
   tokensRecuperacion TokenRecuperacion[]
   estudiante         Estudiante?             @relation("UsuarioEstudiante")
   // HU13: colaboraciones como docente y como colaborador
@@ -523,7 +522,7 @@ model TokenRecuperacion {
 
 model Bitacora_Auditoria {
   id               Int      @id @default(autoincrement())
-  usuarioId        Int?     @map("usuario_id")
+  usuarioId        Int?     @map("usuario_id") // Identidad histórica del responsable.
   accion           String   @db.VarChar(50)
   modulo           String   @db.VarChar(50)
   tablaAfectada    String?  @map("tabla_afectada") @db.VarChar(50)
@@ -534,8 +533,6 @@ model Bitacora_Auditoria {
   detallesNuevo    Json?    @map("detalles_nuevo")
   ipOrigen         String?  @map("ip_origen") @db.VarChar(45)
   fechaHora        DateTime @default(now()) @map("fecha_hora") @db.Timestamp()
-
-  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([fechaHora, id])
   @@index([usuarioId, fechaHora])
