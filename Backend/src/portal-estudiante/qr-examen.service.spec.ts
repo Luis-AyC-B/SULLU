@@ -84,7 +84,15 @@ describe('HU23: autorización facial para cada emisión', () => {
     });
     expect(facial.comparar).not.toHaveBeenCalled();
   });
-  it('falla cerrado si falta referencia o el motor no responde', async () => {
+  it('no emite QR si falta la referencia original', async () => {
+    prisma.fotoEstudiante.findFirst.mockResolvedValue(null);
+    await expect(service.generar(5, 10, selfie)).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(facial.comparar).not.toHaveBeenCalled();
+    expect(qr.generarParaExamen).not.toHaveBeenCalled();
+  });
+  it('falla cerrado si el motor no responde', async () => {
     facial.comparar.mockRejectedValue(new Error('MOTOR_NO_DISPONIBLE'));
     await expect(service.generar(5, 10, selfie)).rejects.toMatchObject({
       status: 503,
