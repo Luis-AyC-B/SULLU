@@ -1,3 +1,4 @@
+import { JwtService } from '@nestjs/jwt';
 import {
   ExecutionContext,
   INestApplication,
@@ -32,9 +33,17 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
     apellido: 'Mamani',
   };
 
+  const validToken = new JwtService().sign(
+    { sub: 5, examenId: 1, tipo: 'examen' },
+    { secret: process.env.QR_SECRET ?? 'dev-qr-secret', expiresIn: '1h' },
+  );
+  const expiredToken = new JwtService().sign(
+    { sub: 5, examenId: 1, tipo: 'examen', jti: 'expired' },
+    { secret: process.env.QR_SECRET ?? 'dev-qr-secret', expiresIn: '1h' },
+  );
   const mockQrVigente = {
     id: 10,
-    token: 'qr_test_alejandro',
+    token: validToken,
     estudianteId: 5,
     examenId: 1,
     expiraEn: new Date(Date.now() + 60 * 60 * 1000), // Vigente por 1 hora
@@ -43,7 +52,7 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
 
   const mockQrExpirado = {
     id: 11,
-    token: 'qr_expirado_alejandro',
+    token: expiredToken,
     estudianteId: 5,
     examenId: 1,
     expiraEn: new Date(Date.now() - 10 * 60 * 1000), // Expirado hace 10 min
@@ -51,6 +60,16 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
   };
 
   const prismaMock = {
+    usuario: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ roles: [{ rol: { nombre: 'Administrador' } }] }),
+    },
+    fotoEstudiante: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue({ archivo: '/uploads/estudiantes/original.jpg' }),
+    },
     modulo: { findFirst: jest.fn().mockResolvedValue({ activo: true }) },
     examen: {
       findUnique: jest.fn().mockImplementation(({ where }) => {
@@ -60,13 +79,12 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
     },
     codigoQr: {
       findUnique: jest.fn().mockImplementation(({ where }) => {
-        if (where.token === 'qr_test_alejandro')
-          return Promise.resolve(mockQrVigente);
-        if (where.token === 'qr_expirado_alejandro')
+        if (where.token === validToken) return Promise.resolve(mockQrVigente);
+        if (where.token === expiredToken)
           return Promise.resolve(mockQrExpirado);
         return Promise.resolve(null);
       }),
-      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     examen_Estudiante: {
       findUnique: jest.fn().mockImplementation(({ where }) => {
@@ -158,11 +176,11 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
     prismaMock.ingreso.findFirst.mockResolvedValue(null);
 
     const res = await request(server)
-      .post('/ingresos/qr')
+      .post('/ingresos/qr/confirmar')
       .set('Authorization', 'Bearer allowed')
       .send({
         examenId: 1,
-        token: 'qr_test_alejandro',
+        token: validToken,
         clienteSyncId: 'sync-qr-1',
       })
       .expect(200);
@@ -172,14 +190,36 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
     expect(prismaMock.ingreso.create).toHaveBeenCalled();
   });
 
-  // Caso 2: Petición HTTP con QR expirado
-  it('2. Petición HTTP con QR expirado: Status 400 Bad Request, registro de incidencia en BD', async () => {
+  it('HU23: el escaneo HTTP solo muestra datos, sin persistir ingreso', async () => {
+    prismaMock.ingreso.findFirst.mockResolvedValue(null);
     const res = await request(server)
       .post('/ingresos/qr')
       .set('Authorization', 'Bearer allowed')
+      .send({ examenId: 1, token: validToken })
+      .expect(200);
+    expect(res.body.estudiante.requiereConfirmacion).toBe(true);
+    expect(prismaMock.ingreso.create).not.toHaveBeenCalled();
+    expect(prismaMock.codigoQr.updateMany).not.toHaveBeenCalled();
+  });
+  it('HU23: un usuario sin permiso no puede escanear ni confirmar', async () => {
+    for (const route of ['/ingresos/qr', '/ingresos/qr/confirmar']) {
+      await request(server)
+        .post(route)
+        .set('Authorization', 'Bearer denied')
+        .send({ examenId: 1, token: validToken })
+        .expect(403);
+    }
+    expect(prismaMock.ingreso.create).not.toHaveBeenCalled();
+  });
+
+  // Caso 2: Petición HTTP con QR expirado
+  it('2. Petición HTTP con QR expirado: Status 400 Bad Request, registro de incidencia en BD', async () => {
+    const res = await request(server)
+      .post('/ingresos/qr/confirmar')
+      .set('Authorization', 'Bearer allowed')
       .send({
         examenId: 1,
-        token: 'qr_expirado_alejandro',
+        token: expiredToken,
       })
       .expect(400);
 
@@ -199,15 +239,15 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
     });
 
     const res1 = await request(server)
-      .post('/ingresos/qr')
+      .post('/ingresos/qr/confirmar')
       .set('Authorization', 'Bearer allowed')
-      .send({ examenId: 1, token: 'qr_test_alejandro' })
+      .send({ examenId: 1, token: validToken })
       .expect(200);
 
     const res2 = await request(server)
-      .post('/ingresos/qr')
+      .post('/ingresos/qr/confirmar')
       .set('Authorization', 'Bearer allowed')
-      .send({ examenId: 1, token: 'qr_test_alejandro' })
+      .send({ examenId: 1, token: validToken })
       .expect(409);
 
     expect(res1.status).toBe(200);
@@ -218,8 +258,8 @@ describe('UT03-HU09: Prueba de Integración End-to-End del flujo de escaneo y re
   // Caso 4: Petición HTTP sin autenticación
   it('4. Petición HTTP sin autenticación: Status 401 Unauthorized', async () => {
     await request(server)
-      .post('/ingresos/qr')
-      .send({ examenId: 1, token: 'qr_test_alejandro' })
+      .post('/ingresos/qr/confirmar')
+      .send({ examenId: 1, token: validToken })
       .expect(401);
 
     expect(prismaMock.ingreso.create).not.toHaveBeenCalled();

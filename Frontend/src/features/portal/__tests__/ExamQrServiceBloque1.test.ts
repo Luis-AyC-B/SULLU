@@ -10,11 +10,14 @@ import {
 import {
   MockExamQrService,
   setEscenarioMock,
-} from '../api/mock-exam-qr.service';
+} from './fixtures/mock-exam-qr.service';
 
 describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
   describe('1. Adaptador de compatibilidad (Forma antigua vs Nueva)', () => {
     it('debe calcular temporalmente el estadoQr si el servidor no lo envía y respetar cuando sí lo envía', () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-10-20T10:00:00.000Z'));
+
       // Examen dentro de las 24 horas
       const ahora = new Date();
       const horaEn2Horas = new Date(ahora.getTime() + 2 * 60 * 60 * 1000);
@@ -78,6 +81,7 @@ describe('Bloque 1: Contrato de Tipos, Adaptador y Capa de Servicio', () => {
       expect(tercero.habilitado).toBe(true);
       // Está a más de 24 horas del examen
       expect(tercero.estadoQr).toBe<EstadoQr>('NO_DISPONIBLE_AUN');
+      jest.useRealTimers();
     });
 
     it('la función temporal nunca pisa un estadoQr enviado por el servidor', () => {

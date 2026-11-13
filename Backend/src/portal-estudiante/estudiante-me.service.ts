@@ -334,6 +334,15 @@ export class EstudianteMeService {
       );
     }
 
+    let validacion;
+    try {
+      validacion = await this.validadorFoto.validar(fileBuffer);
+      if (!validacion.aprobado) throw new BadRequestException(validacion.motivo || 'La fotografia no contiene un rostro valido');
+    } catch (error) {
+      borrarTemporal(file.path);
+      throw error;
+    }
+
     // 4. Renombrar con UUID para seguridad
     const extension = esPng ? '.png' : '.jpg';
     const uuidNombre = `${crypto.randomUUID()}${extension}`;
@@ -358,7 +367,6 @@ export class EstudianteMeService {
       .digest('hex');
 
     // 5. Hook de validación facial (ValidadorFoto)
-    const validacion = await this.validadorFoto.validar(fileBuffer);
 
     // 6. Transacción atómica: reemplazar anteriores e insertar ACTIVA
     await this.prisma.$transaction(async (tx) => {
@@ -376,7 +384,7 @@ export class EstudianteMeService {
           archivo: rutaRelativa,
           hashSha256,
           estado: 'ACTIVA',
-          similitud: validacion.similitud ?? 1.0,
+          similitud: validacion.similitud ?? null,
         },
       });
 
@@ -408,7 +416,7 @@ export class EstudianteMeService {
       message: 'Fotografía subida y validada exitosamente.',
       fotoUrl: rutaRelativa,
       estado: 'ACTIVA' as const,
-      similitud: validacion.similitud ?? 1.0,
+      similitud: validacion.similitud ?? null,
     };
   }
 

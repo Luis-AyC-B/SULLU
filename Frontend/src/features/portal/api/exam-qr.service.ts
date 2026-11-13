@@ -26,7 +26,7 @@ export class RealExamQrService implements IExamQrService {
       if (error instanceof ExamQrError) throw error;
       if (isAxiosError(error)) {
         const codigo = (error.response?.data?.codigo as CodigoErrorQrExamen) || CODIGOS_ERROR_QR_EXAMEN.ERROR_RED;
-        const mensaje = error.response?.data?.mensaje as string | undefined;
+        const mensaje = (error.response?.data?.mensaje || error.response?.data?.message) as string | undefined;
         throw new ExamQrError({
           codigo,
           mensaje,
@@ -61,7 +61,7 @@ export class RealExamQrService implements IExamQrService {
       if (error instanceof ExamQrError) throw error;
       if (isAxiosError(error)) {
         const codigo = (error.response?.data?.codigo as CodigoErrorQrExamen) || CODIGOS_ERROR_QR_EXAMEN.ERROR_RED;
-        const mensaje = error.response?.data?.mensaje as string | undefined;
+        const mensaje = (error.response?.data?.mensaje || error.response?.data?.message) as string | undefined;
         const intentosRestantes = error.response?.data?.intentosRestantes as number | undefined;
         throw new ExamQrError({
           codigo,
@@ -141,20 +141,6 @@ export class RealExamQrService implements IExamQrService {
   }
 }
 
-/**
- * Retorna el servicio correspondiente según el entorno.
- * Si NEXT_PUBLIC_USE_MOCKS es 'true' y no estamos en producción, importa dinámicamente MockExamQrService.
- */
 export async function getExamQrService(): Promise<IExamQrService> {
-  const isMockEnabled =
-    process.env.NEXT_PUBLIC_USE_MOCKS === 'true' &&
-    process.env.NODE_ENV !== 'production';
-
-  if (isMockEnabled) {
-    const { MockExamQrService } = await import('./mock-exam-qr.service');
-    return new MockExamQrService();
-  }
-
   return new RealExamQrService();
 }
-

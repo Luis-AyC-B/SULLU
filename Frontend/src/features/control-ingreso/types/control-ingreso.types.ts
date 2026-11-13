@@ -98,6 +98,9 @@ export type TipoExcepcionQr =
   | "CAMARA_DENEGADA";
 
 export interface EstudianteQrResultado {
+  fotoUrl?: string | null;
+  requiereConfirmacion?: boolean;
+  examen?: string;
   id?: number;
   nombre: string;
   apellido?: string;

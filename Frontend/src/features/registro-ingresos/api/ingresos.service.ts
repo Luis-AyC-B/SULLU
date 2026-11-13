@@ -406,12 +406,43 @@ export async function obtenerIngresosExamenOffline(
   return null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function enriquecerExamenControl(e: any): ExamenControl {
-  const nombre = e.nombre || `${e.materiaNombre || e.materia?.nombre || 'Materia'} – ${e.tipoExamen || 'Examen'}`;
-  const facultad = e.facultadNombre || e.facultad?.nombre || e.facultad || 'Facultad de Ciencias y Tecnología (FCyT)';
-  const carrera = e.carreraNombre || e.carrera?.nombre || e.carrera || 'Licenciatura en Informática';
-  const materia = e.materiaNombre || e.materia?.nombre || e.materia || obtenerNombreMateria(nombre);
+type ExamenControlOrigen = {
+  id: string;
+  nombre?: string;
+  materiaNombre?: string;
+  tipoExamen?: string;
+  facultadNombre?: string;
+  carreraNombre?: string;
+  facultad?: string | { nombre?: string };
+  carrera?: string | { nombre?: string };
+  materia?: string | { nombre?: string };
+  docenteNombre?: string;
+  docente?: string | { nombre?: string; apellido?: string };
+  responsable?: { id?: string | number; nombre?: string; apellido?: string };
+  fecha?: string;
+  reservaAmbiente?: { fecha?: string };
+  facultadId?: string | number;
+  carreraId?: string | number;
+  materiaId?: string | number;
+  docenteId?: string | number;
+  usuarioId?: string | number;
+  gestion?: string;
+  ambienteNombre?: string;
+  ambiente?: string | { nombre?: string };
+  horario?: string;
+  horaInicio?: string;
+  horaFin?: string;
+  estado?: ExamenControl['estado'];
+};
+function nombreEntidad(value: string | { nombre?: string } | undefined): string | undefined {
+  return typeof value === 'string' ? value : value?.nombre;
+}
+function enriquecerExamenControl(origen: unknown): ExamenControl {
+  const e = origen as ExamenControlOrigen;
+  const nombre = e.nombre || `${e.materiaNombre || nombreEntidad(e.materia) || 'Materia'} – ${e.tipoExamen || 'Examen'}`;
+  const facultad = e.facultadNombre || nombreEntidad(e.facultad) || 'Facultad de Ciencias y Tecnología (FCyT)';
+  const carrera = e.carreraNombre || nombreEntidad(e.carrera) || 'Licenciatura en Informática';
+  const materia = e.materiaNombre || nombreEntidad(e.materia) || obtenerNombreMateria(nombre);
   const docente =
     e.docenteNombre ||
     (typeof e.docente === 'object' ? `${e.docente.nombre || ''} ${e.docente.apellido || ''}`.trim() : e.docente) ||
@@ -430,7 +461,7 @@ function enriquecerExamenControl(e: any): ExamenControl {
     docente,
     docenteId: e.docenteId ? String(e.docenteId) : (e.usuarioId ? String(e.usuarioId) : (e.responsable?.id ? String(e.responsable.id) : 'doc-1')),
     gestion: e.gestion || obtenerGestionPorFecha(e.fecha || '2026-09-20'),
-    ambiente: e.ambienteNombre || e.ambiente?.nombre || e.ambiente || 'Aula',
+    ambiente: e.ambienteNombre || nombreEntidad(e.ambiente) || 'Aula',
     horario: e.horario || `${e.horaInicio || '08:00'} - ${e.horaFin || '09:30'}`,
     estado: e.estado || 'Activo',
   };

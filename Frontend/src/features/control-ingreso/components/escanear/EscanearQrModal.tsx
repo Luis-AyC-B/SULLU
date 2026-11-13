@@ -17,6 +17,7 @@ import { playSuccessChime } from "../../utils/audio-feedback";
 import { QrViewfinder } from "./QrViewfinder";
 import { QrSuccessCard } from "./QrSuccessCard";
 import { QrExceptionDialog } from "./QrExceptionDialog";
+import { apiClient } from '@/shared/lib/api-client';
 
 interface EscanearQrModalProps {
   examen: ExamenAsignado;
@@ -152,14 +153,17 @@ export function EscanearQrModal({
       try {
         const resultado = await controlIngresoService.validarYRegistrarQr(
           examen.id,
-          cleanToken,
-          examen.ambiente
+          cleanToken
         );
 
         if (resultado.success && resultado.estudiante) {
           // CASO EXITOSO (Task-9.3)
           playSuccessChime();
           setEstudianteExitoso(resultado.estudiante);
+          if(resultado.estudiante.requiereConfirmacion) {
+            if (resultado.fueraDeGrupo && resultado.advertencia) toast.warning(resultado.advertencia, { duration: 6000 });
+            return;
+          }
           onIngresoExitosoRef.current?.();
 
           // HU17: Si el estudiante es de otro grupo, mostrar advertencia amber
@@ -202,7 +206,7 @@ export function EscanearQrModal({
         setIsVerificando(false);
       }
     },
-    [examen.id, examen.ambiente]
+    [examen.id]
   );
 
   const procesarTokenQrRef = useRef(procesarTokenQr);
@@ -483,7 +487,10 @@ export function EscanearQrModal({
         />
 
         {/* Confirmación verde de 1 a 2 segundos (Mockup 2) */}
-        {estudianteExitoso && <QrSuccessCard estudiante={estudianteExitoso} />}
+        {estudianteExitoso && <QrSuccessCard estudiante={estudianteExitoso} onConfirmar={estudianteExitoso.requiereConfirmacion ? async()=>{
+          try { await apiClient.post('/ingresos/qr/confirmar',{examenId:examen.id,token:lastScannedTokenRef.current}); setEstudianteExitoso({...estudianteExitoso,yaIngreso:true});onIngresoExitosoRef.current?.();setTimeout(()=>{setEstudianteExitoso(null);isProcessingRef.current=false;},3000); }
+          catch {toast.error('No se pudo confirmar: QR utilizado, vencido o inválido');}
+        }:undefined} />}
       </div>
 
       {/* Modal de Excepción Activa (Mockups 1, 3, 4, 5) */}

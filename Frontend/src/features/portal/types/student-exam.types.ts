@@ -80,8 +80,3 @@ export interface SubirFotoResponse {
   estado: EstadoFoto;
   perfilCompleto?: boolean;
 }
-
-/* ---------- Mocks ---------- */
-
-/** Prefijo del accessToken que emite el fallback de desarrollo (sin backend). */
-export const MOCK_TOKEN_PREFIX = 'mock-jwt-token-estudiante';

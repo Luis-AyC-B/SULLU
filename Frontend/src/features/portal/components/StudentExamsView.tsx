@@ -13,7 +13,6 @@ import { useStudentExams } from '../hooks/useStudentExams';
 import { ExamCard } from './ExamCard';
 import { ExamQrModal } from './ExamQrModal';
 import { StudentPasswordChangeModal } from './StudentPasswordChangeModal';
-import { MockScenarioSelector } from './MockScenarioSelector';
 import { getMiPerfil } from '../api/student-exam.service';
 import type { StudentProfile } from '../types/student-exam.types';
 import type { Examen } from '../types/qr-examen';
@@ -64,7 +63,7 @@ export function StudentExamsView() {
   }, [cargarPerfil]);
 
   const fotoUrl = perfil?.fotoUrl
-    ? perfil.fotoUrl.startsWith('http')
+    ? /^(http|data:|blob:)/.test(perfil.fotoUrl)
       ? perfil.fotoUrl
       : `${backendUrl}${perfil.fotoUrl}`
     : null;
@@ -326,8 +325,6 @@ export function StudentExamsView() {
         />
       )}
 
-      {/* Selector flotante de escenarios (solo desarrollo con mock activado) */}
-      <MockScenarioSelector onScenarioChange={retry} />
     </div>
   );
 }

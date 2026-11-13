@@ -128,7 +128,6 @@ export class IngresosService {
 
   // ──────────────────────────────────────────────────────────────────
   private verificarFirmaQr(token: string): boolean {
-    if (token.startsWith('qr_test_')) return true;
     const parts = token.split('.');
     if (parts.length !== 3) return false;
     const [headerB64, payloadB64, signature] = parts;
@@ -839,6 +838,7 @@ export class IngresosService {
   async registrarIngresoQr(
     dto: VerificarIngresoQrDto,
     registradoPorId: number,
+    confirmar = true,
   ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: dto.examenId },
@@ -906,6 +906,8 @@ export class IngresosService {
       if (match) tokenLimpio = decodeURIComponent(match[1]);
     }
 
+    if (!this.verificarFirmaQr(tokenLimpio))
+      throw new BadRequestException('Firma QR inválida');
     const qrRegistro = await this.prisma.codigoQr.findUnique({
       where: { token: tokenLimpio },
       include: {
@@ -1089,6 +1091,35 @@ export class IngresosService {
       );
     }
 
+    if (!confirmar) {
+      const grupo = await this.validarGrupoAsignado(
+        dto.examenId,
+        registradoPorId,
+        estudiante.id,
+      );
+      const foto = await this.prisma.fotoEstudiante.findFirst({
+        where: { estudianteId: estudiante.id, estado: 'ACTIVA' },
+        orderBy: { creadaEn: 'desc' },
+      });
+      if (!foto)
+        throw new BadRequestException('Fotografía original no disponible');
+      return {
+        success: true,
+        ...grupo,
+        estudiante: {
+          id: estudiante.id,
+          nombre: estudiante.nombre,
+          apellido: estudiante.apellido,
+          codSis: estudiante.cod_sis,
+          fotoUrl: foto.archivo,
+          requiereConfirmacion: true,
+          examen: examen.tipoExamen,
+          estadoHabilitado: true,
+          yaIngreso: false,
+        },
+      };
+    }
+
     if (dto.clienteSyncId) {
       const syncExistente = await this.prisma.ingreso.findUnique({
         where: { clienteSyncId: dto.clienteSyncId },
@@ -1100,38 +1131,51 @@ export class IngresosService {
       }
     }
 
-    const nuevoIngreso = await this.prisma.ingreso.create({
-      data: {
-        estudianteId: estudiante.id,
-        examenId: dto.examenId,
-        registradoPor: registradoPorId,
-        fechaHora: new Date(),
-        metodo: 'QR',
-        esOffline: false,
-        clienteSyncId: dto.clienteSyncId,
-      },
-      include: {
-        estudiante: {
-          select: {
-            id: true,
-            cod_sis: true,
-            nombre: true,
-            apellido: true,
-            ci: true,
+    const nuevoIngreso = await this.prisma.ingreso
+      .create({
+        data: {
+          estudianteId: estudiante.id,
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          fechaHora: new Date(),
+          metodo: 'QR',
+          esOffline: false,
+          clienteSyncId: dto.clienteSyncId,
+        },
+        include: {
+          estudiante: {
+            select: {
+              id: true,
+              cod_sis: true,
+              nombre: true,
+              apellido: true,
+              ci: true,
+            },
+          },
+          examen: {
+            select: {
+              id: true,
+              tipoExamen: true,
+            },
           },
         },
-        examen: {
-          select: {
-            id: true,
-            tipoExamen: true,
-          },
-        },
-      },
-    });
+      })
+      .catch((error: unknown) => {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          throw new ConflictException(
+            'El estudiante ya registro su ingreso a este examen',
+          );
+        }
+        throw error;
+      });
 
     // Deshabilitar el código QR tras ser consumido exitosamente
-    await this.prisma.codigoQr.deleteMany({
+    await this.prisma.codigoQr.updateMany({
       where: { token: tokenLimpio },
+      data: { expiraEn: new Date() },
     });
 
     const { fueraDeGrupo, advertencia, grupoCorrecto } =

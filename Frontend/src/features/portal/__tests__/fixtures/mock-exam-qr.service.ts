@@ -5,7 +5,7 @@ import {
   type RespuestaExamenes,
   type RespuestaGenerarQrExamen,
   type ResultadoValidacionQr,
-} from '../types/qr-examen';
+} from '../../types/qr-examen';
 
 export type EscenarioMock =
   | 'TODOS_LOS_ESTADOS'
