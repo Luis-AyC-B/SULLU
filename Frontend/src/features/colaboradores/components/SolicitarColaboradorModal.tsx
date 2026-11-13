@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Info, AlertCircle, Search, Loader2 } from "lucide-react";
+import { X, AlertCircle, Search, Loader2 } from "lucide-react";
 import {
   SolicitudColaboradorInput,
   EstudianteRegistrado,
@@ -12,14 +12,12 @@ interface SolicitarColaboradorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (input: SolicitudColaboradorInput) => Promise<{ success: boolean; error?: string }>;
-  userEmail: string;
 }
 
 export function SolicitarColaboradorModal({
   isOpen,
   onClose,
   onSubmit,
-  userEmail,
 }: SolicitarColaboradorModalProps) {
   const [codSisInput, setCodSisInput] = useState("");
   const [estudianteSeleccionado, setEstudianteSeleccionado] =
@@ -145,7 +143,7 @@ export function SolicitarColaboradorModal({
       });
 
       if (!res.success) {
-        setErrorMsg(res.error || "Error al enviar la solicitud");
+        setErrorMsg(res.error || "Error al confirmar el colaborador");
       } else {
         handleClose();
       }
@@ -300,7 +298,7 @@ export function SolicitarColaboradorModal({
               disabled={isSubmitting}
               className="bg-[#003770] hover:bg-[#002a57] text-white px-5 py-2.5 rounded-xl font-medium text-sm transition-colors shadow-xs cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? "Enviando..." : "Enviar solicitud"}
+              {isSubmitting ? "Confirmando..." : "Confirmar"}
             </button>
           </div>
         </form>

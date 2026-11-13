@@ -10,16 +10,13 @@ export function useColaboradores() {
 
   // Para docente: su nómina
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
-  // Para admin: solicitudes PENDIENTES (pestaña "Solicitudes")
-  const [solicitudesPendientes, setSolicitudesPendientes] = useState<Colaborador[]>([]);
-  // Para admin: todos los registros (pestaña "Todos")
+  // Para admin: todos los registros (tabla de registro)
   const [todosAdmin, setTodosAdmin] = useState<Colaborador[]>([]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [filtroEstado, setFiltroEstado] = useState<string>("TODOS");
-  const [activeTab, setActiveTab] = useState<"nomina" | "solicitudes">("nomina");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userRole = ((session?.user as any)?.rol || "").toLowerCase();
@@ -33,15 +30,9 @@ export function useColaboradores() {
       setError(null);
 
       if (isAdmin) {
-        // Admin carga dos endpoints en paralelo: solo pendientes para solicitudes, y todos para el registro
-        const [solicitudes, todos] = await Promise.all([
-          api.getSolicitudesPendientesAdmin(),
-          api.getTodosAdmin(),
-        ]);
-        setSolicitudesPendientes(solicitudes);
+        // Admin carga todos los registros para la tabla
+        const todos = await api.getTodosAdmin();
         setTodosAdmin(todos);
-        // Para compatibilidad con componentes que usen `colaboradores` en admin,
-        // exponemos los todos (todos los estados)
         setColaboradores(todos);
       } else {
         // Docente carga su nómina (el backend filtra por el JWT)
@@ -49,8 +40,16 @@ export function useColaboradores() {
         setColaboradores(data);
       }
     } catch (err: unknown) {
-      console.error("Error al cargar colaboradores:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar los colaboradores");
+      // 401/403 son esperados al cambiar de sesión o rol — no mostramos error
+      const isAuthError =
+        err instanceof Error &&
+        (err.message.includes("401") || err.message.includes("403") ||
+         err.message.includes("Request failed with status code 401") ||
+         err.message.includes("Request failed with status code 403"));
+      if (!isAuthError) {
+        console.error("Error al cargar colaboradores:", err);
+        setError(err instanceof Error ? err.message : "Error al cargar los colaboradores");
+      }
     } finally {
       setLoading(false);
     }
@@ -77,15 +76,13 @@ export function useColaboradores() {
     });
   }, [colaboradores, searchTerm, filtroEstado]);
 
-  // Conteo según mockups ("5 colaboradores · 2 aprobados")
+  // Conteo
   const totales = useMemo(() => {
     const total = colaboradores.length;
     const aprobados = colaboradores.filter((c) => c.estado === "APROBADO").length;
-    const pendientes = colaboradores.filter((c) => c.estado === "PENDIENTE").length;
-    const rechazados = colaboradores.filter((c) => c.estado === "RECHAZADO").length;
     const inactivos = colaboradores.filter((c) => c.estado === "INACTIVO").length;
 
-    return { total, aprobados, pendientes, rechazados, inactivos };
+    return { total, aprobados, inactivos };
   }, [colaboradores]);
 
   // Acciones
@@ -95,7 +92,7 @@ export function useColaboradores() {
       setColaboradores((prev) => [nuevo, ...prev]);
       return { success: true, data: nuevo };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al enviar la solicitud";
+      const msg = err instanceof Error ? err.message : "Error al confirmar el colaborador";
       return { success: false, error: msg };
     }
   };
@@ -113,34 +110,9 @@ export function useColaboradores() {
     }
   };
 
-  const aprobar = async (id: string | number) => {
-    try {
-      await api.aprobarSolicitud(id);
-      // Recargamos ambas listas para reflejar el cambio de PENDIENTE → APROBADO
-      await fetchColaboradores();
-      return { success: true };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al aprobar la solicitud";
-      return { success: false, error: msg };
-    }
-  };
-
-  const rechazar = async (id: string | number) => {
-    try {
-      await api.rechazarSolicitud(id);
-      // Recargamos ambas listas para reflejar el cambio de PENDIENTE → RECHAZADO
-      await fetchColaboradores();
-      return { success: true };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al rechazar la solicitud";
-      return { success: false, error: msg };
-    }
-  };
-
   return {
     colaboradores,
     colaboradoresFiltrados,
-    solicitudesPendientes,
     todosAdmin,
     loading,
     error,
@@ -148,15 +120,11 @@ export function useColaboradores() {
     setSearchTerm,
     filtroEstado,
     setFiltroEstado,
-    activeTab,
-    setActiveTab,
     totales,
     isAdmin,
     userEmail,
     solicitar,
     darDeBaja,
-    aprobar,
-    rechazar,
     refetch: fetchColaboradores,
   };
 }

@@ -2,8 +2,6 @@ import { z } from "zod";
 
 export const EstadoColaboradorEnum = z.enum([
   "APROBADO",
-  "PENDIENTE",
-  "RECHAZADO",
   "INACTIVO",
 ]);
 export type EstadoColaborador = z.infer<typeof EstadoColaboradorEnum>;

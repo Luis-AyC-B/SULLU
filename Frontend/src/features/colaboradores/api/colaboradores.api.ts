@@ -40,7 +40,8 @@ export async function getColaboradores(): Promise<Colaborador[]> {
 }
 
 /**
- * Enviar solicitud de colaborador por código SIS.
+ * Confirmar un colaborador por código SIS.
+ * El colaborador se aprueba directamente sin requerir aprobación del administrador.
  * POST /colaboradores/solicitar
  */
 export async function solicitarColaborador(
@@ -67,19 +68,8 @@ export async function darDeBajaColaborador(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PANEL ADMINISTRADOR
+// PANEL ADMINISTRADOR — Registro de colaboradores
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Obtener solicitudes PENDIENTES para el panel del administrador.
- * GET /colaboradores/solicitudes
- */
-export async function getSolicitudesPendientesAdmin(): Promise<Colaborador[]> {
-  const { data } = await apiClient.get<Colaborador[]>(
-    "/colaboradores/solicitudes"
-  );
-  return data;
-}
 
 /**
  * Obtener TODOS los registros de colaboradores (todos los estados).
@@ -87,34 +77,6 @@ export async function getSolicitudesPendientesAdmin(): Promise<Colaborador[]> {
  */
 export async function getTodosAdmin(): Promise<Colaborador[]> {
   const { data } = await apiClient.get<Colaborador[]>("/colaboradores/todos");
-  return data;
-}
-
-/**
- * Aprobar una solicitud pendiente.
- * El estudiante recibe el rol "Personal de control" además de su rol Estudiante.
- * PATCH /colaboradores/solicitudes/:id/aprobar
- */
-export async function aprobarSolicitud(
-  id: string | number
-): Promise<Colaborador> {
-  const { data } = await apiClient.patch<Colaborador>(
-    `/colaboradores/solicitudes/${id}/aprobar`
-  );
-  return data;
-}
-
-/**
- * Rechazar una solicitud pendiente.
- * El estudiante conserva únicamente su rol Estudiante.
- * PATCH /colaboradores/solicitudes/:id/rechazar
- */
-export async function rechazarSolicitud(
-  id: string | number
-): Promise<Colaborador> {
-  const { data } = await apiClient.patch<Colaborador>(
-    `/colaboradores/solicitudes/${id}/rechazar`
-  );
   return data;
 }
 

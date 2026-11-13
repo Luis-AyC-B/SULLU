@@ -16,18 +16,14 @@ export function ColaboradoresPageContainer() {
   const { data: session, status } = useSession();
   const {
     colaboradoresFiltrados,
-    solicitudesPendientes,
     todosAdmin,
     loading,
     searchTerm,
     setSearchTerm,
     totales,
     isAdmin,
-    userEmail,
     solicitar,
     darDeBaja,
-    aprobar,
-    rechazar,
     refetch,
   } = useColaboradores();
 
@@ -87,7 +83,7 @@ export function ColaboradoresPageContainer() {
       title="Colaboradores"
       subtitle={
         isAdmin
-          ? "Revisa y gestiona las solicitudes de vinculación de docentes."
+          ? "Registro de colaboradores vinculados por los docentes."
           : "Tu equipo de personal de control"
       }
       headerExtra={
@@ -106,15 +102,12 @@ export function ColaboradoresPageContainer() {
       <div className="space-y-6">
         {/* RENDERIZADO CONDICIONAL POR ROL */}
         {isAdmin ? (
-          /* VISTA DE ADMINISTRADOR: Pestañas Solicitudes / Todos, tabla y modales de aprobación/rechazo */
+          /* VISTA DE ADMINISTRADOR: Solo tabla de registro de colaboradores */
           <AdminColaboradoresView
-            solicitudesPendientes={solicitudesPendientes}
             todosAdmin={todosAdmin}
-            onAprobar={aprobar}
-            onRechazar={rechazar}
           />
         ) : (
-          /* VISTA DE DOCENTE / OTROS ROLES: Nómina de equipo, tarjetas, gestionar exámenes y dar de baja */
+          /* VISTA DE DOCENTE: Nómina de equipo, tarjetas, gestionar exámenes y dar de baja */
           <div className="space-y-6">
             {/* Buscador y Contador */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
@@ -138,9 +131,9 @@ export function ColaboradoresPageContainer() {
                 )}
               </div>
 
-              {/* Contador oficial de mockups */}
+              {/* Contador */}
               <div className="text-xs sm:text-sm text-gray-500 font-medium">
-                {totales.total} colaboradores · {totales.aprobados} aprobados
+                {totales.total} colaboradores
               </div>
             </div>
 
@@ -194,7 +187,6 @@ export function ColaboradoresPageContainer() {
               isOpen={isSolicitarModalOpen}
               onClose={() => setIsSolicitarModalOpen(false)}
               onSubmit={handleSolicitarSubmit}
-              userEmail={userEmail}
             />
 
             <GestionarExamenesModal
