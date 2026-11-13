@@ -6,26 +6,33 @@ import {
   Patch,
   Put,
   Param,
-  ParseIntPipe,
   Delete,
   Query,
   Req,
+  Res,
+  Ip,
+  ParseIntPipe,
+  Optional,
   UseGuards,
 } from '@nestjs/common';
-import { ExamenesService } from './examenes.service';
-import { CreateExamenDto } from './dto/create-examen.dto';
-import { UpdateExamenDto } from './dto/update-examen.dto';
-import { QueryExamenDto } from './dto/query-examen.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+import type { Request, Response } from 'express';
 import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
 } from '@nestjs/swagger';
+import { ExamenesService } from './examenes.service';
+import { CreateExamenDto } from './dto/create-examen.dto';
+import { UpdateExamenDto } from './dto/update-examen.dto';
+import { QueryExamenDto } from './dto/query-examen.dto';
 import { DashboardAsistenciaResponseDto } from './dto/dashboard-asistencia-response.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { ObservacionesIngresoService } from '../observaciones-ingreso/observaciones-ingreso.service';
+import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
+import { MotivoObservacion } from '../observaciones-ingreso/dto/filtro-observaciones.dto';
 
 interface RequestWithUser {
   user?: {
@@ -56,7 +63,11 @@ function normalizarIds<T extends Record<string, any>>(body: T): T {
 @ApiBearerAuth()
 @Controller('examenes')
 export class ExamenesController {
-  constructor(private readonly examenesService: ExamenesService) {}
+  constructor(
+    private readonly examenesService: ExamenesService,
+    @Optional()
+    private readonly observacionesService?: ObservacionesIngresoService,
+  ) {}
 
   // --- ENDPOINTS PÚBLICOS ---
   @Get('publicos')
@@ -160,6 +171,37 @@ export class ExamenesController {
   desactivar(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.examenesService.remove(+id, req.user!.id);
   }
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/reporte-observaciones')
+  async descargarReporteObservaciones(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('motivo') motivo: MotivoObservacion | undefined,
+    @Query('gestion') gestion: string,
+    @Req() req: Request & { user: AuthenticatedUser },
+    @Ip() ip: string,
+    @Res() res: Response,
+  ) {
+    if (!this.observacionesService) {
+      res
+        .status(500)
+        .json({ message: 'Servicio de observaciones no disponible' });
+      return;
+    }
+    const { buffer, filename } =
+      await this.observacionesService.generarReportePdf(
+        req.user,
+        { examenId: id, motivo, gestion },
+        ip,
+      );
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', String(buffer.length));
+    res.setHeader('Cache-Control', 'no-store, must-revalidate');
+
+    res.end(buffer);
+  }
+
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('examenes.ver')
   @Get(':id/asistencia')

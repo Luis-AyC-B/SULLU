@@ -116,6 +116,7 @@ export class ConsultaCasosExcepcionalesService {
 
     return { examenId, ingresados: ingresos.length, total, ingresos };
   }
+
   async estudiantes(
     examenId: number,
     query: string | undefined,
@@ -168,7 +169,13 @@ export class ConsultaCasosExcepcionalesService {
     });
 
     return inscripciones.map((ee) => {
-      const ultimoIngreso = ee.estudiante.ingresos?.[0];
+      const ultimoIngreso = ee.estudiante.ingresos?.[0] as
+        | {
+            fechaHora: Date | string;
+            casoExcepcional?: string | null;
+            metodo?: 'QR' | 'MANUAL' | null;
+          }
+        | undefined;
       return {
         id: ee.estudianteId,
         codSis: ee.estudiante.cod_sis,

@@ -406,6 +406,7 @@ export async function obtenerIngresosExamenOffline(
   return null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function enriquecerExamenControl(e: any): ExamenControl {
   const nombre = e.nombre || `${e.materiaNombre || e.materia?.nombre || 'Materia'} – ${e.tipoExamen || 'Examen'}`;
   const facultad = e.facultadNombre || e.facultad?.nombre || e.facultad || 'Facultad de Ciencias y Tecnología (FCyT)';

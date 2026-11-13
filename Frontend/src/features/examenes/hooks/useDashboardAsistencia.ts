@@ -45,7 +45,7 @@ export function useDashboardAsistencia(
   dataRef.current = data;
 
   const fetchData = useCallback(
-    async () => {
+    async (_background?: boolean) => {
       if (!examenId) return;
 
       if (!dataRef.current) {

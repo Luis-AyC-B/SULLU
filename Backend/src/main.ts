@@ -57,6 +57,7 @@ async function bootstrap() {
       }
     },
     credentials: true,
+    exposedHeaders: ['Content-Disposition'],
   });
   await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }
