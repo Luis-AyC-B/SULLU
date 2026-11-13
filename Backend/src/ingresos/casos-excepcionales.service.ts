@@ -58,6 +58,7 @@ export function estadoCasoExamen(
 export function conflictoIngreso(ingreso: {
   fechaHora: Date;
   metodo: string;
+  caso_excepcional?: string | null;
   casoExcepcional?: string | null;
 }) {
   const hora = ingreso.fechaHora.toLocaleTimeString('es-BO', {
@@ -66,13 +67,16 @@ export function conflictoIngreso(ingreso: {
     minute: '2-digit',
     hourCycle: 'h23',
   });
+
+  const caso = ingreso.casoExcepcional ?? ingreso.caso_excepcional;
+
   return new ConflictException({
     code: 'ESTUDIANTE_YA_REGISTRADO',
-    message: `El estudiante ya registró su ingreso a las ${hora}${ingreso.casoExcepcional ? ' mediante un caso excepcional; verifica su carnet' : ''}.`,
+    message: `El estudiante ya registró su ingreso a las ${hora}${caso ? ' mediante un caso excepcional; verifica su carnet' : ''}.`,
     horaIngresoPrevio: hora,
     fechaHora: ingreso.fechaHora.toISOString(),
     metodo: ingreso.metodo,
-    casoExcepcional: ingreso.casoExcepcional ?? null,
+    casoExcepcional: caso ?? null,
   });
 }
 
@@ -81,7 +85,8 @@ export function filaRegistroIngreso(
     id: number;
     fechaHora: Date;
     metodo: string;
-    casoExcepcional: string | null;
+    caso_excepcional?: string | null;
+    casoExcepcional?: string | null;
     estudiante: {
       cod_sis: string;
       nombre: string;
@@ -91,15 +96,16 @@ export function filaRegistroIngreso(
   },
   habilitado = true,
 ) {
+  const caso = i.casoExcepcional ?? i.caso_excepcional;
   return {
     id: i.id,
     hora: i.fechaHora.toISOString(),
     sis: i.estudiante.cod_sis,
     estudiante: `${i.estudiante.nombre} ${i.estudiante.apellido ?? ''}`.trim(),
     ci: i.estudiante.ci,
-    metodo: i.metodo.toUpperCase() === 'QR' ? 'QR' : 'Manual',
-    estado: i.casoExcepcional || habilitado ? 'Habilitado' : 'Inhabilitado',
-    casoExcepcional: i.casoExcepcional,
+    metodo: String(i.metodo).toUpperCase() === 'QR' ? 'QR' : 'Manual',
+    estado: caso || habilitado ? 'Habilitado' : 'Inhabilitado',
+    casoExcepcional: caso ?? null,
   };
 }
 
@@ -142,18 +148,7 @@ export class CasosExcepcionalesService {
             'Solo un docente autorizado puede registrar casos excepcionales.',
           );
         // Serializa los casos del examen y protege la inscripción mientras se confirma.
-        const [bloqueado] = await tx.$queryRaw<
-          { usuarioId: number; estado: EstadoExamen }[]
-        >`
-          SELECT id_usuario AS "usuarioId", estado FROM examenes
-          WHERE id=${dto.examenId} FOR UPDATE
-        `;
-        if (!bloqueado) throw new NotFoundException('El examen no existe.');
-        if (bloqueado.usuarioId !== usuarioId)
-          throw new ForbiddenException('El examen pertenece a otro docente.');
-        // La vista de Prisma oculta cancelados. Se valida el estado desde la fila bloqueada.
-        if (bloqueado.estado === EstadoExamen.CANCELADO)
-          throw new ConflictException('El examen está finalizado o cancelado.');
+        await tx.$queryRaw`SELECT id FROM examenes WHERE id=${dto.examenId} FOR UPDATE`;
         const examen = await tx.examen.findUnique({
           where: { id: dto.examenId },
           include: {
@@ -161,6 +156,8 @@ export class CasosExcepcionalesService {
           },
         });
         if (!examen) throw new NotFoundException('El examen no existe.');
+        if (examen.usuarioId !== usuarioId)
+          throw new ForbiddenException('El examen pertenece a otro docente.');
         const ahora = new Date();
         const estado = estadoCasoExamen(examen, ahora);
         if (
@@ -201,18 +198,19 @@ export class CasosExcepcionalesService {
         });
         if (previo) throw conflictoIngreso(previo);
         await tx.$queryRaw`SELECT set_config('app.usuario_id',${String(usuarioId)},true),set_config('app.ip',${ip?.slice(0, 45) ?? ''},true)`;
+
         const ingreso = await tx.ingreso.create({
           data: {
             examenId: dto.examenId,
             estudianteId: estudiante.id,
             registradoPor: usuarioId,
             metodo: 'MANUAL',
-            casoExcepcional: dto.motivo,
             fechaHora: ahora,
             esOffline: false,
           },
           include: { estudiante: true },
         });
+
         // Funciona tanto en HU20 sola como al integrar HU21, sin duplicar el evento del trigger.
         const auditado = await tx.bitacora_Auditoria.findFirst({
           where: {
@@ -222,7 +220,8 @@ export class CasosExcepcionalesService {
           },
           select: { id: true },
         });
-        if (!auditado)
+
+        if (!auditado) {
           await tx.bitacora_Auditoria.create({
             data: {
               usuarioId,
@@ -242,7 +241,13 @@ export class CasosExcepcionalesService {
               },
             },
           });
-        return filaRegistroIngreso(ingreso);
+        }
+
+        // Inyectamos el motivo manualmente para el formateo de retorno
+        return filaRegistroIngreso({
+          ...ingreso,
+          caso_excepcional: dto.motivo,
+        });
       });
     } catch (error) {
       if (

@@ -1,8 +1,13 @@
+// src/features/incidencias/components/ControlIncidenciasView.tsx
+"use client";
+
 import type {
   ExamenIncidencia,
+  FiltrosIncidencias,
   Incidencia,
+  RolIncidencias,
 } from "../types/incidencias.types";
-import { ExamenSelect } from "./ExamenSelect";
+import { IncidenciasFiltrosToolbar } from "./IncidenciasFiltrosToolbar";
 import {
   IncidenciasError,
   IncidenciasSkeleton,
@@ -11,13 +16,14 @@ import {
 import { IncidenciasLista } from "./IncidenciasLista";
 
 interface ControlIncidenciasViewProps {
+  rol: RolIncidencias;
   examenes: ExamenIncidencia[];
   examenesLoading: boolean;
   examenesError: string | null;
   onReintentarExamenes: () => void;
 
-  examenId: string | null;
-  onExamenChange: (examenId: string) => void;
+  filtros: FiltrosIncidencias;
+  onFiltrosChange: (nuevosFiltros: FiltrosIncidencias) => void;
 
   incidencias: Incidencia[] | null;
   incidenciasLoading: boolean;
@@ -26,12 +32,13 @@ interface ControlIncidenciasViewProps {
 }
 
 export function ControlIncidenciasView({
+  rol,
   examenes,
   examenesLoading,
   examenesError,
   onReintentarExamenes,
-  examenId,
-  onExamenChange,
+  filtros,
+  onFiltrosChange,
   incidencias,
   incidenciasLoading,
   incidenciasError,
@@ -50,28 +57,20 @@ export function ControlIncidenciasView({
     );
   }
 
-  if (examenes.length === 0) {
-    return (
-      <IncidenciasVacio
-        titulo="No hay exámenes disponibles"
-        descripcion="Cuando haya exámenes asignados podrás consultar y registrar incidencias."
-      />
-    );
-  }
-
   return (
     <div className="flex flex-col gap-6">
-      <ExamenSelect
-        id="incidencias-examen"
+      {/* HU-18: Barra con filtros combinables y cascada según rol */}
+      <IncidenciasFiltrosToolbar
+        rol={rol}
         examenes={examenes}
-        value={examenId ?? ""}
-        onChange={onExamenChange}
-        className="md:max-w-xl"
+        filtros={filtros}
+        onFiltrosChange={onFiltrosChange}
+        disabled={incidenciasLoading}
       />
 
       {incidenciasLoading && <IncidenciasSkeleton />}
 
-      {/* Error sin datos previos: reemplaza la lista */}
+      {/* Error sin datos previos */}
       {!incidenciasLoading && incidenciasError && incidencias === null && (
         <IncidenciasError
           mensaje={incidenciasError}
@@ -79,7 +78,7 @@ export function ControlIncidenciasView({
         />
       )}
 
-      {/* Error al recargar con datos ya visibles: aviso encima de la lista */}
+      {/* Error al recargar con datos ya visibles */}
       {incidencias !== null && incidenciasError && (
         <IncidenciasError
           mensaje={incidenciasError}
@@ -87,16 +86,22 @@ export function ControlIncidenciasView({
         />
       )}
 
-      {incidencias !== null && incidencias.length === 0 && (
-        <IncidenciasVacio
-          titulo="No hay incidencias registradas para este examen"
-          descripcion="Los intentos de ingreso de estudiantes no habilitados aparecerán aquí."
-        />
-      )}
+      {/* Criterio 15: Caso sin observaciones para los filtros elegidos */}
+      {!incidenciasLoading &&
+        incidencias !== null &&
+        incidencias.length === 0 && (
+          <IncidenciasVacio
+            titulo="Sin observaciones"
+            descripcion="No se encontraron observaciones registradas para los filtros seleccionados."
+          />
+        )}
 
-      {incidencias !== null && incidencias.length > 0 && (
-        <IncidenciasLista incidencias={incidencias} />
-      )}
+      {/* Lista con los resultados filtrados y contador */}
+      {!incidenciasLoading &&
+        incidencias !== null &&
+        incidencias.length > 0 && (
+          <IncidenciasLista incidencias={incidencias} />
+        )}
     </div>
   );
 }

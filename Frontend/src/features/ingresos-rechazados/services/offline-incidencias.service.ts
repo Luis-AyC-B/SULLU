@@ -42,7 +42,7 @@ export const offlineIncidenciasService = {
       clienteSyncId: syncId,
       examenId: payload.examenId,
       codigoSis: payload.codigoSis,
-      motivo: payload.motivo,
+      motivo: payload.motivo as MotivoIncidencia,
       observaciones: payload.observaciones,
       fechaHoraCaptura: isoFecha,
       estudianteNombre,
@@ -87,7 +87,7 @@ export const offlineIncidenciasService = {
       fechaHora: isoFecha,
       codigoSis: payload.codigoSis,
       estudianteNombre,
-      motivo: payload.motivo,
+      motivo: payload.motivo as MotivoIncidencia,
       observaciones: payload.observaciones ?? null,
       registradoPor: "Control (offline)",
     };

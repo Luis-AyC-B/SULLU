@@ -819,14 +819,14 @@ async function seedAuditoria(prisma: PrismaClient) {
   );
 }
 
-async function main() {
-  if (process.argv.includes('--hu21')) return seedAuditoria(prisma);
+async function seedBase(prisma: Prisma.TransactionClient) {
   console.log('\n Iniciando seed UMSS (Sprint 2)...\n');
 
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
 
   // 2.1 Limpiar datos previos (orden seguro por FK)
   console.log('Limpiando datos previos...');
+  await prisma.expulsion.deleteMany();
   await prisma.incidenciaIngreso.deleteMany();
   await prisma.examenControlador.deleteMany();
   await prisma.docenteColaborador.deleteMany();
@@ -854,7 +854,6 @@ async function main() {
   await prisma.facultad.deleteMany();
   await prisma.permiso.deleteMany();
   await prisma.modulo.deleteMany();
-  await prisma.bitacora_Auditoria.deleteMany();
   await prisma.tokenRecuperacion.deleteMany();
   console.log('OK: Limpieza completa.\n');
 
@@ -1710,16 +1709,15 @@ async function main() {
       },
     });
   }
-  await prisma.examen_Estudiante
-    .create({
-      data: {
-        estudianteId: estudianteMap['201901234'],
-        examenId: examen4.id,
-        estado_habilitado: false,
-        motivo_inhabilitacion: 'No entrego trabajo previo',
-      },
-    })
-    .catch(() => {});
+  await prisma.examen_Estudiante.createMany({
+    data: {
+      estudianteId: estudianteMap['201901234'],
+      examenId: examen4.id,
+      estado_habilitado: false,
+      motivo_inhabilitacion: 'No entrego trabajo previo',
+    },
+    skipDuplicates: true,
+  });
 
   // Examen 5 - PROGRAMADO (d3) - Miriam - ISW2 (con fue_editado=true)
   const reserva5 = await prisma.reservaAmbiente.create({
@@ -1772,16 +1770,15 @@ async function main() {
     });
   }
   // Un inhabilitado en examen5 (no presentó práctica)
-  await prisma.examen_Estudiante
-    .create({
-      data: {
-        estudianteId: estudianteMap['202001054'],
-        examenId: examen5.id,
-        estado_habilitado: false,
-        motivo_inhabilitacion: 'No aprobó el trabajo práctico previo',
-      },
-    })
-    .catch(() => {});
+  await prisma.examen_Estudiante.createMany({
+    data: {
+      estudianteId: estudianteMap['202001054'],
+      examenId: examen5.id,
+      estado_habilitado: false,
+      motivo_inhabilitacion: 'No aprobó el trabajo práctico previo',
+    },
+    skipDuplicates: true,
+  });
 
   // Examen 7 - PROGRAMADO (d4) - Rosario Arteaga - FCE - ECON1
   // Cubre a los 5 estudiantes de FCE
@@ -1877,16 +1874,15 @@ async function main() {
     });
   }
   // Un inhabilitado en examen8
-  await prisma.examen_Estudiante
-    .create({
-      data: {
-        estudianteId: estudianteMap['202100201'], // Marcos
-        examenId: examen8.id,
-        estado_habilitado: false,
-        motivo_inhabilitacion: 'Reprobó la evaluación continua',
-      },
-    })
-    .catch(() => {});
+  await prisma.examen_Estudiante.createMany({
+    data: {
+      estudianteId: estudianteMap['202100201'], // Marcos
+      examenId: examen8.id,
+      estado_habilitado: false,
+      motivo_inhabilitacion: 'Reprobó la evaluación continua',
+    },
+    skipDuplicates: true,
+  });
 
   console.log('OK: Estudiantes habilitados en todos los examenes.\\n');
 
@@ -2275,10 +2271,15 @@ async function main() {
   console.log('='.repeat(60));
 }
 
+async function main() {
+  if (process.argv.includes('--hu21')) return seedAuditoria(prisma);
+  await prisma.$transaction(seedBase, { timeout: 120_000 });
+}
+
 main()
   .catch((e) => {
     console.error('ERROR en el seed:', e);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();
