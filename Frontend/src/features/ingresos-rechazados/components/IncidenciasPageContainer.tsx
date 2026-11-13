@@ -297,8 +297,8 @@ function IncidenciasContenido() {
 
   return (
     <PageContainer
-      title="Ingresos rechazados"
-      subtitle="Intentos de ingreso de estudiantes no habilitados"
+      title="Observaciones de ingreso"
+      subtitle="Observaciones de ingreso por examen"
       actionLabel={puedeAbrirModal ? "+ Registrar incidencia" : undefined}
       onAction={() => setModalAbierto(true)}
       headerExtra={

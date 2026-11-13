@@ -161,8 +161,11 @@ export function IncidenciasFiltrosToolbar({
     rol === "docente" ? "Todas mis materias" : "Todas las materias";
 
   // Criterio 1, 2, 3: Visibilidad del filtro Docente
-  // Admin, Control y Roles nuevos lo ven; Docente NUNCA lo ve
-  const mostrarFiltroDocente = rol !== "docente";
+  // Admin SIEMPRE lo ve; Control y Custom solo si hay >1 docente; Docente NUNCA lo ve
+  const mostrarFiltroDocente =
+    rol !== "docente" &&
+    (rol === "admin" ||
+      ((rol === "control" || rol === "custom") && docentesDisponibles.length > 1));
 
   // Handlers en cascada (Criterios 7, 8, 9, 10)
   const handleFacultadChange = (nuevaFacultad: string) => {
