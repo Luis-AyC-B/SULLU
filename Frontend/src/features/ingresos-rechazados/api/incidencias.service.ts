@@ -506,7 +506,12 @@ export async function getObservacionesIngreso(
     params.examenId = filtros.examenId;
   }
   if (filtros.motivo && filtros.motivo !== "TODOS") {
-    params.motivo = filtros.motivo;
+    // Si el motivo es NO_ASISTIO (perteneciente a HU20 / Casos excepcionales),
+    // el backend de HU18 aún no lo tiene en su enum MotivoObservacion y responde 400.
+    // Solo enviamos los motivos soportados por el backend y filtramos en el cliente.
+    if (filtros.motivo !== "NO_ASISTIO") {
+      params.motivo = filtros.motivo;
+    }
   }
 
   try {
@@ -527,9 +532,12 @@ export async function getObservacionesIngreso(
       registradoPor: r.registradoPor || "Controlador",
     }));
 
+    // Filtramos en cliente para asegurar soporte de motivos extendidos como NO_ASISTIO
+    const filtradas = filtrarIncidenciasPorMotivo(items, filtros.motivo);
+
     return {
-      total: typeof data?.total === "number" ? data.total : items.length,
-      items: ordenarMasRecientes(items),
+      total: filtradas.length,
+      items: ordenarMasRecientes(filtradas),
     };
   } catch (error) {
     if (esRutaInexistente(error)) {
@@ -549,8 +557,14 @@ export async function getObservacionesIngreso(
         throw new Error(Array.isArray(msg) ? msg.join(", ") : msg);
       }
       if (error.response?.status === 400) {
-        const msg = error.response.data?.message || "Parámetros de búsqueda inválidos.";
-        throw new Error(Array.isArray(msg) ? msg.join(", ") : msg);
+        const rawMsg = error.response.data?.message || "Parámetros de búsqueda inválidos.";
+        const msgStr = Array.isArray(rawMsg) ? rawMsg.join(", ") : String(rawMsg);
+        // Si el backend rechaza un motivo que no conoce (ej: NO_ASISTIO), devolvemos lista vacía
+        // mostrando "Sin observaciones" en lugar de mostrar un banner de error rojo al usuario.
+        if (msgStr.toLowerCase().includes("motivo no válido") || msgStr.toLowerCase().includes("motivo")) {
+          return { total: 0, items: [] };
+        }
+        throw new Error(msgStr);
       }
       if (error.response?.status === 401) {
         throw new Error("Sesión no autorizada o expirada. Por favor, inicia sesión nuevamente.");
@@ -634,15 +648,21 @@ export async function descargarReporteObservacionesPdf(
     } else if (filtrosAplicados?.materia && filtrosAplicados.materia !== "TODAS") {
       params.materiaId = filtrosAplicados.materia;
     }
+    const esExamenTodos =
+      !filtrosAplicados?.examenId ||
+      filtrosAplicados.examenId === "TODOS" ||
+      filtrosAplicados?.examen === "TODOS" ||
+      examen?.id === "TODOS";
+
     if (filtrosAplicados?.examenId && filtrosAplicados.examenId !== "TODOS") {
       params.examenId = filtrosAplicados.examenId;
     } else if (filtrosAplicados?.examen && filtrosAplicados.examen !== "TODOS") {
       params.examenId = filtrosAplicados.examen;
-    } else if (examen?.id && examen.id !== "TODOS") {
+    } else if (!esExamenTodos && examen?.id && examen.id !== "TODOS" && !filtrosAplicados?.examenId) {
       params.examenId = String(examen.id);
     }
     const motivoFinal = filtrosAplicados?.motivo || filtroMotivo;
-    if (motivoFinal && motivoFinal !== "TODOS") {
+    if (motivoFinal && motivoFinal !== "TODOS" && motivoFinal !== "NO_ASISTIO") {
       params.motivo = motivoFinal;
     }
 
@@ -670,6 +690,19 @@ export async function descargarReporteObservacionesPdf(
       return { blob, filename };
     }
   } catch (error) {
+    // Si en el cliente ya tenemos incidencias visibles en pantalla, generamos el PDF localmente
+    // para no bloquear al usuario ante discrepancias de filtros o errores del backend.
+    if (incidencias && incidencias.length > 0) {
+      const blob = generarPdfReporteObservaciones({
+        examen,
+        incidencias,
+        filtroMotivo,
+        filtrosAplicados,
+        generadoPor,
+      });
+      return { blob, filename };
+    }
+
     if (isAxiosError(error) && error.response?.data) {
       const data = error.response.data;
       if (data instanceof Blob) {
