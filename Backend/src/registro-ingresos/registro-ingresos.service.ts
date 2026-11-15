@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AsistenciaPdfService } from './asistencia-pdf.service';
+import { estadoCasoExamen } from '../ingresos/casos-excepcionales.service';
 
 // Bolivia = UTC-4. fechaHora se guarda como Timestamp (UTC).
 const aBolivia = (d: Date) =>
@@ -136,7 +137,7 @@ export class RegistroIngresosService {
           gestion,
           ambiente: ex.reservaAmbiente.ambiente?.nombre ?? 'Aula',
           horario,
-          estado: ex.estado,
+          estado: estadoCasoExamen(ex),
         };
       })
       .sort((a, b) => {

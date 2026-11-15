@@ -24,10 +24,14 @@ export function useExamenesColaborador(colaborador: Colaborador | null) {
       setError(null);
       const data = await api.getExamenesColaborador(colTargetId);
       setAsignados(data.asignados);
-      setDisponibles(data.disponibles);
+      // Solo exámenes que no hayan iniciado ni finalizado
+      setDisponibles((data.disponibles || []).filter((item) => !item.yaInicio));
     } catch (err: unknown) {
       console.error("Error al cargar exámenes:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar exámenes");
+      const msg =
+        (err as any)?.response?.data?.message ||
+        (err instanceof Error ? err.message : "Error al cargar exámenes");
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -45,7 +49,9 @@ export function useExamenesColaborador(colaborador: Colaborador | null) {
       await fetchExamenes();
       return { success: true };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al asignar examen";
+      const msg =
+        (err as any)?.response?.data?.message ||
+        (err instanceof Error ? err.message : "Error al asignar examen");
       return { success: false, error: msg };
     }
   };
@@ -58,7 +64,9 @@ export function useExamenesColaborador(colaborador: Colaborador | null) {
       await fetchExamenes();
       return { success: true };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al retirar examen";
+      const msg =
+        (err as any)?.response?.data?.message ||
+        (err instanceof Error ? err.message : "Error al retirar examen");
       return { success: false, error: msg };
     }
   };

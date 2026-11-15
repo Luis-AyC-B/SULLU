@@ -33,10 +33,26 @@ apiClient.interceptors.request.use(async (config) => {
 
 let isRedirecting = false;
 
+export function marcarCierreSesionVoluntario() {
+  isRedirecting = true;
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.setItem('exacontrol_voluntary_logout', 'true');
+      sessionStorage.removeItem('sullu_registro_ingresos_filtros');
+      localStorage.removeItem('sullu_registro_ingresos_filtros');
+    } catch {}
+  }
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !isRedirecting) {
+    const isVoluntaryLogout =
+      typeof window !== 'undefined' &&
+      (sessionStorage.getItem('exacontrol_voluntary_logout') === 'true' ||
+        window.location.pathname.includes('/login'));
+
+    if (error.response?.status === 401 && !isRedirecting && !isVoluntaryLogout) {
       isRedirecting = true;
       toast.error('Sesión inválida o iniciada en otro dispositivo.', {
         id: 'session-expired',

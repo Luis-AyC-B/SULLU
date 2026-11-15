@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { EstadoExamen, EstadoSolicitud } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { estadoCasoExamen } from '../../ingresos/casos-excepcionales.service';
 
 @Injectable()
 export class ExamenControladorService {
@@ -66,12 +67,21 @@ export class ExamenControladorService {
     }
 
     // 3. Validar estado del examen
-    if (examen.estado === EstadoExamen.FINALIZADO) {
+    const estadoReal = examen.reservaAmbiente?.horarioFijo
+      ? estadoCasoExamen(examen)
+      : examen.estado;
+
+    if (estadoReal === EstadoExamen.FINALIZADO) {
       throw new BadRequestException(
         'No se puede asignar a un examen que ya finalizó.',
       );
     }
-    if (examen.estado === EstadoExamen.CANCELADO) {
+    if (estadoReal === EstadoExamen.EN_CURSO) {
+      throw new BadRequestException(
+        'No se puede asignar a un examen que ya inició.',
+      );
+    }
+    if (estadoReal === EstadoExamen.CANCELADO) {
       throw new BadRequestException(
         'No se puede asignar a un examen cancelado.',
       );
@@ -182,15 +192,27 @@ export class ExamenControladorService {
 
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
+      include: {
+        reservaAmbiente: {
+          include: { horarioFijo: true },
+        },
+      },
     });
 
     if (!examen) {
       throw new NotFoundException('Examen no encontrado.');
     }
 
-    if (examen.estado === EstadoExamen.FINALIZADO) {
+    const estadoReal = examen.reservaAmbiente?.horarioFijo
+      ? estadoCasoExamen(examen)
+      : examen.estado;
+
+    if (
+      estadoReal === EstadoExamen.FINALIZADO ||
+      estadoReal === EstadoExamen.EN_CURSO
+    ) {
       throw new BadRequestException(
-        'No es posible retirar al colaborador: El examen ya finalizó.',
+        'No es posible retirar al colaborador: El examen ya inició o finalizó.',
       );
     }
 
@@ -272,7 +294,7 @@ export class ExamenControladorService {
       },
     });
 
-    const ahora = Date.now();
+    const ahora = new Date();
 
     for (const ex of examenesDocente) {
       const estaAsignado = ex.controladores.some(
@@ -284,15 +306,15 @@ export class ExamenControladorService {
         : new Date();
 
       const fechaIso = fechaBase.toISOString().split('T')[0];
-      const fechaInicioMs = this.calcularFechaInicioMs(
-        ex.reservaAmbiente?.fecha,
-        ex.reservaAmbiente?.horarioFijo?.horaIni,
-      );
+
+      // Cálculo del estado real según horario institucional Bolivia (UTC-4)
+      const estadoReal = ex.reservaAmbiente?.horarioFijo
+        ? estadoCasoExamen(ex, ahora)
+        : ex.estado;
 
       const yaInicio =
-        ex.estado === EstadoExamen.FINALIZADO ||
-        ex.estado === EstadoExamen.EN_CURSO ||
-        (fechaInicioMs !== null && ahora >= fechaInicioMs);
+        estadoReal === EstadoExamen.FINALIZADO ||
+        estadoReal === EstadoExamen.EN_CURSO;
 
       const materiaNombre =
         ex.carrerasMaterias[0]?.carrera_materia?.materia?.nombre ||
@@ -320,8 +342,8 @@ export class ExamenControladorService {
 
       if (estaAsignado) {
         asignados.push(itemFormateado);
-      } else if (ex.estado === EstadoExamen.PROGRAMADO) {
-        // Muestra en disponibles todos los exámenes en estado PROGRAMADO
+      } else if (estadoReal === EstadoExamen.PROGRAMADO && !yaInicio) {
+        // Solo disponibles los que están programados y no han iniciado ni finalizado
         let tieneChoque = false;
         let motivoChoque: string | undefined;
 
