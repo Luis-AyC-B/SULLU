@@ -64,6 +64,10 @@ export interface EstudianteBusquedaItem {
   yaIngreso: boolean;
   horaIngresoPrevio?: string;
   metodoIngresoPrevio?: "QR" | "MANUAL";
+  /** HU17: Nombre de la lista a la que pertenece (ej. "Lista A") */
+  nombreLista?: string;
+  /** HU17: Rango de apellidos de la lista (ej. "A - L") */
+  rangoAsignado?: string;
 }
 
 export interface RegistroManualPayload {
@@ -95,7 +99,8 @@ export type TipoExcepcionQr =
   | "QR_INVALIDO"
   | "QR_CADUCADO"
   | "SIN_CONEXION"
-  | "CAMARA_DENEGADA";
+  | "CAMARA_DENEGADA"
+  | "FUERA_DE_GRUPO";
 
 export interface EstudianteQrResultado {
   fotoUrl?: string | null;
@@ -154,6 +159,8 @@ export interface MiGrupoControlador {
   colaboradorId: number;
   nombreControlador: string;
   rolAsignacion: string;
+  /** Nombre de la lista, ej: "Lista A" */
+  nombreLista?: string;
   /** Rango legible, ej: "A - G" */
   rango: string;
   letraInicio: string;

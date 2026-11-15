@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Upload } from "lucide-react";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import jsQR from "jsqr";
@@ -9,15 +9,15 @@ import type {
   ExamenAsignado,
   TipoExcepcionQr,
   EstudianteQrResultado,
+  EstudianteBusquedaItem,
   MiGrupoControlador,
 } from "../../types/control-ingreso.types";
 import { controlIngresoService } from "../../services/control-ingreso.service";
 import { offlineIngresosService } from "../../services/offline-ingresos.service";
 import { playSuccessChime } from "../../utils/audio-feedback";
 import { QrViewfinder } from "./QrViewfinder";
-import { QrSuccessCard } from "./QrSuccessCard";
 import { QrExceptionDialog } from "./QrExceptionDialog";
-import { apiClient } from '@/shared/lib/api-client';
+import { ConfirmarIngresoStep } from "../manual/ConfirmarIngresoStep";
 
 interface EscanearQrModalProps {
   examen: ExamenAsignado;
@@ -54,9 +54,28 @@ export function EscanearQrModal({
   const lastScannedTokenRef = useRef<string>("");
   const cooldownUntilRef = useRef<number>(0);
 
-  // Estados de retroalimentación
-  const [estudianteExitoso, setEstudianteExitoso] =
-    useState<EstudianteQrResultado | null>(null);
+  // Adaptador de EstudianteQrResultado → EstudianteBusquedaItem para ConfirmarIngresoStep
+  const estudianteQrABusqueda = (
+    qr: EstudianteQrResultado,
+  ): EstudianteBusquedaItem => ({
+    id: qr.id ?? 0,
+    codSis: qr.codSis,
+    ci: "",
+    nombre: qr.nombre,
+    apellido: qr.apellido,
+    estadoHabilitado: qr.estadoHabilitado ?? true,
+    motivoInhabilitacion: qr.motivoInhabilitacion,
+    ambienteAsignado: qr.ambienteAsignado ?? "",
+    yaIngreso: qr.yaIngreso ?? false,
+    horaIngresoPrevio: qr.horaIngresoPrevio,
+  });
+
+  // Estado de confirmación QR (reemplaza QrSuccessCard)
+  const [estudiantePendienteConfirmar, setEstudiantePendienteConfirmar] =
+    useState<EstudianteBusquedaItem | null>(null);
+  const [isConfirmandoQr, setIsConfirmandoQr] = useState(false);
+  const [errorConfirmacion, setErrorConfirmacion] = useState<string | null>(null);
+  const tokenPendienteRef = useRef<string>("");
 
   // Estado de excepción activa
   const [excepcionActiva, setExcepcionActiva] = useState<{
@@ -72,8 +91,8 @@ export function EscanearQrModal({
   const excepcionActivaRef = useRef(excepcionActiva);
   excepcionActivaRef.current = excepcionActiva;
 
-  const estudianteExitosoRef = useRef(estudianteExitoso);
-  estudianteExitosoRef.current = estudianteExitoso;
+  const estudiantePendienteRef = useRef(estudiantePendienteConfirmar);
+  estudiantePendienteRef.current = estudiantePendienteConfirmar;
 
   const onIngresoExitosoRef = useRef(onIngresoExitoso);
   onIngresoExitosoRef.current = onIngresoExitoso;
@@ -135,7 +154,7 @@ export function EscanearQrModal({
       // Anti-rebote y prevención de lecturas duplicadas con el mismo QR
       if (isProcessingRef.current) return;
       if (excepcionActivaRef.current) return; // No procesar nuevos QRs si hay una excepción abierta
-      if (estudianteExitosoRef.current) return; // Esperar a que concluyan los 1.5s de confirmación
+      if (estudiantePendienteRef.current) return; // Esperar confirmación del modal
 
       // Cooldown de 3.5 segundos si se mantiene el mismo QR frente a la cámara
       if (
@@ -157,28 +176,12 @@ export function EscanearQrModal({
         );
 
         if (resultado.success && resultado.estudiante) {
-          // CASO EXITOSO (Task-9.3)
+          // QR VÁLIDO → mostrar modal de confirmación (reutilizar ConfirmarIngresoStep)
           playSuccessChime();
-          setEstudianteExitoso(resultado.estudiante);
-          if(resultado.estudiante.requiereConfirmacion) {
-            if (resultado.fueraDeGrupo && resultado.advertencia) toast.warning(resultado.advertencia, { duration: 6000 });
-            return;
-          }
-          onIngresoExitosoRef.current?.();
-
-          // HU17: Si el estudiante es de otro grupo, mostrar advertencia amber
-          if (resultado.fueraDeGrupo && resultado.advertencia) {
-            toast.warning(resultado.advertencia, {
-              duration: 6000,
-              id: "fuera-de-grupo",
-            });
-          }
-
-          // Desaparecer automáticamente entre 1 y 2 segundos dejando el escáner abierto
-          setTimeout(() => {
-            setEstudianteExitoso(null);
-            isProcessingRef.current = false;
-          }, 1600);
+          tokenPendienteRef.current = cleanToken;
+          setErrorConfirmacion(null);
+          setEstudiantePendienteConfirmar(estudianteQrABusqueda(resultado.estudiante));
+          // isProcessingRef.current permanece true hasta que el usuario confirme o cancele
         } else if (resultado.excepcion) {
           // EXCEPCIONES PERSISTENTES (Task-9.4)
           setExcepcionActiva({
@@ -291,7 +294,7 @@ export function EscanearQrModal({
           videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA &&
           !isProcessingRef.current &&
           !excepcionActivaRef.current &&
-          !estudianteExitosoRef.current
+          !estudiantePendienteRef.current
         ) {
           lastScanTime = timestamp;
           try {
@@ -363,7 +366,7 @@ export function EscanearQrModal({
       iniciarCamara();
     } else {
       detenerCamara();
-      setEstudianteExitoso(null);
+      setEstudiantePendienteConfirmar(null);
       setExcepcionActiva(null);
       isProcessingRef.current = false;
       lastScannedTokenRef.current = "";
@@ -401,34 +404,6 @@ export function EscanearQrModal({
     onAbrirRegistroManual();
   };
 
-  const handleSeleccionarArchivoQr = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imgData.data, imgData.width, imgData.height);
-          if (code && code.data) {
-            void procesarTokenQr(code.data);
-          } else {
-            toast.error("No se detectó ningún código QR en la imagen seleccionada");
-          }
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
   return (
     <div
       role="dialog"
@@ -450,19 +425,6 @@ export function EscanearQrModal({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <label
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-white cursor-pointer transition-colors"
-            title="Subir archivo o captura con código QR"
-          >
-            <Upload className="h-4 w-4" />
-            <span>Subir imagen QR</span>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleSeleccionarArchivoQr}
-              className="hidden"
-            />
-          </label>
           <button
             type="button"
             onClick={onClose}
@@ -485,13 +447,95 @@ export function EscanearQrModal({
           onSincronizar={handleSincronizarOffline}
           isVerificando={isVerificando}
         />
-
-        {/* Confirmación verde de 1 a 2 segundos (Mockup 2) */}
-        {estudianteExitoso && <QrSuccessCard estudiante={estudianteExitoso} onConfirmar={estudianteExitoso.requiereConfirmacion ? async()=>{
-          try { await apiClient.post('/ingresos/qr/confirmar',{examenId:examen.id,token:lastScannedTokenRef.current}); setEstudianteExitoso({...estudianteExitoso,yaIngreso:true});onIngresoExitosoRef.current?.();setTimeout(()=>{setEstudianteExitoso(null);isProcessingRef.current=false;},3000); }
-          catch {toast.error('No se pudo confirmar: QR utilizado, vencido o inválido');}
-        }:undefined} />}
       </div>
+
+      {/* Modal de Confirmación QR (reutiliza la misma estructura y diseño de ConfirmarIngresoStep) */}
+      {estudiantePendienteConfirmar && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-55 flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setEstudiantePendienteConfirmar(null);
+              setErrorConfirmacion(null);
+              isProcessingRef.current = false;
+            }
+          }}
+        >
+          <div className="w-full md:max-w-xl bg-white rounded-t-3xl md:rounded-3xl shadow-2xl p-5 md:p-7 flex flex-col max-h-[92vh] md:max-h-[85vh] relative animate-in slide-in-from-bottom md:zoom-in-95 duration-200">
+            {/* Barra táctil indicadora en mobile */}
+            <div className="block md:hidden h-1 w-12 rounded-full bg-slate-200 mx-auto mb-3 shrink-0" />
+
+            {/* Encabezado con Título y Botón Cerrar */}
+            <div className="flex items-center justify-between pb-3 md:pb-4 border-b border-slate-100 shrink-0">
+              <h3 className="text-lg md:text-xl font-bold text-slate-900">
+                Confirmar ingreso
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setEstudiantePendienteConfirmar(null);
+                  setErrorConfirmacion(null);
+                  isProcessingRef.current = false;
+                }}
+                className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Cerrar ventana"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Cuerpo con ConfirmarIngresoStep */}
+            <div className="overflow-y-auto flex-1 pr-0.5 py-1">
+              <ConfirmarIngresoStep
+                estudiante={estudiantePendienteConfirmar}
+                examen={examen}
+                miGrupo={miGrupo}
+                textoVolver="Volver a escanear"
+                isSubmitting={isConfirmandoQr}
+                errorEnvio={errorConfirmacion}
+                onVolver={() => {
+                  setEstudiantePendienteConfirmar(null);
+                  setErrorConfirmacion(null);
+                  isProcessingRef.current = false;
+                }}
+                onCancelar={() => {
+                  setEstudiantePendienteConfirmar(null);
+                  setErrorConfirmacion(null);
+                  isProcessingRef.current = false;
+                }}
+                onConfirmar={async () => {
+                  setIsConfirmandoQr(true);
+                  setErrorConfirmacion(null);
+                  try {
+                    const res = await controlIngresoService.confirmarIngresoQr(
+                      examen.id,
+                      tokenPendienteRef.current
+                    );
+                    if (res.success === false && res.excepcion) {
+                      setEstudiantePendienteConfirmar(null);
+                      setExcepcionActiva({
+                        tipo: res.excepcion,
+                        estudiante: res.estudiante,
+                      });
+                    } else {
+                      setEstudiantePendienteConfirmar(null);
+                      onIngresoExitosoRef.current?.();
+                      toast.success("Ingreso registrado exitosamente");
+                    }
+                  } catch {
+                    setErrorConfirmacion("No se pudo confirmar el ingreso. Intenta nuevamente.");
+                  } finally {
+                    setIsConfirmandoQr(false);
+                    isProcessingRef.current = false;
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Excepción Activa (Mockups 1, 3, 4, 5) */}
       {excepcionActiva && (
