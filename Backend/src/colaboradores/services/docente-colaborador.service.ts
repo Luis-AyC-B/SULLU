@@ -170,6 +170,25 @@ export class DocenteColaboradorService {
       );
     }
 
+    if (relacion.colaboradorId) {
+      const examenesAsignados = await this.prisma.examenControlador.count({
+        where: {
+          colaboradorId: relacion.colaboradorId,
+          deletedAt: null,
+          OR: [
+            { asignadoPor: docenteId },
+            { examen: { usuarioId: docenteId } },
+          ],
+        },
+      });
+
+      if (examenesAsignados > 0) {
+        throw new BadRequestException(
+          'No se puede dar de baja a un colaborador que tiene exámenes asignados. Primero debes retirarlo de sus exámenes.',
+        );
+      }
+    }
+
     const actualizada = await this.prisma.docenteColaborador.update({
       where: { id: relacionId },
       data: { estadoSolicitud: EstadoSolicitud.INACTIVO },
@@ -219,7 +238,14 @@ export class DocenteColaboradorService {
 
         if (rel.colaboradorId) {
           const asignaciones = await this.prisma.examenControlador.findMany({
-            where: { colaboradorId: rel.colaboradorId, asignadoPor: docenteId },
+            where: {
+              colaboradorId: rel.colaboradorId,
+              deletedAt: null,
+              OR: [
+                { asignadoPor: docenteId },
+                { examen: { usuarioId: docenteId } },
+              ],
+            },
             select: { examenId: true },
           });
           examenesAsignadosIds = asignaciones.map((a) => a.examenId);
