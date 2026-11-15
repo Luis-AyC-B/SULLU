@@ -67,14 +67,25 @@ export function ColaboradorCard({
               >
                 Gestionar exámenes
               </button>
-              <button
-                type="button"
-                onClick={() => onDarDeBaja(colaborador)}
-                disabled={isProcessing}
-                className="text-rose-600 text-xs sm:text-sm font-semibold hover:underline px-3 py-2 cursor-pointer transition-colors whitespace-nowrap"
-              >
-                Dar de baja
-              </button>
+              {numExamenes > 0 ? (
+                <button
+                  type="button"
+                  disabled
+                  title="No se puede dar de baja mientras tenga exámenes asignados"
+                  className="text-gray-400 text-xs sm:text-sm font-semibold px-3 py-2 cursor-not-allowed opacity-60 whitespace-nowrap"
+                >
+                  Dar de baja
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onDarDeBaja(colaborador)}
+                  disabled={isProcessing}
+                  className="text-rose-600 text-xs sm:text-sm font-semibold hover:underline px-3 py-2 cursor-pointer transition-colors whitespace-nowrap"
+                >
+                  Dar de baja
+                </button>
+              )}
             </div>
           </div>
         ) : (
