@@ -92,7 +92,9 @@ export function useColaboradores() {
       setColaboradores((prev) => [nuevo, ...prev]);
       return { success: true, data: nuevo };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al confirmar el colaborador";
+      const msg =
+        (err as any)?.response?.data?.message ||
+        (err instanceof Error ? err.message : "Error al confirmar el colaborador");
       return { success: false, error: msg };
     }
   };
@@ -105,7 +107,9 @@ export function useColaboradores() {
       );
       return { success: true };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al dar de baja";
+      const msg =
+        (err as any)?.response?.data?.message ||
+        (err instanceof Error ? err.message : "Error al dar de baja");
       return { success: false, error: msg };
     }
   };

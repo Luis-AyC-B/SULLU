@@ -20,6 +20,11 @@ export function DarDeBajaDialog({
 }: DarDeBajaDialogProps) {
   if (!isOpen || !colaborador) return null;
 
+  const numExamenes =
+    colaborador.examenesAsignadosCount ??
+    (colaborador.examenesAsignadosIds?.length || 0);
+  const tieneAsignaciones = numExamenes > 0;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200"
@@ -36,9 +41,16 @@ export function DarDeBajaDialog({
         <h3 className="text-xl font-bold text-[#003770]">
           ¿Dar de baja a {colaborador.nombreCompleto}?
         </h3>
-        <p className="text-xs text-gray-500 mt-1 mb-6">
-          Dejará de formar parte de tu equipo.
-        </p>
+
+        {tieneAsignaciones ? (
+          <div className="my-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-medium text-left">
+            No es posible dar de baja a este colaborador porque tiene {numExamenes} {numExamenes === 1 ? "examen asignado" : "exámenes asignados"}. Primero retíralo de sus exámenes.
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 mt-1 mb-6">
+            Dejará de formar parte de tu equipo.
+          </p>
+        )}
 
         <div className="flex items-center gap-3">
           <button
@@ -52,8 +64,8 @@ export function DarDeBajaDialog({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={isProcessing}
-            className="bg-rose-600 hover:bg-rose-700 text-white font-medium px-5 py-2.5 rounded-xl flex-1 text-sm transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+            disabled={isProcessing || tieneAsignaciones}
+            className="bg-rose-600 hover:bg-rose-700 text-white font-medium px-5 py-2.5 rounded-xl flex-1 text-sm transition-colors shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing ? "Procesando..." : "Sí, dar de baja"}
           </button>
