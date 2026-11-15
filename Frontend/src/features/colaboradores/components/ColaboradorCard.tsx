@@ -1,9 +1,6 @@
-"use client";
-
 import { Calendar } from "lucide-react";
 import { Colaborador } from "../schemas/colaborador.schema";
 import { ColaboradorAvatar } from "./ColaboradorAvatar";
-import { ColaboradorEstadoBadge } from "./ColaboradorEstadoBadge";
 
 interface ColaboradorCardProps {
   colaborador: Colaborador;
@@ -24,7 +21,7 @@ export function ColaboradorCard({
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs hover:shadow-sm transition-shadow flex flex-col justify-between">
-      {/* Top: Avatar, Nombre, Código SIS y Badge */}
+      {/* Top: Avatar, Nombre, Código SIS */}
       <div>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -42,14 +39,11 @@ export function ColaboradorCard({
               </p>
             </div>
           </div>
-          <div className="shrink-0">
-            <ColaboradorEstadoBadge estado={colaborador.estado} />
-          </div>
         </div>
 
-        {/* Fila intermedia: Fecha de solicitud y calendario */}
+        {/* Fila intermedia: Fecha y calendario */}
         <div className="flex items-center justify-between text-xs text-gray-500 mt-4">
-          <span>Solicitud · {colaborador.fechaSolicitud}</span>
+          <span>Fecha · {colaborador.fechaSolicitud}</span>
           <Calendar className="h-4 w-4 text-gray-400" />
         </div>
       </div>
@@ -59,7 +53,7 @@ export function ColaboradorCard({
 
       {/* Footer según el estado */}
       <div>
-        {colaborador.estado === "APROBADO" && (
+        {colaborador.estado !== "INACTIVO" ? (
           <div>
             <p className="text-xs font-semibold text-gray-700 mb-3">
               Exámenes asignados: {numExamenes}
@@ -83,17 +77,7 @@ export function ColaboradorCard({
               </button>
             </div>
           </div>
-        )}
-
-        {colaborador.estado === "PENDIENTE" && (
-          <p className="text-sm text-gray-500 py-1">Esperando aprobación</p>
-        )}
-
-        {colaborador.estado === "RECHAZADO" && (
-          <p className="text-sm text-gray-500 py-1">Solicitud no aprobada</p>
-        )}
-
-        {colaborador.estado === "INACTIVO" && (
+        ) : (
           <p className="text-sm text-gray-400 italic py-1">
             Ya no forma parte del equipo
           </p>

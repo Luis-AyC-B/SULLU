@@ -24,20 +24,6 @@ export function ColaboradorEstadoBadge({
       border: "border-emerald-200",
       dot: "bg-emerald-500",
     },
-    PENDIENTE: {
-      label: "Pendiente",
-      bg: "bg-amber-50",
-      text: "text-amber-700",
-      border: "border-amber-200",
-      dot: "bg-amber-500",
-    },
-    RECHAZADO: {
-      label: "Rechazado",
-      bg: "bg-rose-50",
-      text: "text-rose-700",
-      border: "border-rose-200",
-      dot: "bg-rose-500",
-    },
     INACTIVO: {
       label: "Inactivo",
       bg: "bg-gray-100",
