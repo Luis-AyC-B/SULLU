@@ -58,6 +58,8 @@ export function QrExceptionDialog({
         return "Ingreso guardado sin conexión";
       case "CAMARA_DENEGADA":
         return "Permiso de cámara requerido";
+      case "FUERA_DE_GRUPO":
+        return "Fila incorrecta";
       default:
         return "Excepción de ingreso";
     }
@@ -404,8 +406,51 @@ export function QrExceptionDialog({
             </>
           )}
 
-          {/* 8. FALLBACK SEGURO ANTE CUALQUIER OTRA EXCEPCIÓN */}
-          {!["YA_REGISTRADO", "NO_HABILITADO", "AMBIENTE_INCORRECTO", "QR_INVALIDO", "QR_CADUCADO", "SIN_CONEXION", "CAMARA_DENEGADA"].includes(excepcion) && (
+          {/* 8. FILA INCORRECTA / FUERA DE GRUPO */}
+          {excepcion === "FUERA_DE_GRUPO" && (
+            <>
+              <div className="h-16 w-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+                <AlertTriangle className="h-8 w-8" />
+              </div>
+
+              <h4 className="text-lg font-bold text-slate-900 mb-1">
+                Fila incorrecta
+              </h4>
+
+              {estudiante && (
+                <p className="text-sm text-slate-500 mb-4 font-medium">
+                  {estudiante.nombre} {estudiante.apellido ?? ""} ·{" "}
+                  {formatSis(estudiante.codSis)}
+                </p>
+              )}
+
+              <div className="w-full bg-[#FEF9E7] border border-[#F9E79F] rounded-2xl p-3.5 mb-6 text-center">
+                <p className="text-xs text-amber-900 font-semibold leading-relaxed">
+                  Este estudiante no pertenece a tu fila asignada.
+                  Dirígelo al controlador correspondiente para registrar su ingreso.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={onContinuar}
+                className="w-full py-3.5 px-4 rounded-xl bg-[#002D62] text-white font-bold text-sm hover:bg-[#00224d] transition-colors cursor-pointer shadow-xs active:scale-98"
+              >
+                Continuar
+              </button>
+
+              <button
+                type="button"
+                onClick={onRegistrarIncidencia}
+                className="w-full mt-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                Registrar incidencia
+              </button>
+            </>
+          )}
+
+          {/* 9. FALLBACK SEGURO ANTE CUALQUIER OTRA EXCEPCIÓN */}
+          {!["YA_REGISTRADO", "NO_HABILITADO", "AMBIENTE_INCORRECTO", "QR_INVALIDO", "QR_CADUCADO", "SIN_CONEXION", "CAMARA_DENEGADA", "FUERA_DE_GRUPO"].includes(excepcion) && (
             <>
               <div className="h-16 w-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
                 <Clock className="h-8 w-8" />

@@ -1,7 +1,7 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v5';
+const VERSION = 'v7';
 const STATIC_CACHE   = `portal-static-${VERSION}`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
 const IMAGES_CACHE   = `portal-images-${VERSION}`;
@@ -24,11 +24,7 @@ self.addEventListener('activate', (event) => {
       const claves = await caches.keys();
       await Promise.all(
         claves
-          .filter(
-            (k) =>
-              (k.startsWith('portal-') || k.startsWith('operator-')) &&
-              !CACHES_VALIDAS.includes(k),
-          )
+          .filter((k) => !CACHES_VALIDAS.includes(k))
           .map((k) => caches.delete(k)),
       );
       await self.clients.claim();
@@ -81,17 +77,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   const mismoOrigen = url.origin === self.location.origin;
 
-  // Autenticación de Next: no se intercepta
-  if (mismoOrigen && url.pathname.startsWith('/api/')) return;
-
-  // JS/CSS versionados por Next: cache permanente (excepto chunks de HMR en dev)
-  if (mismoOrigen && url.pathname.startsWith('/_next/static/')) {
-    if (url.pathname.includes('hot-update') || url.pathname.includes('webpack')) {
-      return;
-    }
-    event.respondWith(cacheFirst(request));
-    return;
-  }
+  // Autenticación de Next y chunks dinámicos de Next.js: NUNCA interceptar
+  if (mismoOrigen && (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/'))) return;
 
   // Imágenes y fotos de perfil
   if (request.destination === 'image' || url.pathname.startsWith('/uploads/')) {

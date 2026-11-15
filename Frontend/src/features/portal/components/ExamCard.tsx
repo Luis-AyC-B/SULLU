@@ -6,6 +6,7 @@ import {
   Clock,
   MapPin,
   QrCode,
+  Users,
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
@@ -80,6 +81,12 @@ export function ExamCard({
           <div className="min-w-0">
             <dt className="text-muted-foreground">Hora</dt>
             <dd className="mt-1 text-foreground">{horaTexto}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-muted-foreground">Fila asignada</dt>
+            <dd className="mt-1 font-semibold text-primary">
+              {legado.listaAsignada || 'Pendiente de asignación'}
+            </dd>
           </div>
         </dl>
 
@@ -213,6 +220,22 @@ export function ExamCard({
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 break-words">{horarioFormateado}</span>
           </div>
+
+          {examen.listaAsignada ? (
+            <div className="flex items-start gap-2 text-primary font-medium">
+              <Users className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0 break-words">
+                Fila asignada: <strong className="font-bold">{examen.listaAsignada}</strong>
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 text-muted-foreground font-normal">
+              <Users className="mt-0.5 h-4 w-4 shrink-0 opacity-60" />
+              <span className="min-w-0 break-words">
+                Fila asignada: <span className="italic">Pendiente de asignación</span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

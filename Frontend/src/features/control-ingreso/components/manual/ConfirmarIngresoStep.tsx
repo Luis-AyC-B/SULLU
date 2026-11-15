@@ -23,6 +23,7 @@ interface ConfirmarIngresoStepProps {
   isSubmitting: boolean;
   errorEnvio: string | null;
   miGrupo?: MiGrupoControlador | null;
+  textoVolver?: string;
 }
 
 export function ConfirmarIngresoStep({
@@ -34,6 +35,7 @@ export function ConfirmarIngresoStep({
   isSubmitting,
   errorEnvio,
   miGrupo,
+  textoVolver,
 }: ConfirmarIngresoStepProps) {
   const nombreCompleto = `${estudiante.nombre} ${
     estudiante.apellido ?? ""
@@ -50,20 +52,20 @@ export function ConfirmarIngresoStep({
 
   return (
     <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-      {/* Botón Volver a resultados */}
+      {/* Botón Volver */}
       <button
         type="button"
         onClick={onVolver}
         className="inline-flex items-center gap-1 text-xs md:text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer self-start -ml-1 group"
       >
         <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
-        <span>Volver a resultados</span>
+        <span>{textoVolver ?? "Volver a resultados"}</span>
       </button>
 
       {/* Cabecera de Identidad del Estudiante */}
       <div className="flex items-start justify-between gap-3 pt-1">
-        <div className="min-w-0">
-          <h4 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
+        <div className="min-w-0 flex-1">
+          <h4 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight break-words">
             {nombreCompleto}
           </h4>
           <p className="text-xs md:text-sm text-slate-500 font-mono mt-1">
@@ -116,35 +118,37 @@ export function ConfirmarIngresoStep({
         </div>
       )}
 
-      {/* Panel de Validación de Identidad y Elegibilidad de Ingreso */}
-      <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-2.5">
-        <div className="flex items-center gap-2 text-slate-700">
-          <ShieldCheck className="h-4 w-4 text-[#002D62]" />
-          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            Verificación de identidad para ingreso
-          </h5>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          <div className="flex items-center gap-2 text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100">
-            <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-            <div>
-              <span className="text-[11px] text-slate-400 block font-medium">Nómina del examen</span>
-              <span className="font-semibold text-slate-800">Inscrito en la materia</span>
-            </div>
+      {/* Panel de Validación de Identidad y Elegibilidad de Ingreso (oculto si está fuera de grupo) */}
+      {!esFueraDeGrupo && (
+        <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-2.5">
+          <div className="flex items-center gap-2 text-slate-700">
+            <ShieldCheck className="h-4 w-4 text-[#002D62]" />
+            <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Verificación de identidad para ingreso
+            </h5>
           </div>
 
-          <div className="flex items-center gap-2 text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-            <div>
-              <span className="text-[11px] text-slate-400 block font-medium">Marcación previa</span>
-              <span className="font-semibold text-slate-800">
-                {estudiante.yaIngreso ? "Ya registrado" : "Sin ingreso previo"}
-              </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <div className="flex items-center gap-2 text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100">
+              <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+              <div>
+                <span className="text-[11px] text-slate-400 block font-medium">Nómina del examen</span>
+                <span className="font-semibold text-slate-800">Inscrito en la materia</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <div>
+                <span className="text-[11px] text-slate-400 block font-medium">Marcación previa</span>
+                <span className="font-semibold text-slate-800">
+                  {estudiante.yaIngreso ? "Ya registrado" : "Sin ingreso previo"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Error de Red o Envío */}
       {errorEnvio && (
@@ -166,23 +170,31 @@ export function ConfirmarIngresoStep({
           </button>
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || esFueraDeGrupo}
             onClick={onConfirmar}
             className="px-6 py-2.5 bg-[#002D62] hover:bg-[#001D42] text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
           >
-            {isSubmitting ? "Confirmando ingreso..." : "Confirmar ingreso"}
+            {esFueraDeGrupo
+              ? "No corresponde a tu fila"
+              : isSubmitting
+              ? "Confirmando ingreso..."
+              : "Confirmar ingreso"}
           </button>
         </div>
 
-        {/* Versión Mobile (< md) según Mockup media_1791763180977.jpg */}
+        {/* Versión Mobile (< md) según Mockup */}
         <div className="flex md:hidden flex-col gap-2.5 w-full">
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || esFueraDeGrupo}
             onClick={onConfirmar}
             className="w-full py-3 bg-[#002D62] hover:bg-[#001D42] text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
           >
-            {isSubmitting ? "Confirmando ingreso..." : "Confirmar ingreso"}
+            {esFueraDeGrupo
+              ? "No corresponde a tu fila"
+              : isSubmitting
+              ? "Confirmando ingreso..."
+              : "Confirmar ingreso"}
           </button>
           <button
             type="button"

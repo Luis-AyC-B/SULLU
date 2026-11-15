@@ -8,6 +8,7 @@ import type {
   ExamenAsignado,
   ResumenEnVivoData,
   EstudianteBusquedaItem,
+  EstudianteQrResultado,
   RegistroManualPayload,
   RegistroManualResponse,
   ValidacionQrResponse,
@@ -345,14 +346,18 @@ export const controlIngresoService = {
     // 2. Fallback local: Buscar en la nómina en caché
     const nominaLocal = obtenerNominaCache(examenId);
     if (nominaLocal.length > 0) {
+      const tokens = term.split(/\s+/).filter(Boolean);
       return nominaLocal
-        .filter(
-          (e) =>
-            e.codSis.toLowerCase().includes(term) ||
-            e.nombre.toLowerCase().includes(term) ||
-            (e.apellido && e.apellido.toLowerCase().includes(term)) ||
-            (e.ci && e.ci.toLowerCase().includes(term))
-        )
+        .filter((e) => {
+          const campos = [
+            e.codSis.toLowerCase(),
+            e.nombre.toLowerCase(),
+            (e.apellido || "").toLowerCase(),
+            (e.ci || "").toLowerCase(),
+          ];
+          // Todos los tokens deben aparecer en alguno de los campos
+          return tokens.every((tk) => campos.some((c) => c.includes(tk)));
+        })
         .map((e) => ({
           ...e,
           ci: e.ci || "",
@@ -568,8 +573,14 @@ export const controlIngresoService = {
         };
       }
 
-      if (axiosErr.response?.data?.message) {
-        throw new Error(axiosErr.response.data.message);
+      // Si el backend rechazó porque es de otra lista, relanzar el error para que el componente muestre el diálogo
+      const data = axiosErr.response?.data as { code?: string; message?: string; grupoCorrecto?: unknown } | undefined;
+      if (data?.code === 'FUERA_DE_GRUPO') {
+        throw err;
+      }
+
+      if (data?.message) {
+        throw new Error(data.message);
       }
       throw err;
     }
@@ -578,8 +589,7 @@ export const controlIngresoService = {
   },
 
   /**
-   * HU8 & HU9: Validación de QR y registro de ingreso.
-   * Valida la habilitación contra la nómina oficial precargada y previene dobles marcaciones.
+   * HU8 & HU9: Validación de QR (sin confirmar). Devuelve info del estudiante para previsualizar.
    */
   async validarYRegistrarQr(examenId: number, tokenQr: string): Promise<ValidacionQrResponse> {
     try {
@@ -591,9 +601,75 @@ export const controlIngresoService = {
       }
       return data;
     } catch (error) {
-      const err = error as { response?: { status?: number; data?: { message?: string } } };
-      const mensaje = err.response?.data?.message || 'No se pudo validar el QR. Se requiere conexi?n.';
-      return { success: false, mensaje, excepcion: err.response?.status === 409 ? 'YA_REGISTRADO' : /expirado|caducado|revocado/i.test(mensaje) ? 'QR_CADUCADO' : /no habilitado/i.test(mensaje) ? 'NO_HABILITADO' : 'QR_INVALIDO' };
+      const err = error as {
+        response?: {
+          status?: number;
+          data?: {
+            message?: string;
+            code?: string;
+            estudiante?: EstudianteQrResultado;
+            horaIngresoPrevio?: string;
+          };
+        };
+      };
+      const errData = err.response?.data;
+      const mensaje = errData?.message || 'No se pudo validar el QR. Se requiere conexión.';
+      // Detectar FUERA_DE_GRUPO del backend
+      if (errData?.code === 'FUERA_DE_GRUPO') {
+        return { success: false, mensaje, excepcion: 'FUERA_DE_GRUPO' };
+      }
+      return {
+        success: false,
+        mensaje,
+        estudiante: errData?.estudiante,
+        horaIngresoPrevio: errData?.horaIngresoPrevio,
+        excepcion:
+          err.response?.status === 409 || errData?.code === 'DOBLE_MARCACION'
+            ? 'YA_REGISTRADO'
+            : /expirado|caducado|revocado/i.test(mensaje)
+              ? 'QR_CADUCADO'
+              : /no habilitado/i.test(mensaje)
+                ? 'NO_HABILITADO'
+                : 'QR_INVALIDO',
+      };
+    }
+  },
+
+  /**
+   * HU9: Confirma el registro de ingreso por QR (segunda fase).
+   * Llama al endpoint /ingresos/qr/confirmar con el token validado previamente.
+   */
+  async confirmarIngresoQr(examenId: number, tokenQr: string): Promise<ValidacionQrResponse> {
+    try {
+      const response = await apiClient.post<ValidacionQrResponse>('/ingresos/qr/confirmar', { examenId, token: tokenQr });
+      return response.data;
+    } catch (error) {
+      const err = error as {
+        response?: {
+          status?: number;
+          data?: {
+            message?: string;
+            code?: string;
+            estudiante?: EstudianteQrResultado;
+            horaIngresoPrevio?: string;
+          };
+        };
+      };
+      const errData = err.response?.data;
+      const mensaje = errData?.message || 'No se pudo confirmar el ingreso.';
+      if (errData?.code === 'FUERA_DE_GRUPO') {
+        return { success: false, mensaje, excepcion: 'FUERA_DE_GRUPO' };
+      }
+      return {
+        success: false,
+        mensaje,
+        estudiante: errData?.estudiante,
+        horaIngresoPrevio: errData?.horaIngresoPrevio,
+        excepcion:
+          err.response?.status === 409 || errData?.code === 'DOBLE_MARCACION'
+            ? 'YA_REGISTRADO'
+            : 'QR_INVALIDO',
+      };
     }
   },
 };

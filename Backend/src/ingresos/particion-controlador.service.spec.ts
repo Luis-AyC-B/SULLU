@@ -188,7 +188,7 @@ describe('ParticionControladorService', () => {
       expect(g2.colaboradorId).toBe(20);
       expect(g2.totalEstudiantes).toBe(2);
       expect(g2.estudianteIds).toEqual([3, 4]);
-      expect(g2.rango).toBe('P - Z');
+      expect(g2.rango).toBe('C - Z');
     });
 
     it('debe distribuir el residuo equitativamente en los primeros grupos cuando N no es divisor exacto', async () => {
@@ -234,8 +234,11 @@ describe('ParticionControladorService', () => {
       expect(resultado.grupos[2].totalEstudiantes).toBe(1);
 
       expect(resultado.grupos[0].rango).toBe('A - B');
+      expect(resultado.grupos[0].nombreLista).toBe('Lista A');
       expect(resultado.grupos[1].rango).toBe('C - F');
-      expect(resultado.grupos[2].rango).toBe('V');
+      expect(resultado.grupos[1].nombreLista).toBe('Lista B');
+      expect(resultado.grupos[2].rango).toBe('G - Z');
+      expect(resultado.grupos[2].nombreLista).toBe('Lista C');
     });
   });
 

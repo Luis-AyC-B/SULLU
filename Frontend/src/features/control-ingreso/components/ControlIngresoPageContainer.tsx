@@ -4,13 +4,29 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useActiveExam } from "../store/useActiveExamStore";
+import { controlIngresoService } from "../services/control-ingreso.service";
 import { SeleccionExamenView } from "./seleccion/SeleccionExamenView";
 import { ExamenActivoView } from "./activo/ExamenActivoView";
 
 export function ControlIngresoPageContainer() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { examenActivo } = useActiveExam();
+  const { examenActivo, setExamenActivo } = useActiveExam();
+
+  // Revalidar el estado del examen activo con el servidor para evitar datos obsoletos en sessionStorage
+  useEffect(() => {
+    if (examenActivo?.id) {
+      controlIngresoService
+        .getMisExamenes()
+        .then((lista) => {
+          const fresco = lista.find((e) => e.id === examenActivo.id);
+          if (fresco) {
+            setExamenActivo(fresco);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [examenActivo?.id, setExamenActivo]);
 
   const permisos = (session?.user?.permisos as string[]) || [];
   const tieneAcceso =

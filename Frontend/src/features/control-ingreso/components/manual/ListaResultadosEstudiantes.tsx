@@ -65,13 +65,20 @@ export function ListaResultadosEstudiantes({
               (e) => e.id === estudiante.id || e.codSis === estudiante.codSis
             );
 
+          // Texto del badge: usar nombreLista del estudiante si está disponible
+          const badgeTexto = estudiante.nombreLista
+            ? `${estudiante.nombreLista}${estudiante.rangoAsignado ? ` (${estudiante.rangoAsignado})` : ""}`
+            : miGrupo
+              ? `Fuera de tu fila (${miGrupo.rango})`
+              : "Fuera de tu fila";
+
           return (
             <div
               key={estudiante.id}
               className={`border rounded-2xl p-4 transition-all shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3 ${
                 esDeMiGrupo
                   ? "border-slate-200/90 bg-white hover:border-slate-300"
-                  : "border-amber-200/80 bg-amber-50/40 hover:border-amber-300"
+                  : "border-amber-200/80 bg-amber-50/40 opacity-80"
               }`}
             >
               <div className="flex items-center gap-3.5 min-w-0">
@@ -92,9 +99,9 @@ export function ListaResultadosEstudiantes({
                     <h4 className="text-sm font-bold text-slate-900 truncate">
                       {nombreCompleto}
                     </h4>
-                    {!esDeMiGrupo && miGrupo && (
+                    {!esDeMiGrupo && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-                        Fuera de tu fila ({miGrupo.rango})
+                        Asignado a: {badgeTexto}
                       </span>
                     )}
                   </div>
@@ -104,18 +111,20 @@ export function ListaResultadosEstudiantes({
                 </div>
               </div>
 
-              {/* Botón Seleccionar: En Desktop alineado a la derecha, en Mobile centrado abajo */}
+              {/* Botón Seleccionar: Deshabilitado si no pertenece al grupo */}
               <div className="pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 text-center md:text-right">
                 <button
                   type="button"
-                  onClick={() => onSeleccionar(estudiante)}
-                  className={`w-full md:w-auto px-4 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer ${
+                  onClick={() => esDeMiGrupo && onSeleccionar(estudiante)}
+                  disabled={!esDeMiGrupo}
+                  aria-disabled={!esDeMiGrupo}
+                  className={`w-full md:w-auto px-4 py-2 text-sm font-semibold rounded-xl transition-colors ${
                     esDeMiGrupo
-                      ? "text-slate-800 hover:text-[#002D62] hover:bg-slate-50"
-                      : "text-amber-800 hover:text-amber-950 hover:bg-amber-100/60"
+                      ? "text-slate-800 hover:text-[#002D62] hover:bg-slate-50 cursor-pointer"
+                      : "text-amber-400 cursor-not-allowed opacity-60"
                   }`}
                 >
-                  Seleccionar
+                  {esDeMiGrupo ? "Seleccionar" : "No corresponde a tu fila"}
                 </button>
               </div>
             </div>
