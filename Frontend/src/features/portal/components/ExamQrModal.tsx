@@ -439,6 +439,7 @@ export function ExamQrModal({
   return (
     <Dialog open={open} onOpenChange={(abrir) => !abrir && onClose()}>
       <DialogContent
+        showCloseButton={false}
         className="max-w-lg p-0 overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-2xl"
         onEscapeKeyDown={onClose}
       >
