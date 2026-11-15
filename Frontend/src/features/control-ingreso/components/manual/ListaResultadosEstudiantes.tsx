@@ -1,11 +1,15 @@
 "use client";
 
-import type { EstudianteBusquedaItem } from "../../types/control-ingreso.types";
+import type {
+  EstudianteBusquedaItem,
+  MiGrupoControlador,
+} from "../../types/control-ingreso.types";
 
 interface ListaResultadosEstudiantesProps {
   resultados: EstudianteBusquedaItem[];
   query: string;
   onSeleccionar: (estudiante: EstudianteBusquedaItem) => void;
+  miGrupo?: MiGrupoControlador | null;
 }
 
 function getInitials(nombre: string, apellido?: string): string {
@@ -18,6 +22,7 @@ export function ListaResultadosEstudiantes({
   resultados,
   query,
   onSeleccionar,
+  miGrupo,
 }: ListaResultadosEstudiantesProps) {
   if (resultados.length === 0) {
     return (
@@ -32,6 +37,10 @@ export function ListaResultadosEstudiantes({
       </div>
     );
   }
+
+  const tieneParticion = Boolean(
+    miGrupo && miGrupo.totalEstudiantesGrupo < miGrupo.totalEstudiantesExamen
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -50,22 +59,45 @@ export function ListaResultadosEstudiantes({
             estudiante.apellido ?? ""
           }`.trim();
 
+          const esDeMiGrupo =
+            !tieneParticion ||
+            miGrupo?.estudiantes.some(
+              (e) => e.id === estudiante.id || e.codSis === estudiante.codSis
+            );
+
           return (
             <div
               key={estudiante.id}
-              className="border border-slate-200/90 rounded-2xl p-4 bg-white hover:border-slate-300 transition-all shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3"
+              className={`border rounded-2xl p-4 transition-all shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                esDeMiGrupo
+                  ? "border-slate-200/90 bg-white hover:border-slate-300"
+                  : "border-amber-200/80 bg-amber-50/40 hover:border-amber-300"
+              }`}
             >
               <div className="flex items-center gap-3.5 min-w-0">
                 {/* Avatar Iniciales */}
-                <div className="h-10 w-10 rounded-full bg-blue-50 text-[#002D62] font-bold text-xs flex items-center justify-center shrink-0 border border-blue-100">
+                <div
+                  className={`h-10 w-10 rounded-full font-bold text-xs flex items-center justify-center shrink-0 border ${
+                    esDeMiGrupo
+                      ? "bg-blue-50 text-[#002D62] border-blue-100"
+                      : "bg-amber-100 text-amber-800 border-amber-200"
+                  }`}
+                >
                   {initials}
                 </div>
 
                 {/* Datos del Estudiante */}
                 <div className="min-w-0">
-                  <h4 className="text-sm font-bold text-slate-900 truncate">
-                    {nombreCompleto}
-                  </h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-bold text-slate-900 truncate">
+                      {nombreCompleto}
+                    </h4>
+                    {!esDeMiGrupo && miGrupo && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                        Fuera de tu fila ({miGrupo.rango})
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 font-mono mt-0.5">
                     {estudiante.codSis.replace(/-/g, "")}
                   </p>
@@ -77,7 +109,11 @@ export function ListaResultadosEstudiantes({
                 <button
                   type="button"
                   onClick={() => onSeleccionar(estudiante)}
-                  className="w-full md:w-auto px-4 py-2 text-sm font-semibold text-slate-800 hover:text-[#002D62] hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                  className={`w-full md:w-auto px-4 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer ${
+                    esDeMiGrupo
+                      ? "text-slate-800 hover:text-[#002D62] hover:bg-slate-50"
+                      : "text-amber-800 hover:text-amber-950 hover:bg-amber-100/60"
+                  }`}
                 >
                   Seleccionar
                 </button>

@@ -49,3 +49,11 @@ lerna-debug.log*
 
 # uploads
 /uploads
+
+# Local facial runtime and biometric fixtures
+/.venv*/
+/scripts/models/
+/scripts/fixtures-facial/
+__pycache__/
+*.dump
+*.backup

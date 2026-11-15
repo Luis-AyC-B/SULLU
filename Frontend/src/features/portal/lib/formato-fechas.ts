@@ -35,6 +35,19 @@ export function formatearHora(isoString: string): string {
   }
 }
 
+export function formatearFechaDdMmYyyy(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    const dia = String(d.getDate()).padStart(2, '0');
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const anio = d.getFullYear();
+    return `${dia}/${mes}/${anio}`;
+  } catch {
+    return isoString;
+  }
+}
+
 export function formatearFechaYHora(isoString: string): string {
   try {
     const d = new Date(isoString);

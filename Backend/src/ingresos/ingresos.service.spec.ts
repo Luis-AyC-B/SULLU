@@ -1,3 +1,4 @@
+import { JwtService } from '@nestjs/jwt';
 import {
   BadRequestException,
   ConflictException,
@@ -6,13 +7,19 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { IngresosService } from './ingresos.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ParticionControladorService } from './particion-controlador.service';
 import { EstadoExamen, TipoIncidencia } from '@prisma/client';
 
 describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación de código QR', () => {
   let service: IngresosService;
+  let mockParticion: {
+    validarEstudianteEnGrupo: jest.Mock;
+    obtenerGrupoDeControlador: jest.Mock;
+  };
   let prismaMock: {
+    fotoEstudiante: { findFirst: jest.Mock };
     examen: { findUnique: jest.Mock };
-    codigoQr: { findUnique: jest.Mock; deleteMany: jest.Mock };
+    codigoQr: { findUnique: jest.Mock; updateMany: jest.Mock };
     examen_Estudiante: { findUnique: jest.Mock };
     ingreso: { findFirst: jest.Mock; findUnique: jest.Mock; create: jest.Mock };
     incidenciaIngreso: { create: jest.Mock };
@@ -33,9 +40,14 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
     apellido: 'Mamani',
   };
 
+  const validToken = new JwtService().sign(
+    { sub: 5, examenId: 1, tipo: 'examen' },
+    { secret: process.env.QR_SECRET ?? 'dev-qr-secret', expiresIn: '1h' },
+  );
+
   const mockQr = {
     id: 10,
-    token: 'qr_test_alejandro',
+    token: validToken,
     estudianteId: 5,
     examenId: 1,
     expiraEn: new Date(Date.now() + 60 * 60 * 1000), // En 1 hora (vigente)
@@ -44,10 +56,15 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
 
   beforeEach(async () => {
     prismaMock = {
+      fotoEstudiante: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ archivo: '/uploads/estudiantes/original.jpg' }),
+      },
       examen: { findUnique: jest.fn().mockResolvedValue(mockExamen) },
       codigoQr: {
         findUnique: jest.fn().mockResolvedValue(mockQr),
-        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       examen_Estudiante: {
         findUnique: jest.fn().mockResolvedValue({
@@ -85,12 +102,23 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
       },
     };
 
+    mockParticion = {
+      validarEstudianteEnGrupo: jest.fn().mockResolvedValue({
+        pertenece: true,
+      }),
+      obtenerGrupoDeControlador: jest.fn().mockResolvedValue(null),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IngresosService,
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          provide: ParticionControladorService,
+          useValue: mockParticion,
         },
       ],
     }).compile();
@@ -101,7 +129,7 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
   // Caso 1: Caso feliz: QR válido y estudiante habilitado
   it('1. Caso feliz: QR válido y estudiante habilitado: expect(result.mensaje).toContain("exitosamente") y create llamado', async () => {
     const result = await service.registrarIngresoQr(
-      { examenId: 1, token: 'qr_test_alejandro' },
+      { examenId: 1, token: validToken },
       2,
     );
 
@@ -114,7 +142,7 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
     prismaMock.codigoQr.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.registrarIngresoQr({ examenId: 1, token: 'token_falso' }, 2),
+      service.registrarIngresoQr({ examenId: 1, token: validToken }, 2),
     ).rejects.toThrow(NotFoundException);
 
     expect(prismaMock.incidenciaIngreso.create).toHaveBeenCalledWith(
@@ -134,10 +162,7 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
     });
 
     await expect(
-      service.registrarIngresoQr(
-        { examenId: 1, token: 'qr_test_alejandro' },
-        2,
-      ),
+      service.registrarIngresoQr({ examenId: 1, token: validToken }, 2),
     ).rejects.toThrow(BadRequestException);
 
     expect(prismaMock.incidenciaIngreso.create).toHaveBeenCalledWith(
@@ -159,10 +184,7 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
     });
 
     await expect(
-      service.registrarIngresoQr(
-        { examenId: 1, token: 'qr_test_alejandro' },
-        2,
-      ),
+      service.registrarIngresoQr({ examenId: 1, token: validToken }, 2),
     ).rejects.toThrow(BadRequestException);
 
     expect(prismaMock.incidenciaIngreso.create).toHaveBeenCalledWith(
@@ -183,10 +205,7 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
     });
 
     await expect(
-      service.registrarIngresoQr(
-        { examenId: 1, token: 'qr_test_alejandro' },
-        2,
-      ),
+      service.registrarIngresoQr({ examenId: 1, token: validToken }, 2),
     ).rejects.toThrow(ConflictException);
 
     expect(prismaMock.incidenciaIngreso.create).toHaveBeenCalledWith(
@@ -196,5 +215,77 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
         }),
       }),
     );
+  });
+
+  // Caso 6: Estudiante de otro grupo al escanear QR: permite el ingreso pero marca fueraDeGrupo y advertencia
+  it('6. QR con estudiante de otro grupo: permite el ingreso pero marca fueraDeGrupo: true y genera advertencia', async () => {
+    mockParticion.validarEstudianteEnGrupo.mockResolvedValueOnce({
+      pertenece: false,
+      mensaje:
+        'Estudiante no pertenece a tu grupo asignado (Rango A-M). Debe dirigirse a Fernando Aguilar (Rango N-Z).',
+      grupoCorrecto: {
+        colaboradorId: 20,
+        nombreControlador: 'Fernando Aguilar',
+        rango: 'N - Z',
+      },
+    });
+
+    const result = await service.registrarIngresoQr(
+      { examenId: 1, token: validToken },
+      2,
+    );
+
+    expect(result.mensaje).toContain('exitosamente');
+    expect(result.fueraDeGrupo).toBe(true);
+    expect(result.advertencia).toContain('no pertenece a tu grupo asignado');
+    expect(result.grupoCorrecto?.nombreControlador).toBe('Fernando Aguilar');
+    expect(prismaMock.ingreso.create).toHaveBeenCalled();
+  });
+
+  // Caso 7: Estudiante de su propio grupo al escanear QR: fueraDeGrupo es false y sin advertencia
+  it('7. QR con estudiante de su propio grupo: fueraDeGrupo es false y sin advertencia', async () => {
+    const result = await service.registrarIngresoQr(
+      { examenId: 1, token: validToken },
+      2,
+    );
+
+    expect(result.mensaje).toContain('exitosamente');
+    expect(result.fueraDeGrupo).toBe(false);
+    expect(result.advertencia).toBeUndefined();
+  });
+  it('HU23: escanear devuelve referencia y no registra ni consume el QR', async () => {
+    const result = await service.registrarIngresoQr(
+      { examenId: 1, token: validToken },
+      2,
+      false,
+    );
+    expect(result).toMatchObject({
+      success: true,
+      estudiante: {
+        requiereConfirmacion: true,
+        fotoUrl: '/uploads/estudiantes/original.jpg',
+      },
+    });
+    expect(prismaMock.ingreso.create).not.toHaveBeenCalled();
+    expect(prismaMock.codigoQr.updateMany).not.toHaveBeenCalled();
+  });
+  it('HU23: rechaza firma adulterada antes de consultar el QR', async () => {
+    await expect(
+      service.registrarIngresoQr(
+        { examenId: 1, token: validToken + 'x' },
+        2,
+        false,
+      ),
+    ).rejects.toThrow(BadRequestException);
+    expect(prismaMock.codigoQr.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.ingreso.create).not.toHaveBeenCalled();
+  });
+  it('HU23: el controlador debe estar asignado al examen', async () => {
+    prismaMock.usuario.findUnique.mockResolvedValue({ roles: [] });
+    prismaMock.examenControlador.findUnique.mockResolvedValue(null);
+    await expect(
+      service.registrarIngresoQr({ examenId: 1, token: validToken }, 2, false),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(prismaMock.ingreso.create).not.toHaveBeenCalled();
   });
 });

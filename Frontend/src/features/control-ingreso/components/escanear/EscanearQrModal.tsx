@@ -9,6 +9,7 @@ import type {
   ExamenAsignado,
   TipoExcepcionQr,
   EstudianteQrResultado,
+  MiGrupoControlador,
 } from "../../types/control-ingreso.types";
 import { controlIngresoService } from "../../services/control-ingreso.service";
 import { offlineIngresosService } from "../../services/offline-ingresos.service";
@@ -16,6 +17,7 @@ import { playSuccessChime } from "../../utils/audio-feedback";
 import { QrViewfinder } from "./QrViewfinder";
 import { QrSuccessCard } from "./QrSuccessCard";
 import { QrExceptionDialog } from "./QrExceptionDialog";
+import { apiClient } from '@/shared/lib/api-client';
 
 interface EscanearQrModalProps {
   examen: ExamenAsignado;
@@ -23,6 +25,8 @@ interface EscanearQrModalProps {
   onClose: () => void;
   onIngresoExitoso?: () => void;
   onAbrirRegistroManual: () => void;
+  /** HU17: Grupo asignado al controlador (null si no tiene partición) */
+  miGrupo?: MiGrupoControlador | null;
 }
 
 export function EscanearQrModal({
@@ -31,6 +35,7 @@ export function EscanearQrModal({
   onClose,
   onIngresoExitoso,
   onAbrirRegistroManual,
+  miGrupo,
 }: EscanearQrModalProps) {
   const router = useRouter();
 
@@ -148,15 +153,26 @@ export function EscanearQrModal({
       try {
         const resultado = await controlIngresoService.validarYRegistrarQr(
           examen.id,
-          cleanToken,
-          examen.ambiente
+          cleanToken
         );
 
         if (resultado.success && resultado.estudiante) {
           // CASO EXITOSO (Task-9.3)
           playSuccessChime();
           setEstudianteExitoso(resultado.estudiante);
+          if(resultado.estudiante.requiereConfirmacion) {
+            if (resultado.fueraDeGrupo && resultado.advertencia) toast.warning(resultado.advertencia, { duration: 6000 });
+            return;
+          }
           onIngresoExitosoRef.current?.();
+
+          // HU17: Si el estudiante es de otro grupo, mostrar advertencia amber
+          if (resultado.fueraDeGrupo && resultado.advertencia) {
+            toast.warning(resultado.advertencia, {
+              duration: 6000,
+              id: "fuera-de-grupo",
+            });
+          }
 
           // Desaparecer automáticamente entre 1 y 2 segundos dejando el escáner abierto
           setTimeout(() => {
@@ -190,7 +206,7 @@ export function EscanearQrModal({
         setIsVerificando(false);
       }
     },
-    [examen.id, examen.ambiente]
+    [examen.id]
   );
 
   const procesarTokenQrRef = useRef(procesarTokenQr);
@@ -373,7 +389,7 @@ export function EscanearQrModal({
     detenerCamara();
     onClose();
     router.push(
-      `/incidencias?examenId=${examen.id}&codSis=${encodeURIComponent(
+      `/ingresos-rechazados?examenId=${examen.id}&codSis=${encodeURIComponent(
         codSis
       )}&nombre=${encodeURIComponent(nombre)}`
     );
@@ -421,9 +437,18 @@ export function EscanearQrModal({
     >
       {/* 1. Header superior que cubre el header del dashboard (estilo aplicación nativa) */}
       <div className="flex items-center justify-between px-5 py-4 z-20 shrink-0 bg-[#0E131F] border-b border-slate-800/80 shadow-md">
-        <h3 className="text-lg font-bold text-white tracking-tight">
-          Escanear código QR
-        </h3>
+        <div className="flex flex-col gap-0.5">
+          <h3 className="text-lg font-bold text-white tracking-tight">
+            Escanear código QR
+          </h3>
+          {/* HU17: indicador compacto del rango asignado */}
+          {miGrupo && (
+            <span className="text-xs font-semibold text-blue-300">
+              Fila asignada:{" "}
+              <span className="text-white font-bold">{miGrupo.rango}</span>
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <label
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-white cursor-pointer transition-colors"
@@ -462,7 +487,10 @@ export function EscanearQrModal({
         />
 
         {/* Confirmación verde de 1 a 2 segundos (Mockup 2) */}
-        {estudianteExitoso && <QrSuccessCard estudiante={estudianteExitoso} />}
+        {estudianteExitoso && <QrSuccessCard estudiante={estudianteExitoso} onConfirmar={estudianteExitoso.requiereConfirmacion ? async()=>{
+          try { await apiClient.post('/ingresos/qr/confirmar',{examenId:examen.id,token:lastScannedTokenRef.current}); setEstudianteExitoso({...estudianteExitoso,yaIngreso:true});onIngresoExitosoRef.current?.();setTimeout(()=>{setEstudianteExitoso(null);isProcessingRef.current=false;},3000); }
+          catch {toast.error('No se pudo confirmar: QR utilizado, vencido o inválido');}
+        }:undefined} />}
       </div>
 
       {/* Modal de Excepción Activa (Mockups 1, 3, 4, 5) */}

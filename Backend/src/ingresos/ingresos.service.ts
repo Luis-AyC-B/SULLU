@@ -5,9 +5,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { EstadoExamen, Prisma, TipoIncidencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ParticionControladorService } from './particion-controlador.service';
+import { ExpulsionesService } from '../expulsiones/expulsiones.service';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { CreateIngresoDto } from './dto/create-ingreso.dto';
 import { UpdateIngresoDto } from './dto/update-ingreso.dto';
@@ -39,11 +42,92 @@ const MESES = [
 
 @Injectable()
 export class IngresosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    private readonly particionService?: ParticionControladorService,
+    @Optional()
+    private readonly expulsionesService?: ExpulsionesService,
+  ) {}
+
+  private async verificarBloqueoExpulsion(
+    examenId: number,
+    estudianteId: number,
+  ): Promise<void> {
+    if (this.expulsionesService) {
+      await this.expulsionesService.verificarBloqueoReingreso(
+        examenId,
+        estudianteId,
+      );
+      return;
+    }
+    const expulsion = await this.prisma.expulsion?.findFirst({
+      where: {
+        examenId,
+        estudianteId,
+        caso: {
+          in: ['EXPULSION', 'SUPLANTACION_IDENTIDAD'],
+        },
+      },
+    });
+    if (expulsion) {
+      throw new ForbiddenException({
+        code: 'ESTUDIANTE_EXPULSADO',
+        message:
+          'El estudiante fue expulsado de este examen y no puede ingresar nuevamente.',
+      });
+    }
+  }
+
+  private async validarGrupoAsignado(
+    examenId: number,
+    registradoPorId: number,
+    estudianteId: number,
+  ): Promise<{
+    fueraDeGrupo: boolean;
+    advertencia?: string;
+    grupoCorrecto?: {
+      colaboradorId: number;
+      nombreControlador: string;
+      rango: string;
+    };
+  }> {
+    let fueraDeGrupo = false;
+    let advertencia: string | undefined;
+    let grupoCorrecto:
+      | {
+          colaboradorId: number;
+          nombreControlador: string;
+          rango: string;
+        }
+      | undefined;
+
+    if (this.particionService) {
+      try {
+        const valGrupo = await this.particionService.validarEstudianteEnGrupo(
+          examenId,
+          registradoPorId,
+          estudianteId,
+        );
+        if (!valGrupo.pertenece && valGrupo.grupoCorrecto) {
+          fueraDeGrupo = true;
+          advertencia = valGrupo.mensaje;
+          grupoCorrecto = {
+            colaboradorId: valGrupo.grupoCorrecto.colaboradorId,
+            nombreControlador: valGrupo.grupoCorrecto.nombreControlador,
+            rango: valGrupo.grupoCorrecto.rango,
+          };
+        }
+      } catch {
+        // Fallback defensivo
+      }
+    }
+
+    return { fueraDeGrupo, advertencia, grupoCorrecto };
+  }
 
   // ──────────────────────────────────────────────────────────────────
   private verificarFirmaQr(token: string): boolean {
-    if (token.startsWith('qr_test_')) return true;
     const parts = token.split('.');
     if (parts.length !== 3) return false;
     const [headerB64, payloadB64, signature] = parts;
@@ -667,6 +751,8 @@ export class IngresosService {
       );
     }
 
+    await this.verificarBloqueoExpulsion(dto.examenId, estudiante.id);
+
     const ingresoExistente = await this.prisma.ingreso.findFirst({
       where: {
         estudianteId: estudiante.id,
@@ -729,8 +815,18 @@ export class IngresosService {
       },
     });
 
+    const { fueraDeGrupo, advertencia, grupoCorrecto } =
+      await this.validarGrupoAsignado(
+        dto.examenId,
+        registradoPorId,
+        estudiante.id,
+      );
+
     return {
       mensaje: 'Ingreso registrado exitosamente',
+      fueraDeGrupo,
+      advertencia,
+      grupoCorrecto,
       ingreso: nuevoIngreso,
     };
   }
@@ -742,6 +838,7 @@ export class IngresosService {
   async registrarIngresoQr(
     dto: VerificarIngresoQrDto,
     registradoPorId: number,
+    confirmar = true,
   ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: dto.examenId },
@@ -809,6 +906,8 @@ export class IngresosService {
       if (match) tokenLimpio = decodeURIComponent(match[1]);
     }
 
+    if (!this.verificarFirmaQr(tokenLimpio))
+      throw new BadRequestException('Firma QR inválida');
     const qrRegistro = await this.prisma.codigoQr.findUnique({
       where: { token: tokenLimpio },
       include: {
@@ -968,6 +1067,8 @@ export class IngresosService {
       );
     }
 
+    await this.verificarBloqueoExpulsion(dto.examenId, estudiante.id);
+
     const ingresoExistente = await this.prisma.ingreso.findFirst({
       where: {
         estudianteId: estudiante.id,
@@ -990,6 +1091,35 @@ export class IngresosService {
       );
     }
 
+    if (!confirmar) {
+      const grupo = await this.validarGrupoAsignado(
+        dto.examenId,
+        registradoPorId,
+        estudiante.id,
+      );
+      const foto = await this.prisma.fotoEstudiante.findFirst({
+        where: { estudianteId: estudiante.id, estado: 'ACTIVA' },
+        orderBy: { creadaEn: 'desc' },
+      });
+      if (!foto)
+        throw new BadRequestException('Fotografía original no disponible');
+      return {
+        success: true,
+        ...grupo,
+        estudiante: {
+          id: estudiante.id,
+          nombre: estudiante.nombre,
+          apellido: estudiante.apellido,
+          codSis: estudiante.cod_sis,
+          fotoUrl: foto.archivo,
+          requiereConfirmacion: true,
+          examen: examen.tipoExamen,
+          estadoHabilitado: true,
+          yaIngreso: false,
+        },
+      };
+    }
+
     if (dto.clienteSyncId) {
       const syncExistente = await this.prisma.ingreso.findUnique({
         where: { clienteSyncId: dto.clienteSyncId },
@@ -1001,42 +1131,65 @@ export class IngresosService {
       }
     }
 
-    const nuevoIngreso = await this.prisma.ingreso.create({
-      data: {
-        estudianteId: estudiante.id,
-        examenId: dto.examenId,
-        registradoPor: registradoPorId,
-        fechaHora: new Date(),
-        metodo: 'QR',
-        esOffline: false,
-        clienteSyncId: dto.clienteSyncId,
-      },
-      include: {
-        estudiante: {
-          select: {
-            id: true,
-            cod_sis: true,
-            nombre: true,
-            apellido: true,
-            ci: true,
+    const nuevoIngreso = await this.prisma.ingreso
+      .create({
+        data: {
+          estudianteId: estudiante.id,
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          fechaHora: new Date(),
+          metodo: 'QR',
+          esOffline: false,
+          clienteSyncId: dto.clienteSyncId,
+        },
+        include: {
+          estudiante: {
+            select: {
+              id: true,
+              cod_sis: true,
+              nombre: true,
+              apellido: true,
+              ci: true,
+            },
+          },
+          examen: {
+            select: {
+              id: true,
+              tipoExamen: true,
+            },
           },
         },
-        examen: {
-          select: {
-            id: true,
-            tipoExamen: true,
-          },
-        },
-      },
-    });
+      })
+      .catch((error: unknown) => {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          throw new ConflictException(
+            'El estudiante ya registro su ingreso a este examen',
+          );
+        }
+        throw error;
+      });
 
     // Deshabilitar el código QR tras ser consumido exitosamente
-    await this.prisma.codigoQr.deleteMany({
+    await this.prisma.codigoQr.updateMany({
       where: { token: tokenLimpio },
+      data: { expiraEn: new Date() },
     });
+
+    const { fueraDeGrupo, advertencia, grupoCorrecto } =
+      await this.validarGrupoAsignado(
+        dto.examenId,
+        registradoPorId,
+        estudiante.id,
+      );
 
     return {
       mensaje: 'Ingreso por QR registrado exitosamente',
+      fueraDeGrupo,
+      advertencia,
+      grupoCorrecto,
       ingreso: nuevoIngreso,
     };
   }
@@ -1369,7 +1522,11 @@ export class IngresosService {
     });
   }
 
-  async buscarEstudiantesExamen(examenId: number, query?: string) {
+  async buscarEstudiantesExamen(
+    examenId: number,
+    query?: string,
+    colaboradorId?: number,
+  ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
     });
@@ -1378,10 +1535,24 @@ export class IngresosService {
       throw new NotFoundException('Examen no encontrado');
     }
 
+    let estudianteIdsFiltrados: number[] | undefined;
+    if (colaboradorId && this.particionService) {
+      const grupo = await this.particionService.obtenerGrupoDeControlador(
+        examenId,
+        colaboradorId,
+      );
+      if (grupo) {
+        estudianteIdsFiltrados = grupo.estudianteIds;
+      }
+    }
+
     const q = query?.trim();
 
     const where: Prisma.Examen_EstudianteWhereInput = {
       examenId,
+      ...(estudianteIdsFiltrados && {
+        estudianteId: { in: estudianteIdsFiltrados },
+      }),
       ...(q && {
         estudiante: {
           OR: [

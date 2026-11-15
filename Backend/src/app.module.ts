@@ -20,6 +20,9 @@ import { HabilitacionesModule } from './habilitaciones/habilitaciones.module';
 import { MailModule } from './mail/mail.module';
 import { ReservasModule } from './reservas/reservas.module';
 import { ColaboradoresModule } from './colaboradores/colaboradores.module';
+import { ObservacionesIngresoModule } from './observaciones-ingreso/observaciones-ingreso.module';
+import { AuditoriaModule } from './auditoria/auditoria.module';
+import { ExpulsionesModule } from './expulsiones/expulsiones.module';
 
 @Module({
   imports: [
@@ -50,6 +53,9 @@ import { ColaboradoresModule } from './colaboradores/colaboradores.module';
     IngresosModule,
     HabilitacionesModule,
     ColaboradoresModule,
+    ObservacionesIngresoModule,
+    AuditoriaModule,
+    ExpulsionesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

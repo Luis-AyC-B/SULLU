@@ -38,7 +38,12 @@ export function IngresosTable({
     : "Aún no hay ingresos registrados en este examen.";
 
   const n = ingresos.length;
-  const resumen = `${n} ${n === 1 ? "ingreso reciente" : "ingresos recientes"} · ${ingresados} de ${total} estudiantes registrados`;
+  const casosExcepcionales = ingresos.filter((i) => Boolean(i.casoExcepcional)).length;
+  const resumen = `${n} ${n === 1 ? "ingreso reciente" : "ingresos recientes"} · ${ingresados} de ${total} estudiantes registrados${
+    casosExcepcionales > 0
+      ? ` · ${casosExcepcionales} ${casosExcepcionales === 1 ? "caso excepcional" : "casos excepcionales"}`
+      : ""
+  }`;
 
   return (
     <>
@@ -52,6 +57,7 @@ export function IngresosTable({
               <TableHead className="text-label px-4 py-3">Estudiante</TableHead>
               <TableHead className="text-label px-4 py-3">Método</TableHead>
               <TableHead className="text-label px-4 py-3">Estado</TableHead>
+              <TableHead className="text-label px-4 py-3">Caso excepcional</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -59,7 +65,7 @@ export function IngresosTable({
             {isLoading &&
               Array.from({ length: SKELETON_ROWS }).map((_, i) => (
                 <TableRow key={`skeleton-${i}`}>
-                  {Array.from({ length: 5 }).map((__, j) => (
+                  {Array.from({ length: 6 }).map((__, j) => (
                     <TableCell key={j} className="px-4 py-5">
                       <div className="h-4 w-full max-w-[140px] animate-pulse rounded bg-muted" />
                     </TableCell>
@@ -69,7 +75,7 @@ export function IngresosTable({
 
             {vacio && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={5} className="py-10 text-center">
+                <TableCell colSpan={6} className="py-10 text-center">
                   <p className="text-body text-muted-foreground">{mensajeVacio}</p>
                 </TableCell>
               </TableRow>
@@ -98,15 +104,15 @@ export function IngresosTable({
         {isLoading &&
           Array.from({ length: SKELETON_ROWS }).map((_, i) => (
             <div
-              key={`skeleton-card-${i}`}
-              className="h-32 animate-pulse rounded-xl bg-muted"
+              key={`card-skeleton-${i}`}
+              className="h-28 animate-pulse rounded-xl border border-border bg-card"
             />
           ))}
 
         {vacio && (
-          <p className="py-10 text-center text-body text-muted-foreground">
-            {mensajeVacio}
-          </p>
+          <div className="rounded-xl border border-border bg-card p-6 text-center">
+            <p className="text-body text-muted-foreground">{mensajeVacio}</p>
+          </div>
         )}
 
         {!isLoading &&
@@ -119,7 +125,9 @@ export function IngresosTable({
           ))}
 
         {!isLoading && (
-          <p className="px-1 pt-2 text-sm text-muted-foreground">{resumen}</p>
+          <p className="px-2 py-1 text-center text-xs text-muted-foreground">
+            {resumen}
+          </p>
         )}
       </div>
     </>

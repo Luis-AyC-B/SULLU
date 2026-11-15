@@ -20,7 +20,7 @@ export function BottomNav() {
   const visibles = modulosPermitidos.slice(0, MAX_VISIBLE);
   const resto = modulosPermitidos.slice(MAX_VISIBLE);
   const hasOverflow = resto.length > 0;
-  const restoActivo = resto.some((m) => pathname.startsWith(m.ruta));
+  const restoActivo = resto.some((m) => (pathname === m.ruta || pathname.startsWith(`${m.ruta}/`)));
 
   return (
     <>
@@ -42,7 +42,7 @@ export function BottomNav() {
           <div className="grid grid-cols-4 gap-3">
             {resto.map((modulo) => {
               const Icon = modulo.icon;
-              const isActive = pathname.startsWith(modulo.ruta);
+              const isActive = (pathname === modulo.ruta || pathname.startsWith(`${modulo.ruta}/`));
               return (
                 <Link
                   key={modulo.clave}
@@ -64,7 +64,7 @@ export function BottomNav() {
       <nav className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t border-border bg-card md:hidden animate-in slide-in-from-bottom-4 fade-in duration-300">
         {visibles.map((modulo) => {
           const Icon = modulo.icon;
-          const isActive = pathname.startsWith(modulo.ruta);
+          const isActive = (pathname === modulo.ruta || pathname.startsWith(`${modulo.ruta}/`));
 
           return (
             <Link

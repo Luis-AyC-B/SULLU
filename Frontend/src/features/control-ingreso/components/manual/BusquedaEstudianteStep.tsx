@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { Search, Loader2 } from "lucide-react";
-import type { EstudianteBusquedaItem } from "../../types/control-ingreso.types";
+import type {
+  EstudianteBusquedaItem,
+  MiGrupoControlador,
+} from "../../types/control-ingreso.types";
 import { ListaResultadosEstudiantes } from "./ListaResultadosEstudiantes";
 
 interface BusquedaEstudianteStepProps {
@@ -12,6 +15,7 @@ interface BusquedaEstudianteStepProps {
   isLoading: boolean;
   busquedaRealizada: boolean;
   queryActual: string;
+  miGrupo?: MiGrupoControlador | null;
 }
 
 export function BusquedaEstudianteStep({
@@ -21,6 +25,7 @@ export function BusquedaEstudianteStep({
   isLoading,
   busquedaRealizada,
   queryActual,
+  miGrupo,
 }: BusquedaEstudianteStepProps) {
   const [termino, setTermino] = useState(queryActual);
   const [errorValidacion, setErrorValidacion] = useState<string | null>(null);
@@ -122,6 +127,7 @@ export function BusquedaEstudianteStep({
           resultados={resultados}
           query={queryActual}
           onSeleccionar={onSeleccionar}
+          miGrupo={miGrupo}
         />
       )}
     </div>

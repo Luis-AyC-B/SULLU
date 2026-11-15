@@ -41,6 +41,11 @@ describe('UT2-HU8: Endpoints de ingreso manual (e2e integration)', () => {
   };
 
   const prismaMock = {
+    usuario: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ roles: [{ rol: { nombre: 'Administrador' } }] }),
+    },
     modulo: { findFirst: jest.fn().mockResolvedValue({ activo: true }) },
     examen: {
       findUnique: jest.fn().mockImplementation(({ where }) => {

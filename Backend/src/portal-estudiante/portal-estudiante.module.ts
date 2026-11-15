@@ -10,7 +10,7 @@ import { EstudianteMeService } from './estudiante-me.service';
 import { EstudianteAdminController } from './estudiante-admin.controller';
 import { QrTokenService } from './qr-token.service';
 import { VALIDADOR_FOTO_TOKEN } from './validador-foto/validador-foto.interface';
-import { ValidadorFotoStubService } from './validador-foto/validador-foto-stub.service';
+import { ValidadorFotoFacialService } from './validador-foto/validador-foto-facial.service';
 import { QrExamenController } from './qr-examen.controller';
 import { QrExamenService } from './qr-examen.service';
 
@@ -30,7 +30,7 @@ import { QrExamenService } from './qr-examen.service';
     QrTokenService,
     {
       provide: VALIDADOR_FOTO_TOKEN,
-      useClass: ValidadorFotoStubService,
+      useClass: ValidadorFotoFacialService,
     },
   ],
   exports: [

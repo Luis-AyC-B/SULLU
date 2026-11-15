@@ -10,6 +10,12 @@ import {
   obtenerPermisosOffline,
 } from "@/shared/lib/offline-auth";
 
+// Mientras el módulo "Incidencias" (expulsiones) use datos mock, se muestra a
+// cualquier usuario con sesión. Con NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS=false
+// vuelve a regirse por el permiso "expulsiones.*".
+const MOCKS_INCIDENCIAS =
+  process.env.NEXT_PUBLIC_USAR_MOCKS_INCIDENCIAS !== "false";
+
 export function useUserPermissions(): Modulo[] {
   const { data: session } = useSession();
   const [offlinePermisos, setOfflinePermisos] = useState<string[]>([]);
@@ -44,7 +50,8 @@ export function useUserPermissions(): Modulo[] {
   }
 
   // Un módulo se muestra si el usuario tiene cualquier permiso de ese módulo
-  return modules.filter((m) =>
-    permisos.some((p) => p === m.clave || p.startsWith(`${m.clave}.`))
-  );
+  return modules.filter((m) => {
+    if (MOCKS_INCIDENCIAS && m.clave === "expulsiones") return true;
+    return permisos.some((p) => p === m.clave || p.startsWith(`${m.clave}.`));
+  });
 }

@@ -15,14 +15,18 @@ export class ExamenControladorService {
    * HU13: Asigna un colaborador aprobado a un examen, validando ausencia de colisiones horarias.
    */
   async asignarControlador(
-    examenId: number,
-    colaboradorId: number,
-    docenteId?: number,
+    examenIdInput: number | string,
+    colaboradorIdInput: number | string,
+    docenteIdInput?: number | string,
   ) {
-    let colId = colaboradorId;
+    const examenId = Number(examenIdInput);
+    let colId = Number(colaboradorIdInput);
+    const docenteId = docenteIdInput ? Number(docenteIdInput) : undefined;
+
+    // Buscar si el ID enviado corresponde a la relación DocenteColaborador
     const relDirect = await this.prisma.docenteColaborador.findFirst({
       where: {
-        id: colaboradorId,
+        id: colId,
         ...(docenteId ? { docenteId } : {}),
       },
     });
@@ -61,29 +65,16 @@ export class ExamenControladorService {
       throw new NotFoundException('Examen no encontrado.');
     }
 
-    // 3. Validar que el examen no haya terminado, esté en curso ni cancelado
+    // 3. Validar estado del examen
     if (examen.estado === EstadoExamen.FINALIZADO) {
-      throw new BadRequestException('No se puede asignar a un examen que ya finalizó.');
-    }
-    if (examen.estado === EstadoExamen.EN_CURSO) {
-      throw new BadRequestException('No se puede asignar a un examen que ya está en curso.');
+      throw new BadRequestException(
+        'No se puede asignar a un examen que ya finalizó.',
+      );
     }
     if (examen.estado === EstadoExamen.CANCELADO) {
-      throw new BadRequestException('No se puede asignar a un examen cancelado.');
-    }
-
-    // Validar por fecha/hora: si ya pasó el inicio, tampoco se permite
-    if (examen.reservaAmbiente?.fecha) {
-      const fechaInicioEx = new Date(examen.reservaAmbiente.fecha);
-      if (examen.reservaAmbiente.horarioFijo?.horaIni) {
-        const hIni = new Date(examen.reservaAmbiente.horarioFijo.horaIni);
-        fechaInicioEx.setUTCHours(hIni.getUTCHours(), hIni.getUTCMinutes(), 0, 0);
-      }
-      if (Date.now() >= fechaInicioEx.getTime()) {
-        throw new BadRequestException(
-          'No se puede asignar a un examen que ya inició o cuya fecha pasó.',
-        );
-      }
+      throw new BadRequestException(
+        'No se puede asignar a un examen cancelado.',
+      );
     }
 
     // 4. Algoritmo de detección de colisión y choque de horarios
@@ -108,7 +99,6 @@ export class ExamenControladorService {
     const horarioNuevoId = examen.reservaAmbiente?.horarioFijoId;
 
     for (const asig of asignacionesExistentes) {
-      // Ignorar si es el mismo examen
       if (asig.examenId === examenId) continue;
 
       const asigFecha = asig.examen?.reservaAmbiente?.fecha
@@ -119,7 +109,6 @@ export class ExamenControladorService {
       const asigHorarioId = asig.examen?.reservaAmbiente?.horarioFijoId;
 
       if (fechaNuevo && asigFecha && fechaNuevo === asigFecha) {
-        // Colisión por periodo fijo institucional
         if (
           horarioNuevoId &&
           asigHorarioId &&
@@ -130,7 +119,6 @@ export class ExamenControladorService {
           );
         }
 
-        // Colisión por solapamiento de horas inicio/fin
         const hIniNuevo =
           examen.reservaAmbiente?.horarioFijo?.horaIni?.getTime();
         const hFinNuevo =
@@ -150,7 +138,7 @@ export class ExamenControladorService {
       }
     }
 
-    // 4. Insertar la asignación en ExamenControlador
+    // 5. Insertar la asignación en ExamenControlador
     const nuevo = await this.prisma.examenControlador.create({
       data: {
         examenId,
@@ -166,18 +154,22 @@ export class ExamenControladorService {
   /**
    * HU13: Desasigna un colaborador de un examen futuro antes de su inicio.
    */
-  async desasignarControlador(examenId: number, colaboradorId: number) {
-    let colId = colaboradorId;
+  async desasignarControlador(
+    examenIdInput: number | string,
+    colaboradorIdInput: number | string,
+  ) {
+    const examenId = Number(examenIdInput);
+    let colId = Number(colaboradorIdInput);
+
     if (this.prisma.docenteColaborador?.findUnique) {
       const rel = await this.prisma.docenteColaborador.findUnique({
-        where: { id: colaboradorId },
+        where: { id: colId },
       });
       if (rel && rel.colaboradorId) {
         colId = rel.colaboradorId;
       }
     }
 
-    // 1. Verificar si existe la asignación
     const asignacion = await this.prisma.examenControlador.findFirst({
       where: { examenId, colaboradorId: colId },
     });
@@ -188,14 +180,8 @@ export class ExamenControladorService {
       );
     }
 
-    // 2. Verificar estado y temporalidad del examen
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
-      include: {
-        reservaAmbiente: {
-          include: { horarioFijo: true },
-        },
-      },
     });
 
     if (!examen) {
@@ -208,29 +194,6 @@ export class ExamenControladorService {
       );
     }
 
-    if (examen.estado === EstadoExamen.EN_CURSO) {
-      throw new BadRequestException(
-        'No es posible retirar al colaborador: El examen ya inició.',
-      );
-    }
-
-    if (examen.reservaAmbiente?.fecha) {
-      const fechaBase = new Date(examen.reservaAmbiente.fecha);
-      const fechaInicio = new Date(fechaBase);
-
-      if (examen.reservaAmbiente.horarioFijo?.horaIni) {
-        const hIni = new Date(examen.reservaAmbiente.horarioFijo.horaIni);
-        fechaInicio.setUTCHours(hIni.getUTCHours(), hIni.getUTCMinutes(), 0, 0);
-      }
-
-      if (Date.now() >= fechaInicio.getTime()) {
-        throw new BadRequestException(
-          'No es posible retirar al colaborador: El examen ya inició.',
-        );
-      }
-    }
-
-    // 3. Eliminar asignación
     await this.prisma.examenControlador.delete({
       where: { id: asignacion.id },
     });
@@ -241,8 +204,13 @@ export class ExamenControladorService {
   /**
    * HU13: Lista exámenes asignados y disponibles de un colaborador para el modal de gestión.
    */
-  async getExamenesColaborador(colaboradorId: number, docenteId: number) {
-    let colId = colaboradorId;
+  async getExamenesColaborador(
+    colaboradorIdInput: number | string,
+    docenteIdInput: number | string,
+  ) {
+    let colId = Number(colaboradorIdInput);
+    const docenteId = Number(docenteIdInput);
+
     let colaborador = await this.prisma.usuario.findUnique({
       where: { id: colId },
       select: { id: true, nombre: true, apellido: true, correo: true },
@@ -250,7 +218,7 @@ export class ExamenControladorService {
 
     if (!colaborador && this.prisma.docenteColaborador?.findUnique) {
       const rel = await this.prisma.docenteColaborador.findUnique({
-        where: { id: colaboradorId },
+        where: { id: colId },
         include: { colaborador: true },
       });
       if (rel?.colaborador) {
@@ -263,7 +231,7 @@ export class ExamenControladorService {
       throw new NotFoundException('Colaborador no encontrado.');
     }
 
-    // Obtener todos los exámenes del docente que no estén cancelados
+    // Obtener exámenes del docente no cancelados
     const examenesDocente = await this.prisma.examen.findMany({
       where: {
         usuarioId: docenteId,
@@ -290,11 +258,9 @@ export class ExamenControladorService {
       },
     });
 
-    // Separar en asignados y disponibles
     const asignados: any[] = [];
     const disponibles: any[] = [];
 
-    // Todas las asignaciones activas de este colaborador (en cualquier examen/docente) para chequear choques
     const asignacionesTotales = await this.prisma.examenControlador.findMany({
       where: { colaboradorId: colId },
       include: {
@@ -316,22 +282,17 @@ export class ExamenControladorService {
       const fechaBase = ex.reservaAmbiente?.fecha
         ? new Date(ex.reservaAmbiente.fecha)
         : new Date();
-      const fechaIso = fechaBase.toISOString().split('T')[0];
 
-      const horaIni = ex.reservaAmbiente?.horarioFijo?.horaIni
-        ? new Date(ex.reservaAmbiente.horarioFijo.horaIni)
-        : null;
-      let fechaInicioMs = fechaBase.getTime();
-      if (horaIni) {
-        const d = new Date(fechaBase);
-        d.setUTCHours(horaIni.getUTCHours(), horaIni.getUTCMinutes(), 0, 0);
-        fechaInicioMs = d.getTime();
-      }
+      const fechaIso = fechaBase.toISOString().split('T')[0];
+      const fechaInicioMs = this.calcularFechaInicioMs(
+        ex.reservaAmbiente?.fecha,
+        ex.reservaAmbiente?.horarioFijo?.horaIni,
+      );
 
       const yaInicio =
         ex.estado === EstadoExamen.FINALIZADO ||
         ex.estado === EstadoExamen.EN_CURSO ||
-        ahora >= fechaInicioMs;
+        (fechaInicioMs !== null && ahora >= fechaInicioMs);
 
       const materiaNombre =
         ex.carrerasMaterias[0]?.carrera_materia?.materia?.nombre ||
@@ -359,8 +320,8 @@ export class ExamenControladorService {
 
       if (estaAsignado) {
         asignados.push(itemFormateado);
-      } else if (!yaInicio) {
-        // Solo mostrar como disponible si el examen aún no ha iniciado
+      } else if (ex.estado === EstadoExamen.PROGRAMADO) {
+        // Muestra en disponibles todos los exámenes en estado PROGRAMADO
         let tieneChoque = false;
         let motivoChoque: string | undefined;
 
@@ -379,7 +340,7 @@ export class ExamenControladorService {
               ex.reservaAmbiente.horarioFijoId === asigHorarioId
             ) {
               tieneChoque = true;
-              motivoChoque = `Choque de horario`;
+              motivoChoque = 'Choque de horario';
               break;
             }
           }
@@ -405,6 +366,38 @@ export class ExamenControladorService {
     };
   }
 
+  private calcularFechaInicioMs(
+    fechaRaw?: Date | string | null,
+    horaIniRaw?: Date | string | null,
+  ): number | null {
+    if (!fechaRaw) return null;
+
+    const fechaObj = new Date(fechaRaw);
+    const isoStr = fechaObj.toISOString().split('T')[0];
+    const [year, month, day] = isoStr.split('-').map(Number);
+
+    let hours = 0;
+    let minutes = 0;
+
+    if (horaIniRaw) {
+      const horaObj = new Date(horaIniRaw);
+      hours = horaObj.getUTCHours();
+      minutes = horaObj.getUTCMinutes();
+    }
+
+    // Calcula la fecha de inicio local respetando el huso horario local
+    const fechaInicioLocal = new Date(
+      year,
+      month - 1,
+      day,
+      hours,
+      minutes,
+      0,
+      0,
+    );
+    return fechaInicioLocal.getTime();
+  }
+
   private formatearFecha(fecha: Date): string {
     const meses = [
       'ene',
@@ -420,15 +413,17 @@ export class ExamenControladorService {
       'nov',
       'dic',
     ];
-    const d = String(fecha.getDate()).padStart(2, '0');
-    const m = meses[fecha.getMonth()];
-    const y = fecha.getFullYear();
-    return `${d} ${m} ${y}`;
+    const isoStr = fecha.toISOString().split('T')[0];
+    const [y, m, d] = isoStr.split('-').map(Number);
+    const mesNombre = meses[m - 1] || 'ene';
+    const dStr = String(d).padStart(2, '0');
+    return `${dStr} ${mesNombre} ${y}`;
   }
 
-  private formatearHora(hora: Date): string {
-    const h = String(hora.getUTCHours()).padStart(2, '0');
-    const min = String(hora.getUTCMinutes()).padStart(2, '0');
+  private formatearHora(hora: Date | string): string {
+    const hObj = new Date(hora);
+    const h = String(hObj.getUTCHours()).padStart(2, '0');
+    const min = String(hObj.getUTCMinutes()).padStart(2, '0');
     return `${h}:${min}`;
   }
 }

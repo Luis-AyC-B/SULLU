@@ -5,8 +5,10 @@ import {
   ExamenesPublicosController,
   MateriasController,
 } from './examenes.controller';
+import { ObservacionesIngresoModule } from '../observaciones-ingreso/observaciones-ingreso.module';
 
 @Module({
+  imports: [ObservacionesIngresoModule],
   controllers: [
     ExamenesController,
     ExamenesPublicosController,

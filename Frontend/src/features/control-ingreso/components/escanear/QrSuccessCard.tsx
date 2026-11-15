@@ -1,13 +1,15 @@
 "use client";
 
 import { Check, Clock, Volume2 } from "lucide-react";
+import { Button } from '@/shared/components/ui/button';
 import type { EstudianteQrResultado } from "../../types/control-ingreso.types";
 
 interface QrSuccessCardProps {
+  onConfirmar?: () => void;
   estudiante: EstudianteQrResultado;
 }
 
-export function QrSuccessCard({ estudiante }: QrSuccessCardProps) {
+export function QrSuccessCard({ estudiante, onConfirmar }: QrSuccessCardProps) {
   return (
     <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-30 animate-in zoom-in-95 fade-in duration-200">
       <div className="bg-[#0D5C3A] text-white rounded-3xl p-6 sm:p-7 shadow-2xl flex flex-col items-center text-center border border-emerald-400/30">
@@ -18,10 +20,14 @@ export function QrSuccessCard({ estudiante }: QrSuccessCardProps) {
 
         {/* Título de Confirmación */}
         <h3 className="text-xl sm:text-2xl font-bold tracking-tight mb-2">
-          Ingreso registrado
+          {onConfirmar && !estudiante.yaIngreso ? 'Identidad verificada' : 'Ingreso registrado'}
         </h3>
 
         {/* Datos del Estudiante */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- Referencia local, no se envía al optimizador. */}
+        {estudiante.fotoUrl && <img src={estudiante.fotoUrl} alt="Fotografía original registrada" className="h-24 w-24 rounded-full object-cover" />}
+        {estudiante.examen && <p>{estudiante.examen} · {estudiante.ambienteAsignado}</p>}
+        {onConfirmar && !estudiante.yaIngreso && <Button onClick={onConfirmar}>Confirmar ingreso</Button>}
         <p className="text-base sm:text-lg font-semibold text-white">
           {estudiante.nombre} {estudiante.apellido ?? ""}
         </p>
@@ -39,7 +45,7 @@ export function QrSuccessCard({ estudiante }: QrSuccessCardProps) {
         {/* Fila de Hora y Confirmación Sonora */}
         <div className="flex items-center justify-center gap-2 mt-4 text-xs font-medium text-emerald-200/90 bg-[#0A492E]/60 px-3.5 py-1.5 rounded-full border border-emerald-500/20">
           <Clock className="h-3.5 w-3.5" />
-          <span>{estudiante.horaIngreso || "12:18:41"}</span>
+          <span>{estudiante.horaIngreso || 'Pendiente de confirmación'}</span>
           <span>·</span>
           <Volume2 className="h-3.5 w-3.5" />
           <span>Confirmación sonora</span>

@@ -65,7 +65,7 @@ describe('UT02-HU09: Validación de enrutamiento y extracción de usuario en end
 
     const result = await controller.registrarQr(dto, mockUser);
 
-    expect(serviceMock.registrarIngresoQr).toHaveBeenCalledWith(dto, 2);
+    expect(serviceMock.registrarIngresoQr).toHaveBeenCalledWith(dto, 2, false);
     expect(result).toBeDefined();
     expect(result.mensaje).toContain('exitosamente');
   });

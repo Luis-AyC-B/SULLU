@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import {
   AlertCircle,
   AlertTriangle,
@@ -29,8 +28,6 @@ interface PublicExamQrViewProps {
 }
 
 export function PublicExamQrView({ token }: PublicExamQrViewProps) {
-  const searchParams = useSearchParams();
-  const mockParam = searchParams.get('mock');
 
   const [loading, setLoading] = useState(true);
   const [errorConexion, setErrorConexion] = useState(false);
@@ -56,62 +53,6 @@ export function PublicExamQrView({ token }: PublicExamQrViewProps) {
     setErrorConexion(false);
 
     try {
-      // Soporte para pruebas manuales con query param ?mock=vencido | revocado | invalido | valido
-      if (process.env.NEXT_PUBLIC_USE_MOCKS === 'true' && mockParam) {
-        if (mockParam === 'vencido') {
-          setResultado({
-            esValido: false,
-            motivoRechazo: 'VENCIDO',
-            mensaje: 'El código QR ha expirado porque el examen ya finalizó o superó el tiempo límite de vigencia.',
-          });
-          setLoading(false);
-          return;
-        }
-        if (mockParam === 'revocado') {
-          setResultado({
-            esValido: false,
-            motivoRechazo: 'REVOCADO',
-            mensaje: 'Este código QR fue invalidado porque se generó uno nuevo o cambiaron las credenciales de seguridad del estudiante.',
-          });
-          setLoading(false);
-          return;
-        }
-        if (mockParam === 'invalido') {
-          setResultado({
-            esValido: false,
-            motivoRechazo: 'INVALIDO',
-            mensaje: 'El código QR no corresponde a un examen registrado o la firma digital no es válida.',
-          });
-          setLoading(false);
-          return;
-        }
-        if (mockParam === 'valido') {
-          setResultado({
-            esValido: true,
-            estudiante: {
-              nombre: 'JUAN PÉREZ ROJAS',
-              sis: '202001234',
-              carrera: 'Ingeniería de Sistemas',
-              fotoUrl: null,
-            },
-            examen: {
-              id: 101,
-              nombre: 'Primer Parcial - Cálculo II',
-              materia: 'Cálculo II',
-              grupo: 'Grupo 1',
-              ambiente: 'Edif. Nuevo - Aula 691B',
-              fecha: new Date().toISOString(),
-              horaInicio: '08:15',
-              horaFin: '10:15',
-              tipoEvaluacion: 'Presencial con verificación biométrica',
-            },
-            vigenteHasta: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-          });
-          setLoading(false);
-          return;
-        }
-      }
-
       const service = await getExamQrService();
       const res = await service.validarTokenQr(token);
       setResultado(res);
@@ -120,7 +61,7 @@ export function PublicExamQrView({ token }: PublicExamQrViewProps) {
     } finally {
       setLoading(false);
     }
-  }, [token, mockParam]);
+  }, [token]);
 
   useEffect(() => {
     validar();

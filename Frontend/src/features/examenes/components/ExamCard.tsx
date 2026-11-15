@@ -1,14 +1,16 @@
 "use client";
 
-import { Edit3, GraduationCap } from "lucide-react";
+import React from "react";
+import { useRouter } from "next/navigation";
+import { Edit3 } from "lucide-react";
 import { Exam } from "../types/exam.types";
 
 interface ExamCardProps {
   exam: Exam;
   onEdit?: (exam: Exam) => void;
   onCancel?: (exam: Exam) => void;
-  canEdit?: boolean;   
-  canCancel?: boolean; 
+  canEdit?: boolean;
+  canCancel?: boolean;
 }
 
 export function ExamCard({
@@ -18,7 +20,9 @@ export function ExamCard({
   canEdit = true,
   canCancel = true,
 }: ExamCardProps) {
-  // Configuración de colores de badges 
+  const router = useRouter();
+
+  // Configuración de colores de badges
   const getBadgeStyle = (estado: Exam["estado"]) => {
     switch (estado) {
       case "En curso":
@@ -37,20 +41,12 @@ export function ExamCard({
   const isInactive = exam.estado === "Finalizado" || exam.estado === "Desactivado";
 
   // Regla de 24 horas DESDE SU CREACIÓN:
-  // Si fue creado hace menos de 24 horas => "Cancelar" (eliminación física)
-  // Si pasaron 24 horas o más desde su creación => "Desactivar" (baja lógica)
   const isCreatedUnder24Hours = (): boolean => {
-    // Si no tiene fecha de creación o es recién creado, es nuevo => "Cancelar"
-    if (!exam.createdAt) return true;  // sin fecha = reciente = Cancelar
-    
+    if (!exam.createdAt) return true;
     const createdTime = new Date(exam.createdAt).getTime();
-    // Si la fecha devuelta por la base de datos es inválida => "Cancelar"
-    if (isNaN(createdTime)) return true;  // fecha invalida = reciente = Cancelar
-
+    if (isNaN(createdTime)) return true;
     const now = new Date().getTime();
     const diffHours = (now - createdTime) / (1000 * 60 * 60);
-
-    // Solo si pasaron 24 horas reales o más será "Desactivar"
     return diffHours >= 0 && diffHours < 24;
   };
 
@@ -60,14 +56,10 @@ export function ExamCard({
   // Formatear cualquier formato de fecha a dd/mm/aaaa
   const formatDateSlash = (dateStr: string) => {
     if (!dateStr) return "";
-
-    // Si viene en formato YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
       const [yyyy, mm, dd] = dateStr.substring(0, 10).split("-");
       return `${dd}/${mm}/${yyyy}`;
     }
-
-    // Si viene en formato completo (Sun Sep 20 2026...)
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) {
       const dd = String(d.getDate()).padStart(2, "0");
@@ -75,14 +67,29 @@ export function ExamCard({
       const yyyy = d.getFullYear();
       return `${dd}/${mm}/${yyyy}`;
     }
-
     return dateStr;
   };
 
+  // Navegar al dashboard de asistencia de este examen
+  const handleCardClick = () => {
+    router.push(`/examenes/${exam.id}/asistencia`);
+  };
+
+  // Determinar si los ausentes deben mostrarse con guion (aún no inicia)
+  const isAunNoInicia =
+    exam.ausentesCount === null ||
+    exam.ausentesCount === undefined ||
+    exam.estado === "Programado";
+
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-xs transition-all hover:shadow-md flex flex-col justify-between">
+    <div
+      onClick={handleCardClick}
+      className="group rounded-xl border border-gray-200 bg-white p-5 shadow-xs transition-all hover:shadow-md hover:border-blue-200 flex flex-col justify-between cursor-pointer"
+      role="article"
+      aria-label={`Examen ${exam.materiaNombre} ${exam.tipoExamen}`}
+    >
       <div>
-        {/* Encabezado: Estado + Badge Editado + Botón Editar */}
+        {/* Encabezado: Estado + Badge Editado + Acciones */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {/* 1. Badge de Estado (Programado, En curso, Desactivado, Finalizado) */}
@@ -94,7 +101,7 @@ export function ExamCard({
               {exam.estado}
             </span>
 
-            {/* 2. Badge gris de Editado: SOLO si el examen está activo (no finalizado ni desactivado) */}
+            {/* 2. Badge gris de Editado: SOLO si el examen está activo */}
             {(exam.fueEditado || exam.isEdited) && !isInactive && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-[6px] text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
                 Editado
@@ -102,17 +109,33 @@ export function ExamCard({
             )}
           </div>
 
-          {/* Botón de Editar (Lápiz) */}
-          {canEdit && !isInactive && (
-            <button
-              type="button"
-              onClick={() => onEdit?.(exam)}
-              className="text-gray-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-              title="Editar examen"
-            >
-              <Edit3 className="h-4 w-4" />
-            </button>
-          )}
+          {/* Acciones de gestión (Editar / Cancelar / Desactivar) */}
+          <div
+            className="flex items-center gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {canCancel && !isInactive && (
+              <button
+                type="button"
+                onClick={() => onCancel?.(exam)}
+                className="text-xs text-gray-400 hover:text-red-600 font-medium transition-colors cursor-pointer mr-1"
+                title={`${actionLabel} examen`}
+              >
+                {actionLabel}
+              </button>
+            )}
+
+            {canEdit && !isInactive && (
+              <button
+                type="button"
+                onClick={() => onEdit?.(exam)}
+                className="text-gray-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                title="Editar examen"
+              >
+                <Edit3 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Carrera */}
@@ -121,7 +144,7 @@ export function ExamCard({
         </p>
 
         {/* Materia y Tipo de Examen */}
-        <h3 className="text-base font-bold text-[#1A1D23] mt-0.5">
+        <h3 className="text-base font-bold text-[#1A1D23] mt-0.5 group-hover:text-blue-900 transition-colors">
           {exam.materiaNombre} – {exam.tipoExamen}
         </h3>
 
@@ -139,7 +162,7 @@ export function ExamCard({
           <div>
             <span className="text-gray-400 block font-medium">Fecha</span>
             <span className="text-gray-800 font-semibold mt-0.5 block whitespace-nowrap">
-              {formatDateSlash(exam.fecha)}  
+              {formatDateSlash(exam.fecha)}
             </span>
           </div>
           <div>
@@ -154,22 +177,37 @@ export function ExamCard({
         </div>
       </div>
 
-      {/* Pie de tarjeta: Cantidad de habilitados + Botón Cancelar / Desactivar */}
-      <div className="mt-3 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5 text-gray-500 font-medium">
-          <GraduationCap className="h-4 w-4 text-gray-400" />
-          <span>{exam.habilitadosCount} habilitados</span>
+      {/* Pie de tarjeta HU16: Métricas agregadas (Habilitados, Presentes, Ausentes) */}
+      <div className="mt-4 grid grid-cols-3 gap-2 text-left">
+        {/* Habilitados */}
+        <div className="rounded-xl bg-[#F8FAFC] p-2.5 sm:p-3">
+          <span className="block text-[11px] sm:text-xs text-gray-500 font-medium">
+            Habilitados
+          </span>
+          <span className="block text-lg sm:text-xl font-bold text-[#1E3A8A] mt-0.5">
+            {exam.habilitadosCount ?? 0}
+          </span>
         </div>
 
-        {canCancel && !isInactive && (
-          <button
-            type="button"
-            onClick={() => onCancel?.(exam)}
-            className="text-gray-500 hover:text-red-600 font-medium transition-colors cursor-pointer"
-          >
-            {actionLabel}
-          </button>
-        )}
+        {/* Presentes */}
+        <div className="rounded-xl bg-[#F8FAFC] p-2.5 sm:p-3">
+          <span className="block text-[11px] sm:text-xs text-gray-500 font-medium">
+            Presentes
+          </span>
+          <span className="block text-lg sm:text-xl font-bold text-[#0D9488] mt-0.5">
+            {exam.presentesCount ?? 0}
+          </span>
+        </div>
+
+        {/* Ausentes (con guion si aún no inicia según HU16) */}
+        <div className="rounded-xl bg-[#F8FAFC] p-2.5 sm:p-3">
+          <span className="block text-[11px] sm:text-xs text-gray-500 font-medium">
+            Ausentes
+          </span>
+          <span className="block text-lg sm:text-xl font-bold text-[#C2410C] mt-0.5">
+            {isAunNoInicia ? "—" : (exam.ausentesCount ?? 0)}
+          </span>
+        </div>
       </div>
     </div>
   );

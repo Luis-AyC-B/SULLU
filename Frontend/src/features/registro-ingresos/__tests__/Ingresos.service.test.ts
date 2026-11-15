@@ -45,26 +45,24 @@ describe('IT-HU11-04: ingresos.service (HTTP, validación y mocks)', () => {
     expect(resultado.ingresos[0].sis).toBe('201900123');
   });
 
-  it('2. si el endpoint responde 404 usa los datos de prueba', async () => {
+  it('2. si el endpoint responde 404 devuelve datos vacíos (listo para backend)', async () => {
     const { get, getIngresosExamen } = await cargar(false);
     get.mockRejectedValue(error404);
 
     const resultado = await getIngresosExamen(1);
 
-    expect(resultado.ingresados).toBe(42);
-    expect(resultado.total).toBe(85);
-    expect(resultado.ingresos).toHaveLength(6);
-    expect(resultado.ingresos[0].estudiante).toBe('Ana Rojas Mamani');
+    expect(resultado.ingresados).toBe(0);
+    expect(resultado.total).toBe(0);
+    expect(resultado.ingresos).toHaveLength(0);
   });
 
-  it('3. los ingresos de prueba vienen del más reciente al más antiguo', async () => {
+  it('3. con 404 la lista de ingresos está vacía', async () => {
     const { get, getIngresosExamen } = await cargar(false);
     get.mockRejectedValue(error404);
 
     const { ingresos } = await getIngresosExamen(1);
-    const horas = ingresos.map((i) => new Date(i.hora).getTime());
 
-    expect(horas).toEqual([...horas].sort((a, b) => b - a));
+    expect(ingresos).toEqual([]);
   });
 
   it('4. un error de red no cae a datos de prueba y se propaga', async () => {
@@ -94,17 +92,17 @@ describe('IT-HU11-04: ingresos.service (HTTP, validación y mocks)', () => {
     expect(examenes).toHaveLength(3);
   });
 
-  it('7. la lista de exámenes cae a datos de prueba si responde 404', async () => {
+  it('7. la lista de exámenes devuelve array vacío si responde 404 (listo para backend)', async () => {
     const { get, getExamenesControl } = await cargar(false);
     get.mockRejectedValue(error404);
 
     const examenes = await getExamenesControl();
 
     expect(get).toHaveBeenCalledWith('/examenes/control');
-    expect(examenes[0].nombre).toBe('Cálculo II – Examen Final');
+    expect(examenes).toHaveLength(0);
   });
 
-  it('8. el examen de prueba sin ingresos devuelve lista vacía y total 40', async () => {
+  it('8. con 404 los ingresos devuelven lista vacía y total 0', async () => {
     const { get, getIngresosExamen } = await cargar(false);
     get.mockRejectedValue(error404);
 
@@ -112,6 +110,6 @@ describe('IT-HU11-04: ingresos.service (HTTP, validación y mocks)', () => {
 
     expect(resultado.ingresos).toEqual([]);
     expect(resultado.ingresados).toBe(0);
-    expect(resultado.total).toBe(40);
+    expect(resultado.total).toBe(0);
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import {
   Injectable,
   UnauthorizedException,
@@ -21,9 +22,6 @@ export class AuthService {
 
   /**
    * Registro en memoria volátil de intentos fallidos por correo normalizado.
-   * Limitación documentada: Al reiniciarse la instancia del servidor o en despliegues
-   * horizontales multinstancia (ej. clúster o serverless), los contadores en memoria se
-   * reinician. Para producción con escalabilidad horizontal se recomendaría Redis o DB.
    */
   private readonly fallosLogin = new Map<
     string,
@@ -121,7 +119,8 @@ export class AuthService {
         },
       });
     } catch (auditErr: unknown) {
-      const msg = auditErr instanceof Error ? auditErr.message : String(auditErr);
+      const msg =
+        auditErr instanceof Error ? auditErr.message : String(auditErr);
       this.logger.error(`Error auditando fallo de login: ${msg}`);
     }
   }
@@ -141,7 +140,10 @@ export class AuthService {
     }
 
     // Fallback de seguridad para el administrador principal si viniera vacío
-    if (permisosUsuario.length === 0 && usuario.correo === 'admin@exacontrol.com') {
+    if (
+      permisosUsuario.length === 0 &&
+      usuario.correo === 'admin@exacontrol.com'
+    ) {
       permisosUsuario.push(
         'usuarios.ver',
         'usuarios.crear',
@@ -169,6 +171,22 @@ export class AuthService {
 
     if (esEstudiante && !permisosUsuario.includes('portal_estudiante')) {
       permisosUsuario.push('portal_estudiante');
+    }
+
+    // Asegurar acceso al módulo de expulsiones/incidencias para el rol Docente
+    const esDocente = usuario.roles?.some(
+      (r: any) =>
+        r.rol?.nombre?.toUpperCase() === 'DOCENTE' ||
+        r.rol?.nombre === 'Docente',
+    );
+
+    if (esDocente) {
+      if (!permisosUsuario.includes('expulsiones.ver')) {
+        permisosUsuario.push('expulsiones.ver');
+      }
+      if (!permisosUsuario.includes('expulsiones.registrar')) {
+        permisosUsuario.push('expulsiones.registrar');
+      }
     }
 
     let sessionId: string | null = null;
@@ -219,7 +237,6 @@ export class AuthService {
       },
     });
 
-    // Respuesta neutra para no revelar si el correo existe
     if (!usuario) {
       this.logger.warn(
         `[solicitarRecuperacion] No existe usuario con correo: "${cleanEmail}"`,
@@ -245,7 +262,6 @@ export class AuthService {
     }
 
     try {
-      // Invalidar tokens anteriores no usados del mismo usuario
       await this.prisma.tokenRecuperacion.updateMany({
         where: { usuarioId: usuario.id, usado: false },
         data: { usado: true },

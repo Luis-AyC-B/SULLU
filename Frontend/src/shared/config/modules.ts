@@ -8,6 +8,7 @@ import {
   ScanLine,
   ListChecks,
   AlertTriangle,
+  Ban,
   UserCheck,
   QrCode,
 } from "lucide-react";
@@ -58,6 +59,12 @@ export const modules: Modulo[] = [
   },
   {
     clave: "incidencias",
+    label: "Ingresos rechazados",
+    ruta: "/ingresos-rechazados",
+    icon: Ban,
+  },
+  {
+    clave: "expulsiones",
     label: "Incidencias",
     ruta: "/incidencias",
     icon: AlertTriangle,

@@ -12,6 +12,27 @@ export const CACHED_EXAM_QRS_KEY = `${STORAGE_PREFIX}exam_qrs`;
 export const CACHED_PERFIL_KEY = `${STORAGE_PREFIX}perfil`;
 export const SESION_PORTAL_KEY = `${STORAGE_PREFIX}sesion_ok`;
 export const CACHED_USUARIO_KEY = `${STORAGE_PREFIX}usuario`;
+export const CACHED_INTENTOS_PREFIX = `${STORAGE_PREFIX}intentos_examen_`;
+
+export function guardarIntentosExamen(examenId: number | string, intentosRestantes: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`${CACHED_INTENTOS_PREFIX}${examenId}`, String(intentosRestantes));
+  } catch {}
+}
+
+export function obtenerIntentosExamen(examenId: number | string): number {
+  if (typeof window === 'undefined') return 3;
+  try {
+    const val = localStorage.getItem(`${CACHED_INTENTOS_PREFIX}${examenId}`);
+    if (val === null) return 3;
+    const n = parseInt(val, 10);
+    return isNaN(n) ? 3 : n;
+  } catch {
+    return 3;
+  }
+}
+
 
 export interface CachedData<T> {
   data: T;

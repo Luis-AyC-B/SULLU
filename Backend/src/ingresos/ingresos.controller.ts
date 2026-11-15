@@ -80,7 +80,17 @@ export class IngresosController {
     @Body() dto: VerificarIngresoQrDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.ingresosService.registrarIngresoQr(dto, user.id);
+    return this.ingresosService.registrarIngresoQr(dto, user.id, false);
+  }
+
+  @Post('qr/confirmar')
+  @Permissions('control_ingreso.escanear_qr')
+  @HttpCode(HttpStatus.OK)
+  confirmarQr(
+    @Body() dto: VerificarIngresoQrDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ingresosService.registrarIngresoQr(dto, user.id, true);
   }
 
   @Post('sincronizar')
@@ -137,7 +147,15 @@ export class IngresosController {
   buscarEstudiantesExamen(
     @Param('examenId', ParseIntPipe) examenId: number,
     @Query('q') q?: string,
+    @Query('soloMiGrupo') soloMiGrupo?: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
-    return this.ingresosService.buscarEstudiantesExamen(examenId, q);
+    const colaboradorId =
+      soloMiGrupo === 'true' && user?.id ? user.id : undefined;
+    return this.ingresosService.buscarEstudiantesExamen(
+      examenId,
+      q,
+      colaboradorId,
+    );
   }
 }

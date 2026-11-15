@@ -1,9 +1,17 @@
 "use client";
 
-import { CheckCircle2, ChevronLeft, ShieldCheck, Building2, UserCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ShieldCheck,
+  Building2,
+  UserCheck,
+  AlertTriangle,
+} from "lucide-react";
 import type {
   EstudianteBusquedaItem,
   ExamenAsignado,
+  MiGrupoControlador,
 } from "../../types/control-ingreso.types";
 
 interface ConfirmarIngresoStepProps {
@@ -14,6 +22,7 @@ interface ConfirmarIngresoStepProps {
   onConfirmar: () => void;
   isSubmitting: boolean;
   errorEnvio: string | null;
+  miGrupo?: MiGrupoControlador | null;
 }
 
 export function ConfirmarIngresoStep({
@@ -24,10 +33,21 @@ export function ConfirmarIngresoStep({
   onConfirmar,
   isSubmitting,
   errorEnvio,
+  miGrupo,
 }: ConfirmarIngresoStepProps) {
   const nombreCompleto = `${estudiante.nombre} ${
     estudiante.apellido ?? ""
   }`.trim();
+
+  const tieneParticion = Boolean(
+    miGrupo && miGrupo.totalEstudiantesGrupo < miGrupo.totalEstudiantesExamen
+  );
+  const esFueraDeGrupo =
+    tieneParticion &&
+    !miGrupo?.estudiantes.some(
+      (e) => e.id === estudiante.id || e.codSis === estudiante.codSis
+    );
+
   return (
     <div className="flex flex-col gap-4 animate-in fade-in duration-200">
       {/* Botón Volver a resultados */}
@@ -80,6 +100,21 @@ export function ConfirmarIngresoStep({
           {examen.ambiente}
         </p>
       </div>
+
+      {/* HU17: Advertencia clara si el estudiante no pertenece a la fila asignada */}
+      {esFueraDeGrupo && miGrupo && (
+        <div className="p-3.5 md:p-4 rounded-2xl bg-amber-50 border border-amber-200/90 text-amber-900 flex items-start gap-3 shadow-2xs">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
+              Estudiante fuera de tu fila asignada ({miGrupo.rango})
+            </p>
+            <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+              El estudiante <strong>{nombreCompleto}</strong> no pertenece a tu lista de control. Debe dirigirse con el colaborador asignado a su rango de apellidos.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Panel de Validación de Identidad y Elegibilidad de Ingreso */}
       <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-2.5">

@@ -32,7 +32,7 @@ export function ExcepcionValidacionCard({
     }
 
     router.push(
-      `/incidencias?examenId=${examenId}&estudianteId=${estudiante.id}&tipo=${tipoIncidenciaQuery}&sis=${estudiante.codSis}&nombre=${encodeURIComponent(
+      `/ingresos-rechazados?examenId=${examenId}&estudianteId=${estudiante.id}&tipo=${tipoIncidenciaQuery}&sis=${estudiante.codSis}&nombre=${encodeURIComponent(
         nombreCompleto
       )}&ci=${estudiante.ci || ""}&motivo=${encodeURIComponent(excepcion.mensaje)}`
     );
