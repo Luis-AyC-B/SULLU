@@ -111,5 +111,6 @@ function adaptarExamenLegado(item: Partial<ExamenEstudiante>): Examen {
     qrGenerado: false,
     facultad: item.facultad,
     esLegado: true,
+    listaAsignada: item.listaAsignada,
   };
 }

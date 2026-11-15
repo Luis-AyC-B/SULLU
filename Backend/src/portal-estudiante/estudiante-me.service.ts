@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -17,6 +18,7 @@ import {
   VALIDADOR_FOTO_TOKEN,
   type ValidadorFoto,
 } from './validador-foto/validador-foto.interface';
+import { ParticionControladorService } from '../ingresos/particion-controlador.service';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const hhmm = (d: Date) => `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
@@ -32,6 +34,8 @@ export class EstudianteMeService {
     private readonly qr: QrTokenService,
     @Inject(VALIDADOR_FOTO_TOKEN)
     private readonly validadorFoto: ValidadorFoto,
+    @Optional()
+    private readonly particionService?: ParticionControladorService,
   ) {}
 
   async examenes(estudianteId: number) {
@@ -56,11 +60,30 @@ export class EstudianteMeService {
       },
     });
 
-    const items = filas.map((f) => {
+    // Obtener lista asignada para cada examen en paralelo
+    const listasPorExamen = await Promise.all(
+      filas.map(async (f) => {
+        if (!this.particionService) return null;
+        try {
+          return await this.particionService.obtenerGrupoDeEstudiante(
+            f.examen.id,
+            estudianteId,
+          );
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    const items = filas.map((f, idx) => {
       const ex = f.examen;
       const reserva = ex.reservaAmbiente;
       const cm = ex.carrerasMaterias[0]?.carrera_materia;
       const materia = cm?.materia.nombre ?? 'Examen';
+      const listaInfo = listasPorExamen[idx];
+      const listaAsignada = listaInfo
+        ? `${listaInfo.nombreLista} (${listaInfo.rango})`
+        : undefined;
       return {
         orden: `${reserva.fecha.toISOString().slice(0, 10)} ${hhmm(reserva.horarioFijo.horaIni)}`,
         dto: {
@@ -73,6 +96,7 @@ export class EstudianteMeService {
           horaInicio: hhmm(reserva.horarioFijo.horaIni),
           horaFin: hhmm(reserva.horarioFijo.horaFin),
           estado: f.estado_habilitado ? 'Habilitado' : 'Inhabilitado',
+          listaAsignada,
         },
       };
     });

@@ -17,6 +17,7 @@ export const examenEstudianteSchema = z.object({
   horaInicio: z.string(),
   horaFin: z.string(),
   estado: estadoExamenSchema,
+  listaAsignada: z.string().optional(),
 });
 
 export type ExamenEstudiante = z.infer<typeof examenEstudianteSchema>;
