@@ -16,7 +16,7 @@ import {
   type FiltrosIngresos,
   type GestionAcademica,
 } from "../types/ingresos.types";
-import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
+import { obtenerNombreMateria } from "../lib/formatoReporteUtils";
 
 /**
  * Roles del módulo Registro de Ingresos:
@@ -278,16 +278,26 @@ export function IngresosFiltrosToolbar({
   };
 
   const handleMateriaChange = (nuevaMateria: string) => {
+    const examenActualValido = examenesPorDocente.some(
+      (e) =>
+        (nuevaMateria === "TODAS" || e.materia === nuevaMateria) &&
+        String(e.id) === filtros.examenId
+    );
     onFiltrosChange({
       ...filtros,
       materiaId: nuevaMateria,
-      examenId: "TODOS",
+      examenId: examenActualValido ? filtros.examenId : "TODOS",
     });
   };
 
   const handleExamenChange = (nuevoExamen: string) => {
+    const examenObj =
+      examenesDisponibles.find((e) => String(e.id) === nuevoExamen) ||
+      examenesConGestion.find((e) => String(e.id) === nuevoExamen);
+
     onFiltrosChange({
       ...filtros,
+      materiaId: examenObj?.materia || filtros.materiaId,
       examenId: nuevoExamen,
     });
   };

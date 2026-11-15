@@ -13,6 +13,7 @@ import { IngresosTable } from "./IngresosTable";
 import { BotonDescargarReportePdf } from "./BotonDescargarReportePdf";
 import { BotonCasoExcepcional } from "./BotonCasoExcepcional";
 import { RegistrarCasoExcepcionalModal } from "./RegistrarCasoExcepcionalModal";
+import { ExamenFinalizadoModal } from "./ExamenFinalizadoModal";
 import { ConfirmarDescargaModal } from "./ConfirmarDescargaModal";
 import { useExamenesControl } from "../hooks/useExamenesControl";
 import { useIngresosExamen } from "../hooks/useIngresosExamen";
@@ -26,7 +27,7 @@ import {
   type Ingreso,
   type IngresosExamen,
 } from "../types/ingresos.types";
-import { obtenerNombreMateria } from "../lib/generarPdfReporteIngresos";
+import { obtenerNombreMateria } from "../lib/formatoReporteUtils";
 import {
   obtenerUsuarioOperadorOffline,
   type OfflineUserData,
@@ -108,6 +109,48 @@ export function determinarRol(
   return "docente";
 }
 
+const FILTROS_STORAGE_KEY = "sullu_registro_ingresos_filtros";
+
+function obtenerFiltrosIniciales(): FiltrosIngresos {
+  return {
+    facultadId: "TODAS",
+    carreraId: "TODAS",
+    docenteId: "TODOS",
+    gestion: obtenerGestionVigente(),
+    materiaId: "TODAS",
+    examenId: "TODOS",
+  };
+}
+
+export function isExamenConcluido(examen: ExamenControl | null): boolean {
+  if (!examen) return false;
+  const estadoUpper = String(examen.estado || "").toUpperCase();
+  if (estadoUpper === "FINALIZADO" || estadoUpper === "CANCELADO") {
+    return true;
+  }
+  if (!examen.fecha || !examen.horario) return false;
+
+  try {
+    const partes = examen.horario.split("-");
+    if (partes.length < 2) return false;
+    const [hFinStr, mFinStr] = partes[1].trim().split(":");
+    const [yearStr, monthStr, dayStr] = examen.fecha.split("-");
+
+    const finDate = new Date(
+      Number(yearStr),
+      Number(monthStr) - 1,
+      Number(dayStr),
+      Number(hFinStr),
+      Number(mFinStr),
+      0
+    );
+
+    return Date.now() >= finDate.getTime();
+  } catch {
+    return false;
+  }
+}
+
 export function ControlIngresosPageContainer() {
   const { data: session } = useSession();
 
@@ -176,15 +219,111 @@ export function ControlIngresosPageContainer() {
     }));
   }, [examenes]);
 
-  // Filtros combinables para HU-17
-  const [filtros, setFiltros] = useState<FiltrosIngresos>({
-    facultadId: "TODAS",
-    carreraId: "TODAS",
-    docenteId: "TODOS",
-    gestion: obtenerGestionVigente(),
-    materiaId: "TODAS",
-    examenId: "TODOS",
-  });
+  // Filtros combinables para HU-17 con persistencia por usuario
+  const [filtros, setFiltros] = useState<FiltrosIngresos>(obtenerFiltrosIniciales);
+  const [isFiltrosLoaded, setIsFiltrosLoaded] = useState(false);
+
+  // Identificador único del usuario autenticado actual (evita mezclar filtros entre roles)
+  const currentUserId = useMemo(() => {
+    const raw = (session?.user as any)?.id || session?.user?.email || "";
+    return String(raw).trim().toLowerCase();
+  }, [session?.user]);
+
+  // Carga inicial: Solo restaurar si el usuario actual tiene filtros guardados en esta sesión
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Si la sesión no ha terminado de cargar, esperar
+    if (!currentUserId) return;
+
+    const userKey = `sullu_ingresos_filtros_${currentUserId}`;
+    let saved: Partial<FiltrosIngresos> | null = null;
+    try {
+      const raw = sessionStorage.getItem(userKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          saved = parsed;
+        }
+      }
+    } catch {}
+
+    const params = new URLSearchParams(window.location.search);
+    const urlExamenId = params.get("examenId");
+    const urlMateriaId = params.get("materiaId");
+    const urlGestion = params.get("gestion");
+    const urlFacultadId = params.get("facultadId");
+    const urlCarreraId = params.get("carreraId");
+    const urlDocenteId = params.get("docenteId");
+
+    // Si el usuario recién entra y no seleccionó nada en esta sesión, arrancar con TODOS
+    if (!saved && !urlExamenId && !urlMateriaId) {
+      setFiltros(obtenerFiltrosIniciales());
+      setIsFiltrosLoaded(true);
+      // Limpiar URL si venía con parámetros residuales
+      if (window.location.search) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+      return;
+    }
+
+    setFiltros({
+      facultadId: urlFacultadId || saved?.facultadId || "TODAS",
+      carreraId: urlCarreraId || saved?.carreraId || "TODAS",
+      docenteId: urlDocenteId || saved?.docenteId || "TODOS",
+      gestion: (urlGestion as any) || saved?.gestion || obtenerGestionVigente(),
+      materiaId: urlMateriaId || saved?.materiaId || "TODAS",
+      examenId: urlExamenId || saved?.examenId || "TODOS",
+    });
+    setIsFiltrosLoaded(true);
+  }, [currentUserId]);
+
+  // Guardar en sessionStorage del usuario y sincronizar URL SOLO cuando isFiltrosLoaded es true
+  useEffect(() => {
+    if (!isFiltrosLoaded || !currentUserId || typeof window === "undefined") return;
+
+    const userKey = `sullu_ingresos_filtros_${currentUserId}`;
+
+    try {
+      const esEstadoLimpio =
+        filtros.examenId === "TODOS" &&
+        filtros.materiaId === "TODAS" &&
+        filtros.docenteId === "TODOS" &&
+        filtros.facultadId === "TODAS" &&
+        filtros.carreraId === "TODAS";
+
+      if (esEstadoLimpio) {
+        sessionStorage.removeItem(userKey);
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState(null, "", cleanUrl);
+      } else {
+        sessionStorage.setItem(userKey, JSON.stringify(filtros));
+
+        const params = new URLSearchParams();
+        if (filtros.examenId && filtros.examenId !== "TODOS") {
+          params.set("examenId", filtros.examenId);
+        }
+        if (filtros.materiaId && filtros.materiaId !== "TODAS") {
+          params.set("materiaId", filtros.materiaId);
+        }
+        if (filtros.gestion) {
+          params.set("gestion", filtros.gestion);
+        }
+        if (filtros.facultadId && filtros.facultadId !== "TODAS") {
+          params.set("facultadId", filtros.facultadId);
+        }
+        if (filtros.carreraId && filtros.carreraId !== "TODAS") {
+          params.set("carreraId", filtros.carreraId);
+        }
+        if (filtros.docenteId && filtros.docenteId !== "TODOS") {
+          params.set("docenteId", filtros.docenteId);
+        }
+        const newQuery = params.toString();
+        const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
+        window.history.replaceState(null, "", newUrl);
+      }
+    } catch {}
+  }, [filtros, isFiltrosLoaded, currentUserId]);
 
   // Exámenes que cumplen con los filtros aplicados
   const examenesFiltrados = useMemo(() => {
@@ -244,28 +383,67 @@ export function ControlIngresosPageContainer() {
 
   const [busqueda, setBusqueda] = useState("");
 
-  // Ingresos locales agregados en la sesión (HU-20 casos excepcionales)
-  const [ingresosAgregados, setIngresosAgregados] = useState<Ingreso[]>([]);
+  // Ingresos locales agregados en la sesión (HU-20 casos excepcionales) con persistencia por examen
+  const [ingresosAgregados, setIngresosAgregados] = useState<Ingreso[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const examenIdUrl = params.get("examenId");
+      if (examenIdUrl && examenIdUrl !== "TODOS") {
+        const raw = sessionStorage.getItem(`sullu_casos_examen_${examenIdUrl}`);
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) return list;
+        }
+      }
+    } catch {}
+    return [];
+  });
   const [isCasoModalOpen, setIsCasoModalOpen] = useState(false);
+  const [isFinalizadoModalOpen, setIsFinalizadoModalOpen] = useState(false);
 
   useEffect(() => {
+    if (!isFiltrosLoaded) return;
+    if (filtros.examenId && filtros.examenId !== "TODOS") {
+      try {
+        const raw = sessionStorage.getItem(`sullu_casos_examen_${filtros.examenId}`);
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            setIngresosAgregados(list);
+            return;
+          }
+        }
+      } catch {}
+    }
     setIngresosAgregados([]);
-  }, [filtros.examenId]);
+  }, [filtros.examenId, isFiltrosLoaded]);
 
   const handleAbrirCasoExcepcional = () => {
     if (!examenSeleccionado) {
       toast.error("Selecciona un examen para registrar un caso excepcional");
       return;
     }
-    if (examenSeleccionado.estado === "FINALIZADO") {
-      toast.error("El examen ya ha finalizado");
+    if (isExamenConcluido(examenSeleccionado)) {
+      setIsFinalizadoModalOpen(true);
       return;
     }
     setIsCasoModalOpen(true);
   };
 
   const handleCasoRegistrado = (nuevoIngreso: Ingreso) => {
-    setIngresosAgregados((prev) => [nuevoIngreso, ...prev]);
+    setIngresosAgregados((prev) => {
+      const actualizados = [nuevoIngreso, ...prev.filter((i) => i.sis !== nuevoIngreso.sis)];
+      if (filtros.examenId && filtros.examenId !== "TODOS") {
+        try {
+          sessionStorage.setItem(
+            `sullu_casos_examen_${filtros.examenId}`,
+            JSON.stringify(actualizados)
+          );
+        } catch {}
+      }
+      return actualizados;
+    });
     toast.success("Caso excepcional registrado");
   };
 
@@ -281,8 +459,8 @@ export function ControlIngresosPageContainer() {
         null
       );
     }
-    return examenesFiltrados[0] || examenesEnriquecidos[0] || null;
-  }, [examenesEnriquecidos, examenesFiltrados, filtros.examenId]);
+    return null;
+  }, [examenesEnriquecidos, filtros.examenId]);
 
   const examenId = examenSeleccionado ? String(examenSeleccionado.id) : null;
 
@@ -372,8 +550,12 @@ export function ControlIngresosPageContainer() {
       return;
     }
 
-    // Criterio 18: Sin ingresos registrados para los filtros vigentes
-    const totalIngresos = dataActiva?.ingresados ?? dataActiva?.ingresos?.length ?? 0;
+    // Criterio 18: Sin ingresos registrados para los filtros vigentes (incluyendo casos excepcionales HU-20)
+    const totalIngresos = Math.max(
+      totalIngresadosCalculado,
+      todosLosIngresos.length,
+      dataActiva?.ingresados ?? 0
+    );
     if (totalIngresos === 0) {
       toast.warning("No hay ingresos registrados para descargar");
       return;
@@ -386,7 +568,12 @@ export function ControlIngresosPageContainer() {
 
   // HU-17: Confirmar descarga desde el modal
   const handleConfirmarDescarga = async () => {
-    if (!dataActiva) return;
+    const totalIngresos = Math.max(
+      totalIngresadosCalculado,
+      todosLosIngresos.length,
+      dataActiva?.ingresados ?? 0
+    );
+    if (totalIngresos === 0) return;
     if (isDownloading) return; // Evitar doble clic (Escenario Negativo 7)
 
     setIsDownloading(true);
@@ -404,9 +591,16 @@ export function ControlIngresosPageContainer() {
           gestion: filtros.gestion,
         };
 
+      const datosParaDescarga: IngresosExamen = {
+        examenId: dataActiva?.examenId ?? filtros.examenId,
+        total: Math.max(dataActiva?.total ?? 0, totalIngresadosCalculado),
+        ingresados: totalIngresadosCalculado,
+        ingresos: todosLosIngresos,
+      };
+
       const { blob, filename } = await descargarReporteIngresosPdf(
         examenBase,
-        dataActiva,
+        datosParaDescarga,
         docenteNombre,
         {
           facultad:
@@ -461,8 +655,8 @@ export function ControlIngresosPageContainer() {
           <div className="flex justify-end">
             <EnVivoBadge
               conexion={conexion}
-              ingresados={dataActiva?.ingresados}
-              total={dataActiva?.total}
+              ingresados={totalIngresadosCalculado}
+              total={Math.max(dataActiva?.total ?? 0, totalIngresadosCalculado)}
             />
           </div>
 
@@ -472,12 +666,10 @@ export function ControlIngresosPageContainer() {
               {isDocente && (
                 <BotonCasoExcepcional
                   onClick={handleAbrirCasoExcepcional}
-                  disabled={!examenSeleccionado || examenSeleccionado?.estado === "FINALIZADO"}
+                  disabled={!examenSeleccionado}
                   disabledReason={
                     !examenSeleccionado
                       ? "Selecciona un examen para registrar casos excepcionales"
-                      : examenSeleccionado?.estado === "FINALIZADO"
-                      ? "El examen está finalizado"
                       : undefined
                   }
                 />
@@ -553,6 +745,15 @@ export function ControlIngresosPageContainer() {
           onRetry={handleConfirmarDescarga}
         />
 
+        {/* HU-20: Modal informativo cuando el examen ha concluido */}
+        <ExamenFinalizadoModal
+          isOpen={isFinalizadoModalOpen}
+          onClose={() => setIsFinalizadoModalOpen(false)}
+          examenNombre={examenSeleccionado?.nombre}
+          horario={examenSeleccionado?.horario}
+          fecha={examenSeleccionado?.fecha}
+        />
+
         {/* HU-20: Modal de registro de casos excepcionales */}
         <RegistrarCasoExcepcionalModal
           isOpen={isCasoModalOpen}
@@ -560,6 +761,7 @@ export function ControlIngresosPageContainer() {
           examen={examenSeleccionado}
           ingresosActuales={todosLosIngresos}
           onCasoRegistrado={handleCasoRegistrado}
+          onExamenFinalizado={() => setIsFinalizadoModalOpen(true)}
         />
       </div>
     </PageContainer>

@@ -48,6 +48,7 @@ export function estadoCasoExamen(
     examen.estado === EstadoExamen.FINALIZADO
   )
     return examen.estado;
+
   const { inicio, fin } = horarioCasoExamen(examen);
   if (ahora >= fin) return EstadoExamen.FINALIZADO;
   return ahora >= inicio || examen.estado === EstadoExamen.EN_CURSO
@@ -207,6 +208,7 @@ export class CasosExcepcionalesService {
             metodo: 'MANUAL',
             fechaHora: ahora,
             esOffline: false,
+            casoExcepcional: dto.motivo.slice(0, 50),
           },
           include: { estudiante: true },
         });

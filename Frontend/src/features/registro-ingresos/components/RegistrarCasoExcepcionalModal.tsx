@@ -37,6 +37,7 @@ interface RegistrarCasoExcepcionalModalProps {
   examen: ExamenControl | null;
   ingresosActuales: Ingreso[];
   onCasoRegistrado: (nuevoIngreso: Ingreso) => void;
+  onExamenFinalizado?: () => void;
 }
 
 const MAX_MOTIVO_LENGTH = 50;
@@ -47,6 +48,7 @@ export function RegistrarCasoExcepcionalModal({
   examen,
   ingresosActuales,
   onCasoRegistrado,
+  onExamenFinalizado,
 }: RegistrarCasoExcepcionalModalProps) {
   // Pasos: "formulario" (Paso 1) | "confirmacion" (Paso 2)
   const [paso, setPaso] = useState<"formulario" | "confirmacion">("formulario");
@@ -235,7 +237,23 @@ export function RegistrarCasoExcepcionalModal({
       const mensaje = isAxiosError<{ message?: string | string[] }>(err)
         ? err.response?.data?.message
         : undefined;
-      toast.error(Array.isArray(mensaje) ? mensaje.join(". ") : mensaje || "No se pudo registrar el caso. Intenta nuevamente.");
+      const strMensaje = Array.isArray(mensaje)
+        ? mensaje.join(". ")
+        : String(mensaje || "");
+
+      if (
+        strMensaje.toLowerCase().includes("finalizado") ||
+        strMensaje.toLowerCase().includes("concluido")
+      ) {
+        handleResetForm();
+        onClose();
+        onExamenFinalizado?.();
+        return;
+      }
+
+      toast.error(
+        strMensaje || "No se pudo registrar el caso. Intenta nuevamente."
+      );
     } finally {
       setIsSubmitting(false);
     }
