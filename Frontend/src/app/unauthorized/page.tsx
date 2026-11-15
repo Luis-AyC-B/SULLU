@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { marcarCierreSesionVoluntario } from '@/shared/lib/api-client';
 import { ShieldAlert, ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { getLandingRoute } from '@/features/auth/hooks/useLogin';
@@ -45,7 +46,10 @@ function UnauthorizedContent() {
 
           <Button
             variant="outline"
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={() => {
+              marcarCierreSesionVoluntario();
+              signOut({ callbackUrl: '/login' });
+            }}
             className="w-full border-slate-300 text-slate-700 hover:bg-slate-100"
           >
             <LogOut className="mr-2 h-4 w-4" />

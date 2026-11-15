@@ -587,8 +587,17 @@ export async function getIngresosExamen(
   }
 
   try {
-    const { data } = await apiClient.get(`/examenes/${examenId}/ingresos`);
-    const parsed = ingresosExamenSchema.parse(data);
+    let rawData;
+    try {
+      const { data } = await apiClient.get(`/examenes/${examenId}/ingresos`);
+      rawData = data;
+    } catch {
+      const { data } = await apiClient.get(
+        `/ingresos/caso-excepcional/examen/${examenId}/ingresos`
+      );
+      rawData = data;
+    }
+    const parsed = ingresosExamenSchema.parse(rawData);
 
     if (typeof window !== 'undefined') {
       try {
@@ -661,51 +670,7 @@ export async function descargarReporteIngresosPdf(
     filtrosAplicados?.facultad
   );
 
-  if (FORCE_MOCKS) {
-    const blob = generarPdfReporteIngresos({
-      examen,
-      examenesLista,
-      ingresos: datos.ingresos,
-      ingresados: datos.ingresados,
-      total: datos.total,
-      docenteNombre,
-      filtrosAplicados,
-    });
-    return { blob, filename };
-  }
-
-  try {
-    const response = await apiClient.get(`/examenes/${examen.id}/reporte-asistencia`, {
-      responseType: 'blob',
-      timeout: 10000,
-    });
-    if (response.data) {
-      const blob =
-        response.data instanceof Blob
-          ? response.data
-          : new Blob([response.data], { type: 'application/pdf' });
-      return { blob, filename };
-    }
-  } catch (error) {
-    if (
-      isEndpointMissing(error) ||
-      (isAxiosError(error) && (!error.response || error.response.status >= 500))
-    ) {
-      const blob = generarPdfReporteIngresos({
-        examen,
-        examenesLista,
-        ingresos: datos.ingresos,
-        ingresados: datos.ingresados,
-        total: datos.total,
-        docenteNombre,
-        filtrosAplicados,
-      });
-      return { blob, filename };
-    }
-    throw error;
-  }
-
-  const fallbackBlob = generarPdfReporteIngresos({
+  const blob = await generarPdfReporteIngresos({
     examen,
     examenesLista,
     ingresos: datos.ingresos,
@@ -714,7 +679,7 @@ export async function descargarReporteIngresosPdf(
     docenteNombre,
     filtrosAplicados,
   });
-  return { blob: fallbackBlob, filename };
+  return { blob, filename };
 }
 
 
@@ -781,19 +746,6 @@ export async function buscarEstudiantesExamen(
 export async function registrarCasoExcepcional(
   payload: RegistrarCasoExcepcionalPayload
 ): Promise<Ingreso> {
-  try {
-    const { data } = await apiClient.post('/ingresos/caso-excepcional', payload);
-    return ingresoSchema.parse(data);
-  } catch {
-    return {
-      id: `caso-${Date.now()}`,
-      hora: new Date().toISOString(),
-      sis: payload.codigoSis,
-      estudiante: 'Estudiante Caso Excepcional',
-      ci: '1234567',
-      metodo: 'Manual',
-      estado: 'Habilitado',
-      casoExcepcional: payload.motivo,
-    };
-  }
+  const { data } = await apiClient.post('/ingresos/caso-excepcional', payload);
+  return ingresoSchema.parse(data);
 }
