@@ -2,7 +2,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getExamenesControl } from "../api/ingresos.service";
+import {
+  getExamenesControl,
+  obtenerExamenesControlOffline,
+} from "../api/ingresos.service";
 import type { ExamenControl } from "../types/ingresos.types";
 
 export function useExamenesControl() {
@@ -17,7 +20,14 @@ export function useExamenesControl() {
         if (!cancelled) setExamenes(data);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled) {
+          const fallback = obtenerExamenesControlOffline();
+          if (fallback && fallback.length > 0) {
+            setExamenes(fallback);
+          } else {
+            setError(true);
+          }
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);

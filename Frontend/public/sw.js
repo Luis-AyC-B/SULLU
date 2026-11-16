@@ -1,7 +1,7 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v11';
+const VERSION = 'v12';
 const STATIC_CACHE   = `portal-static-${VERSION}`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
 const IMAGES_CACHE   = `portal-images-${VERSION}`;
@@ -20,7 +20,11 @@ self.addEventListener('install', (event) => {
     (async () => {
       try {
         const cache = await caches.open(OPERATOR_CACHE);
-        await cache.add('/control-ingreso');
+        await cache.addAll([
+          '/control-ingreso',
+          '/registro-ingresos',
+          '/ingresos-rechazados',
+        ]);
       } catch {
         // En caso de que el servidor no responda durante install
       }
@@ -63,7 +67,7 @@ async function networkFirst(request, cacheName, fallbackUrl) {
     let hit =
       (await cache.match(request, { ignoreVary: true })) ||
       (fallbackUrl ? await cache.match(fallbackUrl, { ignoreVary: true }) : null);
-    if (!hit) {
+    if (!hit && cacheName === OPERATOR_CACHE) {
       hit = await cache.match('/control-ingreso', { ignoreVary: true });
     }
     return hit || Response.error();
@@ -113,8 +117,14 @@ self.addEventListener('fetch', (event) => {
   const esRsc = request.headers.get('RSC') === '1' || url.searchParams.has('_rsc');
 
   // Módulos del operador: network-first con cache propio
-  // Incluye: /control-ingreso, /ingresos, /incidencias
-  const RUTAS_OPERADOR = ['/control-ingreso', '/ingresos', '/incidencias'];
+  // Incluye: /control-ingreso, /registro-ingresos, /ingresos-rechazados
+  const RUTAS_OPERADOR = [
+    '/control-ingreso',
+    '/registro-ingresos',
+    '/ingresos-rechazados',
+    '/ingresos',
+    '/incidencias',
+  ];
   const esRutaOperador =
     mismoOrigen && RUTAS_OPERADOR.some((r) => url.pathname.startsWith(r));
 

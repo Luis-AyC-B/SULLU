@@ -29,6 +29,7 @@ export function Sidebar() {
             <Link
               key={modulo.clave}
               href={modulo.ruta}
+              prefetch={true}
               className={`flex items-center gap-3 rounded-md px-4 py-3.5 text-sm font-medium transition-all duration-200 ${
                 isActive
                   ? "border-l-4 border-destructive bg-primary-foreground/15 text-primary-foreground font-semibold"

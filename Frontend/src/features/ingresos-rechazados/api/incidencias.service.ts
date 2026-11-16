@@ -185,15 +185,12 @@ function enriquecerExamenIncidencia(e: any): ExamenIncidencia {
 export function obtenerExamenesIncidenciasFallback(): ExamenIncidencia[] {
   if (typeof window === "undefined") return [];
 
-  // 1. Probar caché específico de incidencias (solo si no tiene docentes genéricos mock)
+  // 1. Probar caché específico de incidencias
   const rawInc = localStorage.getItem(EXAMENES_CACHE_KEY);
   if (rawInc) {
     try {
       const parsed = examenesIncidenciaSchema.parse(JSON.parse(rawInc));
-      const tieneDocenteGenerico = parsed.some(
-        (e) => !e.docente || e.docente === "Docente asignado"
-      );
-      if (!tieneDocenteGenerico && parsed.length > 0) return parsed;
+      if (parsed.length > 0) return parsed;
     } catch {}
   }
 
@@ -218,6 +215,23 @@ export function obtenerExamenesIncidenciasFallback(): ExamenIncidencia[] {
       }
     } catch {}
   }
+
+  // 4. Probar examen activo en sesión (control-ingreso)
+  try {
+    const rawActive = sessionStorage.getItem("exacontrol_active_exam");
+    if (rawActive) {
+      const active = JSON.parse(rawActive) as {
+        id?: number | string;
+        examenId?: number | string;
+        nombre?: string;
+        asignatura?: string;
+        fecha?: string;
+      };
+      if (active && (active.id || active.examenId)) {
+        return [enriquecerExamenIncidencia(active)];
+      }
+    }
+  } catch {}
 
   return [];
 }
@@ -466,15 +480,38 @@ export async function getIncidenciasConsolidadas(
     );
   }
 
-  if (examenIds.length === 0) {
-    return [];
+  // Pendientes locales que aún no se sincronizan
+  const pendientesLocales: Incidencia[] = offlineIncidenciasService
+    .obtenerTodosSync()
+    .filter((p) => !p.sincronizado)
+    .map((p) => ({
+      id: String(p.id),
+      examenId: String(p.examenId),
+      fechaHora: p.fechaHoraCaptura,
+      codigoSis: String(p.codigoSis),
+      estudianteNombre: p.estudianteNombre || "Estudiante",
+      motivo: p.motivo,
+      observaciones: p.observaciones ?? null,
+      registradoPor: "Controlador (offline)",
+    }));
+
+  let targetIds = examenIds.filter((id) => id !== "TODOS");
+
+  if (targetIds.length === 0) {
+    const fallbackExamenes = obtenerExamenesIncidenciasFallback();
+    if (fallbackExamenes.length > 0) {
+      targetIds = fallbackExamenes.map((e) => String(e.id));
+    }
   }
 
-  const promesas = examenIds
-    .filter((id) => id !== "TODOS")
-    .map((id) => getIncidenciasExamen(id).catch(() => []));
+  if (targetIds.length === 0) {
+    return ordenarMasRecientes(pendientesLocales);
+  }
+
+  const promesas = targetIds.map((id) => getIncidenciasExamen(id).catch(() => []));
   const resultados = await Promise.all(promesas);
   const mapa = new Map<string, Incidencia>();
+  pendientesLocales.forEach((inc) => mapa.set(String(inc.id), inc));
   resultados.flat().forEach((inc) => mapa.set(String(inc.id), inc));
   return ordenarMasRecientes(Array.from(mapa.values()));
 }
@@ -518,6 +555,18 @@ export async function getObservacionesIngreso(
       list = list.filter((i) => String(i.examenId) === String(filtros.examenId));
     }
     const filtradas = filtrarIncidenciasPorMotivo(list, filtros.motivo);
+    return { total: filtradas.length, items: filtradas };
+  }
+
+  // Si no hay conexión en el navegador, responder inmediatamente desde la caché e incidencias locales
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (filtros.examenId && filtros.examenId !== "TODOS") {
+      const local = await getIncidenciasExamen(filtros.examenId);
+      const filtradas = filtrarIncidenciasPorMotivo(local, filtros.motivo);
+      return { total: filtradas.length, items: filtradas };
+    }
+    const all = await getIncidenciasConsolidadas([]);
+    const filtradas = filtrarIncidenciasPorMotivo(all, filtros.motivo);
     return { total: filtradas.length, items: filtradas };
   }
 
@@ -579,7 +628,14 @@ export async function getObservacionesIngreso(
       items: ordenarMasRecientes(filtradas),
     };
   } catch (error) {
-    if (esRutaInexistente(error)) {
+    const sinConexion =
+      (typeof navigator !== "undefined" && !navigator.onLine) ||
+      (isAxiosError(error) &&
+        (!error.response ||
+          error.code === "ERR_NETWORK" ||
+          error.code === "ECONNABORTED"));
+
+    if (sinConexion || esRutaInexistente(error)) {
       if (filtros.examenId && filtros.examenId !== "TODOS") {
         const local = await getIncidenciasExamen(filtros.examenId);
         const filtradas = filtrarIncidenciasPorMotivo(local, filtros.motivo);
@@ -606,9 +662,6 @@ export async function getObservacionesIngreso(
       }
       if (error.response?.status === 401) {
         throw new Error("Sesión no autorizada o expirada. Por favor, inicia sesión nuevamente.");
-      }
-      if (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") {
-        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.");
       }
     }
 
