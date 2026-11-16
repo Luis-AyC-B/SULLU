@@ -1,7 +1,7 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v7';
+const VERSION = 'v10';
 const STATIC_CACHE   = `portal-static-${VERSION}`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
 const IMAGES_CACHE   = `portal-images-${VERSION}`;
@@ -14,8 +14,18 @@ self.addEventListener('message', (event) => {
   }
 });
 
-self.addEventListener('install', () => {
+self.addEventListener('install', (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    (async () => {
+      try {
+        const cache = await caches.open(OPERATOR_CACHE);
+        await cache.add('/control-ingreso');
+      } catch {
+        // En caso de que el servidor no responda durante install
+      }
+    })()
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -50,9 +60,12 @@ async function networkFirst(request, cacheName, fallbackUrl) {
     if (res && res.ok) cache.put(request, res.clone());
     return res;
   } catch {
-    const hit =
+    let hit =
       (await cache.match(request, { ignoreVary: true })) ||
       (fallbackUrl ? await cache.match(fallbackUrl, { ignoreVary: true }) : null);
+    if (!hit) {
+      hit = await cache.match('/control-ingreso', { ignoreVary: true });
+    }
     return hit || Response.error();
   }
 }
@@ -77,8 +90,18 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   const mismoOrigen = url.origin === self.location.origin;
 
-  // Autenticación de Next y chunks dinámicos de Next.js: NUNCA interceptar
-  if (mismoOrigen && (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/'))) return;
+  // Autenticación de Next: no se intercepta
+  if (mismoOrigen && url.pathname.startsWith('/api/')) return;
+
+  // QRs de prueba y dashboard de testing: NO interceptar ni cachear
+  if (url.pathname.startsWith('/qrs_offline/') || url.pathname.includes('qrs-offline')) return;
+
+  // Next.js chunks y assets estáticos: Network-first (red cuando hay conexión para no interferir con HMR, y fallback a caché cuando está offline)
+  if (mismoOrigen && url.pathname.startsWith('/_next/static/')) {
+    if (url.pathname.includes('hot-update')) return;
+    event.respondWith(networkFirst(request, STATIC_CACHE));
+    return;
+  }
 
   // Imágenes y fotos de perfil
   if (request.destination === 'image' || url.pathname.startsWith('/uploads/')) {

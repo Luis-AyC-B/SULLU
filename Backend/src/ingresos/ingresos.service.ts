@@ -970,6 +970,7 @@ export class IngresosService {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit',
+                timeZone: 'America/La_Paz',
               })
             : undefined;
           throw new ConflictException({
@@ -1022,11 +1023,13 @@ export class IngresosService {
           descripcion: 'Intento de reingreso con código QR',
         },
       });
-      const horaIngresoPrevio = ingresoExistentePrevio.fechaHora?.toLocaleTimeString
+      const horaIngresoPrevio = ingresoExistentePrevio.fechaHora
+        ?.toLocaleTimeString
         ? ingresoExistentePrevio.fechaHora.toLocaleTimeString('es-BO', {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
+            timeZone: 'America/La_Paz',
           })
         : undefined;
       throw new ConflictException({
@@ -1175,8 +1178,6 @@ export class IngresosService {
         where: { estudianteId: estudiante.id, estado: 'ACTIVA' },
         orderBy: { creadaEn: 'desc' },
       });
-      if (!foto)
-        throw new BadRequestException('Fotografía original no disponible');
       return {
         success: true,
         ...grupo,
@@ -1185,7 +1186,7 @@ export class IngresosService {
           nombre: estudiante.nombre,
           apellido: estudiante.apellido,
           codSis: estudiante.cod_sis,
-          fotoUrl: foto.archivo,
+          fotoUrl: foto?.archivo ?? null,
           requiereConfirmacion: true,
           examen: examen.tipoExamen,
           estadoHabilitado: true,
@@ -1537,6 +1538,22 @@ export class IngresosService {
         continue;
       }
 
+      const { fueraDeGrupo, advertencia } = await this.validarGrupoAsignado(
+        item.examenId,
+        registradoPorId,
+        estudianteId,
+      );
+
+      if (fueraDeGrupo) {
+        rechazados.push({
+          clienteSyncId: item.clienteSyncId,
+          motivo:
+            advertencia ||
+            'El estudiante no pertenece a la fila/grupo asignado a este controlador',
+        });
+        continue;
+      }
+
       const nuevoIngreso = await this.prisma.ingreso.create({
         data: {
           estudianteId,
@@ -1608,7 +1625,7 @@ export class IngresosService {
   async buscarEstudiantesExamen(
     examenId: number,
     query?: string,
-    colaboradorId?: number,
+    _colaboradorId?: number,
   ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
@@ -1619,7 +1636,9 @@ export class IngresosService {
     }
 
     // Obtener partición completa para enriquecer resultados con nombreLista/rango
-    let particion: import('./particion-controlador.service').ResumenParticionExamen | null = null;
+    let particion:
+      import('./particion-controlador.service').ResumenParticionExamen | null =
+      null;
 
     if (this.particionService) {
       try {
@@ -1664,6 +1683,11 @@ export class IngresosService {
               orderBy: { fechaHora: 'desc' },
               take: 1,
             },
+            fotos: {
+              where: { estado: 'ACTIVA' },
+              orderBy: { creadaEn: 'desc' },
+              take: 1,
+            },
           },
         },
       },
@@ -1673,7 +1697,8 @@ export class IngresosService {
 
     // Función auxiliar para obtener datos de lista de un estudiante en la partición
     const getListaInfo = (estudianteId: number) => {
-      if (!particion) return { nombreLista: undefined, rangoAsignado: undefined };
+      if (!particion)
+        return { nombreLista: undefined, rangoAsignado: undefined };
       const grupo = particion.grupos.find((g) =>
         g.estudianteIds.includes(estudianteId),
       );
@@ -1683,30 +1708,35 @@ export class IngresosService {
     };
 
     return inscripciones.map((ee) => {
-        const ultimoIngreso = ee.estudiante.ingresos?.[0];
-        const { nombreLista, rangoAsignado } = getListaInfo(ee.estudianteId);
-        return {
-          id: ee.estudianteId,
-          codSis: ee.estudiante.cod_sis,
-          ci: ee.estudiante.ci || '',
-          nombre: ee.estudiante.nombre,
-          apellido: ee.estudiante.apellido || '',
-          estadoHabilitado: ee.estado_habilitado,
-          motivoInhabilitacion: ee.motivo_inhabilitacion,
-          ambienteAsignado: '',
-          yaIngreso: !!ultimoIngreso,
-          horaIngresoPrevio: ultimoIngreso
-            ? new Date(ultimoIngreso.fechaHora).toLocaleTimeString('es-BO', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : undefined,
-          metodoIngresoPrevio: ultimoIngreso?.metodo as
-            'QR' | 'MANUAL' | undefined,
-          nombreLista,
-          rangoAsignado,
-        };
-      });
+      const ultimoIngreso = ee.estudiante.ingresos?.[0];
+      const { nombreLista, rangoAsignado } = getListaInfo(ee.estudianteId);
+      const fotoActiva =
+        ee.estudiante.fotos?.[0]?.archivo || ee.estudiante.fotoUrl;
+      return {
+        id: ee.estudianteId,
+        codSis: ee.estudiante.cod_sis,
+        ci: ee.estudiante.ci || '',
+        nombre: ee.estudiante.nombre,
+        apellido: ee.estudiante.apellido || '',
+        fotoUrl: fotoActiva || null,
+        estadoHabilitado: ee.estado_habilitado,
+        motivoInhabilitacion: ee.motivo_inhabilitacion,
+        ambienteAsignado: '',
+        yaIngreso: !!ultimoIngreso,
+        horaIngresoPrevio: ultimoIngreso
+          ? new Date(ultimoIngreso.fechaHora).toLocaleTimeString('es-BO', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              timeZone: 'America/La_Paz',
+            })
+          : undefined,
+        metodoIngresoPrevio: ultimoIngreso?.metodo as
+          'QR' | 'MANUAL' | undefined,
+        nombreLista,
+        rangoAsignado,
+      };
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────

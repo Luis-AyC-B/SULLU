@@ -24,9 +24,19 @@ apiClient.interceptors.request.use(async (config) => {
     config.baseURL = `http://${window.location.hostname}:3001`;
   }
 
-  const session = await getSession();
-  if (session?.user?.accessToken) {
-    config.headers.Authorization = `Bearer ${session.user.accessToken}`;
+  // Si el navegador está sin conexión, evitar llamar a getSession() de Next-Auth
+  // para no provocar [CLIENT_FETCH_ERROR] al intentar consultar /api/auth/session
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return config;
+  }
+
+  try {
+    const session = await getSession();
+    if (session?.user?.accessToken) {
+      config.headers.Authorization = `Bearer ${session.user.accessToken}`;
+    }
+  } catch {
+    // Silenciar error en caso de corte o desconexión
   }
   return config;
 });

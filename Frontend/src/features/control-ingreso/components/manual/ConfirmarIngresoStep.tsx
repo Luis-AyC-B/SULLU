@@ -50,6 +50,14 @@ export function ConfirmarIngresoStep({
       (e) => e.id === estudiante.id || e.codSis === estudiante.codSis
     );
 
+  const backendUrl =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  const fotoSrc = estudiante.fotoUrl
+    ? estudiante.fotoUrl.startsWith("http") || estudiante.fotoUrl.startsWith("data:")
+      ? estudiante.fotoUrl
+      : `${backendUrl}${estudiante.fotoUrl.startsWith("/") ? "" : "/"}${estudiante.fotoUrl}`
+    : null;
+
   return (
     <div className="flex flex-col gap-4 animate-in fade-in duration-200">
       {/* Botón Volver */}
@@ -64,14 +72,35 @@ export function ConfirmarIngresoStep({
 
       {/* Cabecera de Identidad del Estudiante */}
       <div className="flex items-start justify-between gap-3 pt-1">
-        <div className="min-w-0 flex-1">
-          <h4 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight break-words">
-            {nombreCompleto}
-          </h4>
-          <p className="text-xs md:text-sm text-slate-500 font-mono mt-1">
-            {estudiante.codSis.replace(/-/g, "")}
-            {estudiante.ci && ` · ${estudiante.ci}`}
-          </p>
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          {/* Fotografía / Avatar del estudiante */}
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-slate-200 bg-slate-100 shadow-2xs">
+            {fotoSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={fotoSrc}
+                alt={nombreCompleto}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400 font-bold text-sm">
+                <span>
+                  {estudiante.nombre?.charAt(0) || "E"}
+                  {estudiante.apellido ? estudiante.apellido.charAt(0) : ""}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h4 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight break-words">
+              {nombreCompleto}
+            </h4>
+            <p className="text-xs md:text-sm text-slate-500 font-mono mt-0.5">
+              {estudiante.codSis.replace(/-/g, "")}
+              {estudiante.ci && ` · ${estudiante.ci}`}
+            </p>
+          </div>
         </div>
 
         {/* Badge de Habilitación */}

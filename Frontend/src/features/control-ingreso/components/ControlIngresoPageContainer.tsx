@@ -15,7 +15,7 @@ export function ControlIngresoPageContainer() {
 
   // Revalidar el estado del examen activo con el servidor para evitar datos obsoletos en sessionStorage
   useEffect(() => {
-    if (examenActivo?.id) {
+    if (examenActivo?.id && typeof navigator !== "undefined" && navigator.onLine) {
       controlIngresoService
         .getMisExamenes()
         .then((lista) => {

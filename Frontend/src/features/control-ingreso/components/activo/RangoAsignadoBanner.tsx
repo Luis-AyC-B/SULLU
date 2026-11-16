@@ -70,19 +70,24 @@ export function RangoAsignadoBanner({ miGrupo }: RangoAsignadoBannerProps) {
       </div>
 
       {/* Lado derecho: conteo */}
-      <div className="flex items-center gap-2 shrink-0 sm:text-right">
-        <span
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-bold shadow-xs"
-          style={{ backgroundColor: "#002D62", color: "#ffffff" }}
-        >
-          <span>{miGrupo.totalEstudiantesGrupo}</span>
-          <span className="font-normal opacity-85" style={{ color: "#ffffff" }}>
-            / {miGrupo.totalEstudiantesExamen}
+      <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-bold shadow-xs"
+            style={{ backgroundColor: "#002D62", color: "#ffffff" }}
+          >
+            <span>{miGrupo.totalEstudiantesGrupo}</span>
+            <span className="font-normal opacity-85" style={{ color: "#ffffff" }}>
+              / {miGrupo.totalEstudiantesExamen}
+            </span>
           </span>
-        </span>
-        <span className="text-xs text-slate-600 font-medium hidden sm:inline">
-          estudiantes
-        </span>
+          <span className="text-xs text-slate-700 font-semibold">
+            estudiantes
+          </span>
+        </div>
+        <p className="text-[11px] text-slate-500 font-medium">
+          {miGrupo.totalEstudiantesGrupo} en tu fila de {miGrupo.totalEstudiantesExamen} en total del examen
+        </p>
       </div>
     </div>
   );

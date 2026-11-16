@@ -599,23 +599,64 @@ export async function getIngresosExamen(
     }
     const parsed = ingresosExamenSchema.parse(rawData);
 
+    // Fusionar con pendientes offline locales que aún no se hayan reflejado en el backend
+    let ingresosFinal = parsed.ingresos;
+    try {
+      const rawPendientes = localStorage.getItem("sullu_offline_ingresos_queue");
+      if (rawPendientes) {
+        const items = JSON.parse(rawPendientes) as Array<{
+          clienteSyncId: string;
+          examenId: number | string;
+          identificador: string;
+          metodo: "QR" | "MANUAL";
+          fechaHora: string;
+          codSis?: string;
+          nombreReferencial?: string;
+        }>;
+        const delExamen = items.filter(
+          (i) =>
+            String(i.examenId) === String(examenId) &&
+            !parsed.ingresos.some((ya) => ya.sis === i.codSis)
+        );
+        if (delExamen.length > 0) {
+          const offlineMapeados: Ingreso[] = delExamen.map((p) => ({
+            id: p.clienteSyncId,
+            hora: p.fechaHora,
+            sis:
+              p.codSis ||
+              (p.identificador.length > 20 ? "QR Offline" : p.identificador),
+            estudiante: p.nombreReferencial || "Estudiante (offline)",
+            metodo: p.metodo === "MANUAL" ? ("Manual" as const) : ("QR" as const),
+            estado: "Habilitado" as const,
+          }));
+          ingresosFinal = [...offlineMapeados, ...parsed.ingresos];
+        }
+      }
+    } catch {}
+
+    const resultadoFinal: IngresosExamen = {
+      ...parsed,
+      ingresados: ingresosFinal.length,
+      ingresos: ingresosFinal,
+    };
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(
           `${INGRESOS_CACHE_PREFIX}${examenId}`,
-          JSON.stringify(parsed)
+          JSON.stringify(resultadoFinal)
         );
         await idbPut(SULLU_STORES.INGRESOS_VISTA, {
           examenId: Number(examenId),
           cachedAt: new Date().toISOString(),
-          data: parsed,
+          data: resultadoFinal,
         });
       } catch {
         // Ignorar
       }
     }
 
-    return parsed;
+    return resultadoFinal;
   } catch (error) {
     // Si el endpoint no existe (404), devolvemos datos vacíos.
     // Cuando el backend esté disponible devolverá los datos reales.

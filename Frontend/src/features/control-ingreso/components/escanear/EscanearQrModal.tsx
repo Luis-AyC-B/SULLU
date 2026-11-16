@@ -68,6 +68,7 @@ export function EscanearQrModal({
     ambienteAsignado: qr.ambienteAsignado ?? "",
     yaIngreso: qr.yaIngreso ?? false,
     horaIngresoPrevio: qr.horaIngresoPrevio,
+    fotoUrl: qr.fotoUrl,
   });
 
   // Estado de confirmación QR (reemplaza QrSuccessCard)
@@ -176,6 +177,16 @@ export function EscanearQrModal({
         );
 
         if (resultado.success && resultado.estudiante) {
+          // HU17: Si el estudiante no pertenece a la fila asignada, mostrar la excepción "Fila incorrecta"
+          if (resultado.fueraDeGrupo) {
+            setExcepcionActiva({
+              tipo: "FUERA_DE_GRUPO",
+              estudiante: resultado.estudiante,
+            });
+            isProcessingRef.current = false;
+            return;
+          }
+
           // QR VÁLIDO → mostrar modal de confirmación (reutilizar ConfirmarIngresoStep)
           playSuccessChime();
           tokenPendienteRef.current = cleanToken;
