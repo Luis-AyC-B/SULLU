@@ -32,6 +32,7 @@ const EXAMEN_INCLUDE = {
       },
     },
   },
+  responsable: true,
   // Agregar esto para contar los estudiantes habilitados e ingresos desde la BD
   _count: {
     select: {
@@ -79,6 +80,9 @@ export class ExamenesService {
   private formatExamenResponse(e: ExamenCompleto) {
     const cm = e.carrerasMaterias?.[0]?.carrera_materia;
     const cmDirect = e.carrerasMaterias?.[0];
+    const docenteNombre = e.responsable
+      ? `${e.responsable.nombre} ${e.responsable.apellido ?? ''}`.trim()
+      : 'Docente';
     return {
       ...e,
       // Estado real según fecha y hora (la BD solo guarda PROGRAMADO/CANCELADO)
@@ -90,6 +94,9 @@ export class ExamenesService {
       carreraNombre: cm?.carrera?.nombre ?? '',
       facultadId: cm?.carrera?.facultad?.id ?? 0,
       facultadNombre: cm?.carrera?.facultad?.nombre ?? '',
+      docenteId: e.usuarioId,
+      docenteNombre,
+      docente: docenteNombre,
       reservaAmbienteId: e.reservaAmbienteId,
       ambienteId:
         e.reservaAmbiente?.ambiente?.id ?? e.reservaAmbiente?.ambienteId ?? 0,
@@ -437,71 +444,100 @@ export class ExamenesService {
   async findAll(query: QueryExamenDto, usuarioId: number, isAdmin = false) {
     let whereClause: Prisma.ExamenWhereInput;
 
+    const materiaIdInt = query.materiaId ? Number(query.materiaId) : undefined;
+    const carreraIdInt = query.carreraId ? Number(query.carreraId) : undefined;
+    const facultadIdInt = query.facultadId
+      ? Number(query.facultadId)
+      : undefined;
+
+    const andFilters: Prisma.Examen_Carrera_MateriaWhereInput[] = [
+      ...(materiaIdInt ? [{ materiaId: materiaIdInt }] : []),
+      ...(carreraIdInt ? [{ carreraId: carreraIdInt }] : []),
+      ...(facultadIdInt
+        ? [
+            {
+              carrera_materia: {
+                carrera: { facultadId: facultadIdInt },
+              },
+            },
+          ]
+        : []),
+    ];
+
     if (isAdmin) {
-      // Admin ve todos los exámenes no cancelados (sin filtro de alcance)
-      const materiaIdInt = query.materiaId
-        ? Number(query.materiaId)
-        : undefined;
-      const carreraIdInt = query.carreraId
-        ? Number(query.carreraId)
-        : undefined;
-      const facultadIdInt = query.facultadId
-        ? Number(query.facultadId)
-        : undefined;
-      whereClause = {
-        carrerasMaterias: {
-          some: {
-            AND: [
-              ...(materiaIdInt ? [{ materiaId: materiaIdInt }] : []),
-              ...(carreraIdInt ? [{ carreraId: carreraIdInt }] : []),
-              ...(facultadIdInt
-                ? [
-                    {
-                      carrera_materia: {
-                        carrera: { facultadId: facultadIdInt },
-                      },
-                    },
-                  ]
-                : []),
-            ],
-          },
-        },
-      };
+      // 1. Administrador: ve todo sin filtro de alcance
+      whereClause =
+        andFilters.length > 0
+          ? {
+              carrerasMaterias: {
+                some: {
+                  AND: andFilters,
+                },
+              },
+            }
+          : {};
     } else {
-      const condicionesAlcance = await this.condicionesAlcance(usuarioId);
-      if (condicionesAlcance.length === 0) return [];
-
-      const materiaIdInt = query.materiaId
-        ? Number(query.materiaId)
-        : undefined;
-      const carreraIdInt = query.carreraId
-        ? Number(query.carreraId)
-        : undefined;
-      const facultadIdInt = query.facultadId
-        ? Number(query.facultadId)
-        : undefined;
-
-      whereClause = {
-        usuarioId,
-        carrerasMaterias: {
-          some: {
-            AND: [
-              { OR: condicionesAlcance },
-              ...(materiaIdInt ? [{ materiaId: materiaIdInt }] : []),
-              ...(carreraIdInt ? [{ carreraId: carreraIdInt }] : []),
-              ...(facultadIdInt
-                ? [
-                    {
-                      carrera_materia: {
-                        carrera: { facultadId: facultadIdInt },
-                      },
-                    },
-                  ]
-                : []),
-            ],
+      // Obtener el rol del usuario para determinar su modelo de acceso
+      const usuario = await this.prisma.usuario.findUnique({
+        where: { id: usuarioId },
+        include: {
+          roles: {
+            include: { rol: true },
           },
         },
-      };
+      });
+
+      const rolNombre = usuario?.roles?.[0]?.rol?.nombre?.toLowerCase() || '';
+      const esDocente = rolNombre.includes('docente');
+      const esControlador =
+        rolNombre.includes('control') ||
+        rolNombre.includes('colaborador') ||
+        rolNombre.includes('estudiante');
+
+      if (esControlador) {
+        // 2. Controlador: solo ve los exámenes que se le han asignado
+        whereClause = {
+          controladores: {
+            some: { colaboradorId: usuarioId },
+          },
+          ...(andFilters.length > 0
+            ? {
+                carrerasMaterias: {
+                  some: {
+                    AND: andFilters,
+                  },
+                },
+              }
+            : {}),
+        };
+      } else if (esDocente) {
+        // 3. Docente: solo ve los exámenes creados por él
+        whereClause = {
+          usuarioId,
+          ...(andFilters.length > 0
+            ? {
+                carrerasMaterias: {
+                  some: {
+                    AND: andFilters,
+                  },
+                },
+              }
+            : {}),
+        };
+      } else {
+        // 4. Usuario con alcance (roles personalizados / externos):
+        // Ve los exámenes de las facultades, carreras y materias de su alcance
+        const condicionesAlcance = await this.condicionesAlcance(usuarioId);
+        if (condicionesAlcance.length === 0) return [];
+
+        whereClause = {
+          carrerasMaterias: {
+            some: {
+              AND: [{ OR: condicionesAlcance }, ...andFilters],
+            },
+          },
+        };
+      }
     }
 
     const examenes = await this.prisma.examen.findMany({

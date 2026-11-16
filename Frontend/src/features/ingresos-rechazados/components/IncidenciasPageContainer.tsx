@@ -20,6 +20,9 @@ import type {
 import {
   filtrarIncidenciasPorMotivo,
   obtenerGestionVigente,
+  isExamenConcluido,
+  getMotivoLabel,
+  labelExamen,
 } from "../types/incidencias.types";
 import { ControlIncidenciasView } from "./ControlIncidenciasView";
 import { IncidenciasSkeleton } from "./IncidenciasEstados";
@@ -28,6 +31,7 @@ import {
   type ValoresInicialesIncidencia,
 } from "./RegisterIncidenceModal";
 import { ConfirmarDescargaObservacionesModal } from "./ConfirmarDescargaObservacionesModal";
+import { ExamenFinalizadoModal } from "@/features/registro-ingresos/components/ExamenFinalizadoModal";
 import {
   descargarReporteObservacionesPdf,
 } from "../api/incidencias.service";
@@ -77,7 +81,13 @@ function IncidenciasContenido() {
     if (
       rawRole.includes("control") ||
       rawEmail.includes("control") ||
-      permisos.some((p: string) => p.includes("control"))
+      rawRole.includes("estudiante") ||
+      rawRole.includes("colaborador") ||
+      permisos.some((p: string) =>
+        p.includes("control") ||
+        p.includes("registro_ingresos") ||
+        p.includes("ingreso")
+      )
     ) {
       return "control";
     }
@@ -93,8 +103,8 @@ function IncidenciasContenido() {
     Boolean(precarga?.codigoSis)
   );
 
-  // Inicializar examen con precarga o primer examen si existe
-  const examenInicial = precarga?.examenId ?? examenesHook.examenes[0]?.id ?? "TODOS";
+  // Inicializar examen con precarga o "TODOS" por defecto
+  const examenInicial = precarga?.examenId ?? "TODOS";
 
   // Filtros combinables de HU-18
   const [filtros, setFiltros] = useState<FiltrosIncidencias>({
@@ -118,6 +128,7 @@ function IncidenciasContenido() {
   const [isModalDescargaOpen, setIsModalDescargaOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
+  const [isFinalizadoModalOpen, setIsFinalizadoModalOpen] = useState(false);
 
   const [pendientesOffline, setPendientesOffline] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -137,7 +148,12 @@ function IncidenciasContenido() {
       if (filtros.gestion && e.gestion && e.gestion !== filtros.gestion) {
         return false;
       }
-      if (filtros.materiaId !== "TODAS" && (e.materiaId ?? e.materia ?? e.nombre) !== filtros.materiaId) {
+      if (
+        filtros.materiaId !== "TODAS" &&
+        e.materiaId !== filtros.materiaId &&
+        e.materia !== filtros.materiaId &&
+        e.nombre !== filtros.materiaId
+      ) {
         return false;
       }
       return true;
@@ -165,8 +181,8 @@ function IncidenciasContenido() {
     if (filtros.examenId !== "TODOS") {
       return examenesHook.examenes.find((e) => e.id === filtros.examenId) || null;
     }
-    return examenesFiltrados[0] || examenesHook.examenes[0] || null;
-  }, [filtros.examenId, examenesHook.examenes, examenesFiltrados]);
+    return null;
+  }, [filtros.examenId, examenesHook.examenes]);
 
   const materiaNombre = useMemo(() => {
     if (filtros.materiaId !== "TODAS") {
@@ -213,13 +229,76 @@ function IncidenciasContenido() {
     }
   };
 
-  // Botón "+ Registrar incidencia": SOLO Personal de control (Criterio 2)
+  // Nombres descriptivos para el modal de descarga
+  const filtrosParaModal = useMemo(() => {
+    let facultadNombre: string | undefined;
+    let carreraNombre: string | undefined;
+    let docenteNombre: string | undefined;
+    let examenNombre: string | undefined;
+    let motivoNombre: string | undefined;
+
+    if (filtros.facultadId && filtros.facultadId !== "TODAS") {
+      const match = examenesHook.examenes.find(
+        (e) => String(e.facultadId) === filtros.facultadId || e.facultad === filtros.facultadId
+      );
+      facultadNombre = match?.facultad || filtros.facultadId;
+    }
+
+    if (filtros.carreraId && filtros.carreraId !== "TODAS") {
+      const match = examenesHook.examenes.find(
+        (e) => String(e.carreraId) === filtros.carreraId || e.carrera === filtros.carreraId
+      );
+      carreraNombre = match?.carrera || filtros.carreraId;
+    }
+
+    if (filtros.docenteId && filtros.docenteId !== "TODOS") {
+      const match = examenesHook.examenes.find(
+        (e) => String(e.docenteId) === filtros.docenteId || e.docente === filtros.docenteId
+      );
+      docenteNombre = match?.docente || filtros.docenteId;
+    }
+
+    if (filtros.examenId && filtros.examenId !== "TODOS") {
+      const match = examenesHook.examenes.find((e) => String(e.id) === String(filtros.examenId));
+      examenNombre = match ? labelExamen(match) : filtros.examenId;
+    }
+
+    if (filtros.motivo && filtros.motivo !== "TODOS") {
+      motivoNombre = getMotivoLabel(filtros.motivo);
+    }
+
+    return {
+      facultad: facultadNombre,
+      carrera: carreraNombre,
+      docente: docenteNombre,
+      examen: examenNombre,
+      motivo: motivoNombre,
+    };
+  }, [filtros, examenesHook.examenes]);
+
+  // Botón "+ Registrar Observación": SOLO Personal de control (Criterio 2)
   const esPersonalDeControl = rol === "control";
   const puedeAbrirModal =
     esPersonalDeControl &&
     puedeRegistrar &&
     !examenesHook.isLoading &&
     examenesHook.examenes.length > 0;
+
+  const handleAbrirModalObservacion = () => {
+    if (examenSeleccionado && isExamenConcluido(examenSeleccionado)) {
+      setIsFinalizadoModalOpen(true);
+      return;
+    }
+    if (
+      filtros.examenId === "TODOS" &&
+      examenesHook.examenes.length === 1 &&
+      isExamenConcluido(examenesHook.examenes[0])
+    ) {
+      setIsFinalizadoModalOpen(true);
+      return;
+    }
+    setModalAbierto(true);
+  };
 
   function handleModalOpenChange(abierto: boolean) {
     setModalAbierto(abierto);
@@ -256,14 +335,13 @@ function IncidenciasContenido() {
   };
 
   const handleConfirmarDescarga = async () => {
-    if (!examenSeleccionado && examenesHook.examenes.length === 0) return;
     if (isDownloading) return;
 
     setIsDownloading(true);
     setErrorDescarga(null);
 
     try {
-      const targetExamen = examenSeleccionado || examenesHook.examenes[0];
+      const targetExamen = examenSeleccionado;
       const generadorNombre = session?.user?.name || "Usuario del sistema";
       const { blob, filename } = await descargarReporteObservacionesPdf(
         targetExamen,
@@ -299,8 +377,8 @@ function IncidenciasContenido() {
     <PageContainer
       title="Observaciones de ingreso"
       subtitle="Observaciones de ingreso por examen"
-      actionLabel={puedeAbrirModal ? "+ Registrar incidencia" : undefined}
-      onAction={() => setModalAbierto(true)}
+      actionLabel={puedeAbrirModal ? "+ Registrar Observación" : undefined}
+      onAction={handleAbrirModalObservacion}
       headerExtra={
         puedeDescargarReporte ? (
           <Button
@@ -380,10 +458,19 @@ function IncidenciasContenido() {
         onConfirm={handleConfirmarDescarga}
         materiaNombre={materiaNombre}
         gestion={filtros.gestion}
-        filtrosAplicados={filtros}
+        filtrosAplicados={filtrosParaModal}
         isDownloading={isDownloading}
         errorDescarga={errorDescarga}
         onRetry={handleConfirmarDescarga}
+      />
+
+      {/* Modal aviso de examen finalizado al intentar registrar observación */}
+      <ExamenFinalizadoModal
+        isOpen={isFinalizadoModalOpen}
+        onClose={() => setIsFinalizadoModalOpen(false)}
+        examenNombre={examenSeleccionado?.nombre || examenesHook.examenes[0]?.nombre}
+        horario={examenSeleccionado?.horario || examenesHook.examenes[0]?.horario}
+        fecha={examenSeleccionado?.fecha || examenesHook.examenes[0]?.fecha}
       />
     </PageContainer>
   );

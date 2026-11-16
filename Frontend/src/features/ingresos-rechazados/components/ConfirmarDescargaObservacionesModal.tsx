@@ -41,11 +41,11 @@ export function ConfirmarDescargaObservacionesModal({
 }: ConfirmarDescargaObservacionesModalProps) {
   const tieneFiltrosAdicionales =
     filtrosAplicados &&
-    (filtrosAplicados.facultad ||
-      filtrosAplicados.carrera ||
-      filtrosAplicados.docente ||
-      filtrosAplicados.examen ||
-      filtrosAplicados.motivo);
+    ((filtrosAplicados.facultad && filtrosAplicados.facultad !== "TODAS") ||
+      (filtrosAplicados.carrera && filtrosAplicados.carrera !== "TODAS") ||
+      (filtrosAplicados.docente && filtrosAplicados.docente !== "TODOS") ||
+      (filtrosAplicados.examen && filtrosAplicados.examen !== "TODOS") ||
+      (filtrosAplicados.motivo && filtrosAplicados.motivo !== "TODOS"));
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isDownloading && onClose()}>
@@ -65,40 +65,49 @@ export function ConfirmarDescargaObservacionesModal({
         <div className="mt-4 space-y-4 text-left">
           {/* Criterio 16: ¿Desea descargar las observaciones de ingreso de [materia / todas las materias] — [Gestión]? */}
           <p className="text-sm text-gray-700 leading-relaxed">
-            ¿Desea descargar las observaciones de ingreso de{" "}
-            <span className="font-semibold text-gray-900">{materiaNombre}</span>{" "}
-            — <span className="font-semibold text-gray-900">{gestion}</span>?
+            {materiaNombre === "todas las materias" || !materiaNombre ? (
+              <>
+                ¿Desea descargar todo el registro de observaciones de ingreso —{" "}
+                <span className="font-semibold text-gray-900">{gestion}</span>?
+              </>
+            ) : (
+              <>
+                ¿Desea descargar las observaciones de ingreso de{" "}
+                <span className="font-semibold text-gray-900">{materiaNombre}</span>{" "}
+                — <span className="font-semibold text-gray-900">{gestion}</span>?
+              </>
+            )}
           </p>
 
           {/* Filtros adicionales aplicados */}
           {tieneFiltrosAdicionales && (
             <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-3 text-xs text-gray-700 space-y-1">
               <p className="font-semibold text-gray-900 mb-1.5">Filtros aplicados:</p>
-              {filtrosAplicados?.facultad && (
+              {filtrosAplicados?.facultad && filtrosAplicados.facultad !== "TODAS" && (
                 <p>
                   <span className="font-medium text-gray-600">Facultad:</span>{" "}
                   {filtrosAplicados.facultad}
                 </p>
               )}
-              {filtrosAplicados?.carrera && (
+              {filtrosAplicados?.carrera && filtrosAplicados.carrera !== "TODAS" && (
                 <p>
                   <span className="font-medium text-gray-600">Carrera:</span>{" "}
                   {filtrosAplicados.carrera}
                 </p>
               )}
-              {filtrosAplicados?.docente && (
+              {filtrosAplicados?.docente && filtrosAplicados.docente !== "TODOS" && (
                 <p>
                   <span className="font-medium text-gray-600">Docente:</span>{" "}
                   {filtrosAplicados.docente}
                 </p>
               )}
-              {filtrosAplicados?.examen && (
+              {filtrosAplicados?.examen && filtrosAplicados.examen !== "TODOS" && (
                 <p>
                   <span className="font-medium text-gray-600">Examen:</span>{" "}
                   {filtrosAplicados.examen}
                 </p>
               )}
-              {filtrosAplicados?.motivo && (
+              {filtrosAplicados?.motivo && filtrosAplicados.motivo !== "TODOS" && (
                 <p>
                   <span className="font-medium text-gray-600">Motivo:</span>{" "}
                   {filtrosAplicados.motivo}

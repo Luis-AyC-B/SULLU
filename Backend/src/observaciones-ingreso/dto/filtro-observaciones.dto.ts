@@ -14,6 +14,7 @@ export enum MotivoObservacion {
   QR_OTRO_EXAMEN = 'QR_OTRO_EXAMEN',
   QR_NO_VALIDO = 'QR_NO_VALIDO',
   QR_EXAMEN_VENCIDO = 'QR_EXAMEN_VENCIDO',
+  NO_ASISTIO = 'NO_ASISTIO',
 }
 
 export const transformarVacio = ({ value }: { value: unknown }) => {
@@ -68,7 +69,7 @@ export class FiltroObservacionesDto {
   @Transform(transformarVacio)
   @IsEnum(MotivoObservacion, {
     message:
-      'Motivo no válido. Valores permitidos: NO_HABILITADO, DOBLE_MARCACION, QR_OTRO_EXAMEN, QR_NO_VALIDO, QR_EXAMEN_VENCIDO',
+      'Motivo no válido. Valores permitidos: NO_HABILITADO, DOBLE_MARCACION, QR_OTRO_EXAMEN, QR_NO_VALIDO, QR_EXAMEN_VENCIDO, NO_ASISTIO',
   })
   motivo?: MotivoObservacion;
 
