@@ -1,7 +1,7 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v14';
+const VERSION = 'v15';
 const STATIC_CACHE   = `portal-static-${VERSION}`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
 const RSC_CACHE      = `portal-rsc-${VERSION}`;
@@ -21,14 +21,26 @@ self.addEventListener('install', (event) => {
     (async () => {
       try {
         const cache = await caches.open(OPERATOR_CACHE);
-        await cache.addAll([
+        const rutas = [
           '/control-ingreso',
-          '/control-ingreso/escanear',
           '/registro-ingresos',
           '/ingresos-rechazados',
-        ]);
+        ];
+        await Promise.all(
+          rutas.map(async (ruta) => {
+            try {
+              const res = await fetch(ruta);
+              const ct = res.headers.get('content-type') || '';
+              if (res && res.ok && ct.includes('text/html')) {
+                await cache.put(ruta, res);
+              }
+            } catch {
+              // Silencioso por ruta si redirige a login durante el install
+            }
+          })
+        );
       } catch {
-        // En caso de que el servidor no responda durante install
+        // En caso de que el almacenamiento no esté disponible
       }
     })()
   );
@@ -51,7 +63,7 @@ self.addEventListener('activate', (event) => {
 // JS, CSS y fuentes versionados por Next: nunca cambian bajo la misma URL
 async function cacheFirst(request) {
   const cache = await caches.open(STATIC_CACHE);
-  const hit = await cache.match(request);
+  const hit = await cache.match(request, { ignoreVary: true });
   if (hit) return hit;
   const res = await fetch(request);
   if (res && res.ok) cache.put(request, res.clone());
@@ -68,24 +80,19 @@ async function navigationNetworkFirst(request, cacheName, fallbackUrl) {
     const contentType = res.headers.get('content-type') || '';
     if (res && res.ok && contentType.includes('text/html')) {
       cache.put(request, res.clone());
+      const url = new URL(request.url);
+      if (url.pathname === '/control-ingreso') {
+        cache.put('/control-ingreso', res.clone());
+      }
     }
     return res;
   } catch {
-    let hit = await cache.match(request);
-    if (hit && !hit.headers.get('content-type')?.includes('text/html')) {
-      hit = null;
-    }
+    let hit = await cache.match(request, { ignoreVary: true });
     if (!hit && fallbackUrl) {
-      hit = await cache.match(fallbackUrl);
-      if (hit && !hit.headers.get('content-type')?.includes('text/html')) {
-        hit = null;
-      }
+      hit = await cache.match(fallbackUrl, { ignoreVary: true });
     }
     if (!hit && cacheName === OPERATOR_CACHE) {
-      hit = await cache.match('/control-ingreso');
-      if (hit && !hit.headers.get('content-type')?.includes('text/html')) {
-        hit = null;
-      }
+      hit = await cache.match('/control-ingreso', { ignoreVary: true });
     }
     return hit || Response.error();
   }
@@ -101,7 +108,7 @@ async function rscNetworkFirst(request) {
     }
     return res;
   } catch {
-    const hit = await cache.match(request);
+    const hit = await cache.match(request, { ignoreVary: true });
     return hit || Response.error();
   }
 }
@@ -114,7 +121,7 @@ async function staticNetworkFirst(request) {
     if (res && res.ok) cache.put(request, res.clone());
     return res;
   } catch {
-    const hit = await cache.match(request);
+    const hit = await cache.match(request, { ignoreVary: true });
     return hit || Response.error();
   }
 }
@@ -122,7 +129,7 @@ async function staticNetworkFirst(request) {
 // Fotos de perfil: muestra la copia guardada y la actualiza en segundo plano
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(IMAGES_CACHE);
-  const hit = await cache.match(request);
+  const hit = await cache.match(request, { ignoreVary: true });
   const red = fetch(request)
     .then((res) => {
       if (res && (res.ok || res.type === 'opaque')) cache.put(request, res.clone());
