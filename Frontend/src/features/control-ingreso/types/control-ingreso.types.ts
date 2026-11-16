@@ -68,6 +68,8 @@ export interface EstudianteBusquedaItem {
   nombreLista?: string;
   /** HU17: Rango de apellidos de la lista (ej. "A - L") */
   rangoAsignado?: string;
+  /** Fotografía del estudiante para verificación biométrica visual */
+  fotoUrl?: string | null;
 }
 
 export interface RegistroManualPayload {

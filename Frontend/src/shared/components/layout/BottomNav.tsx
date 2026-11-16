@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { MoreHorizontal, X } from "lucide-react";
 import { useUserPermissions } from "@/shared/hooks/useUserPermissions";
 
@@ -10,17 +10,50 @@ const MAX_VISIBLE = 4;
 
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [showMore, setShowMore] = useState(false);
   const modulosPermitidos = useUserPermissions();
-
-  if (modulosPermitidos.length === 0) {
-    return null;
-  }
 
   const visibles = modulosPermitidos.slice(0, MAX_VISIBLE);
   const resto = modulosPermitidos.slice(MAX_VISIBLE);
   const hasOverflow = resto.length > 0;
   const restoActivo = resto.some((m) => (pathname === m.ruta || pathname.startsWith(`${m.ruta}/`)));
+
+  // Precargar proactivamente las páginas y chunks cuando hay conexión para soporte offline inmediato
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.onLine) return;
+    const rutasOperador = [
+      "/control-ingreso",
+      "/ingresos",
+      "/ingresos-rechazados",
+      "/registro-ingresos",
+      "/incidencias",
+    ];
+
+    // 1. Prefetch RSC y chunks de Next.js
+    modulosPermitidos.forEach((m) => {
+      try {
+        router.prefetch(m.ruta);
+      } catch {}
+    });
+    rutasOperador.forEach((r) => {
+      try {
+        router.prefetch(r);
+      } catch {}
+    });
+
+    // 2. Prefetch HTML completo en la sesión autenticada para el Service Worker
+    rutasOperador.forEach((r) => {
+      fetch(r, {
+        credentials: "same-origin",
+        headers: { Accept: "text/html" },
+      }).catch(() => {});
+    });
+  }, [modulosPermitidos, router]);
+
+  if (modulosPermitidos.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -47,6 +80,7 @@ export function BottomNav() {
                 <Link
                   key={modulo.clave}
                   href={modulo.ruta}
+                  prefetch={true}
                   onClick={() => setShowMore(false)}
                   className={`flex flex-col items-center gap-1 text-xs ${
                     isActive ? "font-semibold text-primary" : "text-muted-foreground"
@@ -70,6 +104,7 @@ export function BottomNav() {
             <Link
               key={modulo.clave}
               href={modulo.ruta}
+              prefetch={true}
               className={`flex flex-col items-center gap-1 text-xs transition-all duration-200 ${
                 isActive ? "font-semibold text-primary" : "text-muted-foreground hover:text-primary/70"
               }`}

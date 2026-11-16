@@ -16,6 +16,17 @@ export function useResumenEnVivo(examenId: number | null) {
   const fetchResumen = useCallback(
     async (isInitial = false) => {
       if (!examenId || isFetchingRef.current) return;
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = controlIngresoService.obtenerResumenCache(examenId);
+        if (cached) {
+          setResumen(cached);
+          setError(null);
+        }
+        if (isInitial) setIsLoading(false);
+        return;
+      }
+
       isFetchingRef.current = true;
       if (isInitial) setIsLoading(true);
 
@@ -48,6 +59,7 @@ export function useResumenEnVivo(examenId: number | null) {
     fetchResumen(true);
 
     const interval = setInterval(() => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       fetchResumen(false);
     }, POLL_INTERVAL_MS);
 

@@ -68,6 +68,7 @@ export function EscanearQrModal({
     ambienteAsignado: qr.ambienteAsignado ?? "",
     yaIngreso: qr.yaIngreso ?? false,
     horaIngresoPrevio: qr.horaIngresoPrevio,
+    fotoUrl: qr.fotoUrl,
   });
 
   // Estado de confirmación QR (reemplaza QrSuccessCard)
@@ -174,6 +175,35 @@ export function EscanearQrModal({
           examen.id,
           cleanToken
         );
+
+        // HU17: Verificar si el estudiante no pertenece a la fila asignada
+        const tieneParticion = Boolean(
+          miGrupo && miGrupo.totalEstudiantesGrupo < miGrupo.totalEstudiantesExamen
+        );
+        const sisEstudiante = (resultado.estudiante?.codSis || "").replace(/[^0-9]/g, "");
+        const estaEnMiGrupo =
+          !tieneParticion ||
+          Boolean(
+            miGrupo?.estudiantes.some(
+              (e) =>
+                e.id === resultado.estudiante?.id ||
+                (e.codSis || "").replace(/[^0-9]/g, "") === sisEstudiante
+            )
+          );
+
+        const esFueraDeGrupo =
+          resultado.fueraDeGrupo ||
+          resultado.excepcion === "FUERA_DE_GRUPO" ||
+          (!estaEnMiGrupo && Boolean(resultado.estudiante));
+
+        if (esFueraDeGrupo && resultado.estudiante) {
+          setExcepcionActiva({
+            tipo: "FUERA_DE_GRUPO",
+            estudiante: resultado.estudiante,
+          });
+          isProcessingRef.current = false;
+          return;
+        }
 
         if (resultado.success && resultado.estudiante) {
           // QR VÁLIDO → mostrar modal de confirmación (reutilizar ConfirmarIngresoStep)

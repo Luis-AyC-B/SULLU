@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getExamenesIncidencias } from "../api/incidencias.service";
+import {
+  getExamenesIncidencias,
+  obtenerExamenesIncidenciasFallback,
+} from "../api/incidencias.service";
 import type { ExamenIncidencia } from "../types/incidencias.types";
 
 export function useExamenesIncidencias() {
@@ -21,9 +24,16 @@ export function useExamenesIncidencias() {
       })
       .catch((e: unknown) => {
         if (!cancelado) {
-          setError(
-            e instanceof Error ? e.message : "No se pudieron cargar los exámenes."
-          );
+          const fallback = obtenerExamenesIncidenciasFallback();
+          if (fallback.length > 0) {
+            setExamenes(fallback);
+          } else {
+            setError(
+              e instanceof Error
+                ? e.message
+                : "No se pudieron cargar los exámenes."
+            );
+          }
         }
       })
       .finally(() => {
