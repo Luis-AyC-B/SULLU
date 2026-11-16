@@ -1,8 +1,8 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v15';
-const STATIC_CACHE   = `portal-static-${VERSION}`;
+const VERSION = 'v16';
+const STATIC_CACHE   = `portal-static-stable`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
 const RSC_CACHE      = `portal-rsc-${VERSION}`;
 const IMAGES_CACHE   = `portal-images-${VERSION}`;
@@ -23,6 +23,7 @@ self.addEventListener('install', (event) => {
         const cache = await caches.open(OPERATOR_CACHE);
         const rutas = [
           '/control-ingreso',
+          '/control-ingreso/escanear',
           '/registro-ingresos',
           '/ingresos-rechazados',
         ];
@@ -52,7 +53,7 @@ self.addEventListener('activate', (event) => {
       const claves = await caches.keys();
       await Promise.all(
         claves
-          .filter((k) => !CACHES_VALIDAS.includes(k))
+          .filter((k) => !CACHES_VALIDAS.includes(k) && !k.startsWith('portal-static'))
           .map((k) => caches.delete(k)),
       );
       await self.clients.claim();
@@ -63,7 +64,10 @@ self.addEventListener('activate', (event) => {
 // JS, CSS y fuentes versionados por Next: nunca cambian bajo la misma URL
 async function cacheFirst(request) {
   const cache = await caches.open(STATIC_CACHE);
-  const hit = await cache.match(request, { ignoreVary: true });
+  let hit = await cache.match(request, { ignoreVary: true });
+  if (!hit) {
+    hit = await caches.match(request, { ignoreVary: true });
+  }
   if (hit) return hit;
   const res = await fetch(request);
   if (res && res.ok) cache.put(request, res.clone());
@@ -94,6 +98,9 @@ async function navigationNetworkFirst(request, cacheName, fallbackUrl) {
     if (!hit && cacheName === OPERATOR_CACHE) {
       hit = await cache.match('/control-ingreso', { ignoreVary: true });
     }
+    if (!hit) {
+      hit = await caches.match(request, { ignoreVary: true });
+    }
     return hit || Response.error();
   }
 }
@@ -108,12 +115,15 @@ async function rscNetworkFirst(request) {
     }
     return res;
   } catch {
-    const hit = await cache.match(request, { ignoreVary: true });
+    let hit = await cache.match(request, { ignoreVary: true });
+    if (!hit) {
+      hit = await caches.match(request, { ignoreVary: true });
+    }
     return hit || Response.error();
   }
 }
 
-// Next.js chunks y assets estáticos: Network-first con fallback a caché
+// Next.js chunks y assets estáticos: Network-first con fallback a caché persistente
 async function staticNetworkFirst(request) {
   const cache = await caches.open(STATIC_CACHE);
   try {
@@ -121,7 +131,10 @@ async function staticNetworkFirst(request) {
     if (res && res.ok) cache.put(request, res.clone());
     return res;
   } catch {
-    const hit = await cache.match(request, { ignoreVary: true });
+    let hit = await cache.match(request, { ignoreVary: true });
+    if (!hit) {
+      hit = await caches.match(request, { ignoreVary: true });
+    }
     return hit || Response.error();
   }
 }
