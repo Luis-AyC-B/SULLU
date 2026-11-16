@@ -26,6 +26,20 @@ const INGRESADOS_CACHE_PREFIX = "sullu_estudiantes_ingresados_";
 const NOMINA_CACHE_PREFIX = "sullu_nomina_estudiantes_";
 
 const fotosPrecargadasSet = new Set<string>();
+export function precargarFotosNomina(items: Array<{ fotoUrl?: string | null }>): void {
+  if (typeof window === "undefined" || !navigator.onLine) return;
+  for (const item of items) {
+    if (!item.fotoUrl) continue;
+    const fullUrl = formatearFotoUrl(item.fotoUrl);
+    if (fullUrl && !fotosPrecargadasSet.has(fullUrl)) {
+      fotosPrecargadasSet.add(fullUrl);
+      const img = new Image();
+      img.src = fullUrl;
+      fetch(fullUrl).catch(() => {});
+    }
+  }
+}
+
 const ultimaCargaNominaPorExamen: Record<number, number> = {};
 
 export function formatearFotoUrl(fotoUrl?: string | null): string | null {
@@ -184,7 +198,12 @@ export function obtenerNominaCache(examenId: number): EstudianteNominaCache[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(`${NOMINA_CACHE_PREFIX}${examenId}`);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const items = JSON.parse(raw) as EstudianteNominaCache[];
+    return items.map((e) => ({
+      ...e,
+      fotoUrl: formatearFotoUrl(e.fotoUrl),
+    }));
   } catch {
     return [];
   }
@@ -322,8 +341,11 @@ function validarEstudianteEnGrupoOffline(
     miGrupo.totalEstudiantesGrupo < miGrupo.totalEstudiantesExamen;
   if (!tieneParticion) return { pertenece: true };
 
+  const estSisClean = (estudiante.codSis || "").replace(/[^0-9]/g, "");
   const estaEnMiGrupo = miGrupo.estudiantes.some(
-    (e) => e.id === estudiante.id || e.codSis === estudiante.codSis
+    (e) =>
+      e.id === estudiante.id ||
+      (e.codSis || "").replace(/[^0-9]/g, "") === estSisClean
   );
 
   if (estaEnMiGrupo) {
@@ -519,7 +541,12 @@ export const controlIngresoService = {
     // Si ya se cargó hace menos de 60 segundos y tenemos nómina en caché, no repetir petición pesada
     if (!forzar && ahora - ultimoFetch < 60000) {
       const cached = obtenerNominaCache(examenId);
-      if (cached.length > 0) return cached;
+      if (cached.length > 0) {
+        if (typeof window !== "undefined" && navigator.onLine) {
+          precargarFotosNomina(cached);
+        }
+        return cached;
+      }
     }
 
     try {
@@ -548,17 +575,7 @@ export const controlIngresoService = {
         guardarNominaEnCache(examenId, items);
 
         // Precarga de fotos para visualización fluida en modo offline (Service Worker cache)
-        // Deduplicada para descargar cada foto exactamente una vez
-        if (typeof window !== "undefined") {
-          for (const item of items) {
-            if (item.fotoUrl && !fotosPrecargadasSet.has(item.fotoUrl)) {
-              fotosPrecargadasSet.add(item.fotoUrl);
-              const img = new Image();
-              img.src = item.fotoUrl;
-              fetch(item.fotoUrl, { mode: "no-cors" }).catch(() => {});
-            }
-          }
-        }
+        precargarFotosNomina(items);
 
         return items;
       }
@@ -1103,6 +1120,7 @@ export const controlIngresoService = {
       if (!valGrupo.pertenece) {
         return {
           success: false,
+          fueraDeGrupo: true,
           excepcion: "FUERA_DE_GRUPO",
           mensaje:
             valGrupo.mensaje ||

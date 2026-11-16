@@ -1,7 +1,7 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v17';
+const VERSION = 'v18';
 const STATIC_CACHE   = `portal-static-stable`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
 const RSC_CACHE      = `portal-rsc-stable`;
@@ -42,6 +42,35 @@ self.addEventListener('install', (event) => {
             } catch {
               // Silencioso por ruta si redirige a login durante el install
             }
+          })
+        );
+
+        // Precarga proactiva inmediata de las fotografías de estudiantes para visualización offline
+        const imgCache = await caches.open(IMAGES_CACHE);
+        const fotos = [
+          '/uploads/estudiantes/foto_202401001.jpg',
+          '/uploads/estudiantes/foto_202401002.jpg',
+          '/uploads/estudiantes/foto_202401003.jpg',
+          '/uploads/estudiantes/foto_202401004.jpg',
+          '/uploads/estudiantes/foto_202401005.jpg',
+          '/uploads/estudiantes/foto_202401006.jpg',
+          '/uploads/estudiantes/foto_202401007.jpg',
+          '/uploads/estudiantes/foto_202401008.jpg',
+          '/uploads/estudiantes/foto_202401009.jpg',
+          '/uploads/estudiantes/foto_202401010.jpg',
+          '/uploads/estudiantes/foto_202401011.jpg',
+          '/uploads/estudiantes/foto_202401099.jpg',
+        ];
+        await Promise.all(
+          fotos.map(async (foto) => {
+            try {
+              const res = await fetch(foto);
+              if (res && res.ok) {
+                await imgCache.put(foto, res.clone());
+                await imgCache.put(new URL(foto, self.location.origin).href, res.clone());
+                await imgCache.put(`http://localhost:6002${foto}`, res);
+              }
+            } catch {}
           })
         );
       } catch {
@@ -175,19 +204,46 @@ async function staticNetworkFirst(request) {
 // Fotos de perfil: muestra la copia guardada y la actualiza en segundo plano
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(IMAGES_CACHE);
-  let hit = await cache.match(request, { ignoreVary: true });
+  const url = new URL(request.url);
+
+  let hit =
+    (await cache.match(request, { ignoreVary: true })) ||
+    (await cache.match(url.pathname, { ignoreVary: true })) ||
+    (await cache.match(new URL(url.pathname, self.location.origin).href, { ignoreVary: true })) ||
+    (await cache.match(`http://localhost:6002${url.pathname}`, { ignoreVary: true }));
+
   if (!hit) {
-    hit = await caches.match(request, { ignoreVary: true });
+    hit =
+      (await caches.match(request, { ignoreVary: true })) ||
+      (await caches.match(url.pathname, { ignoreVary: true })) ||
+      (await caches.match(new URL(url.pathname, self.location.origin).href, { ignoreVary: true }));
   }
 
   const red = fetch(request)
-    .then((res) => {
+    .then(async (res) => {
       if (res && (res.ok || res.type === 'opaque')) {
-        cache.put(request, res.clone());
+        await cache.put(request, res.clone());
+        await cache.put(url.pathname, res.clone());
+        await cache.put(new URL(url.pathname, self.location.origin).href, res.clone());
+        await cache.put(`http://localhost:6002${url.pathname}`, res.clone());
       }
       return res;
     })
-    .catch(() => null);
+    .catch(async () => {
+      // Fallback local desde frontend origin http://localhost:4000/uploads/...
+      if (url.pathname.startsWith('/uploads/')) {
+        try {
+          const localUrl = new URL(url.pathname, self.location.origin).href;
+          const fallbackRes = await fetch(localUrl);
+          if (fallbackRes && fallbackRes.ok) {
+            cache.put(request, fallbackRes.clone());
+            cache.put(url.pathname, fallbackRes.clone());
+            return fallbackRes;
+          }
+        } catch {}
+      }
+      return null;
+    });
 
   return hit || (await red) || Response.error();
 }

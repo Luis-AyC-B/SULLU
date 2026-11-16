@@ -49,7 +49,7 @@ export function ConfirmarIngresoStep({
     );
 
   const backendUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:6002";
   const fotoSrc = estudiante.fotoUrl
     ? estudiante.fotoUrl.startsWith("http") || estudiante.fotoUrl.startsWith("data:")
       ? estudiante.fotoUrl
@@ -78,6 +78,16 @@ export function ConfirmarIngresoStep({
               src={fotoSrc}
               alt={nombreCompleto}
               className="h-full w-full object-cover"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.dataset.triedFallback && estudiante.fotoUrl) {
+                  target.dataset.triedFallback = "true";
+                  const cleanPath = estudiante.fotoUrl.startsWith("http")
+                    ? new URL(estudiante.fotoUrl).pathname
+                    : estudiante.fotoUrl;
+                  target.src = cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`;
+                }
+              }}
             />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 text-slate-400">
