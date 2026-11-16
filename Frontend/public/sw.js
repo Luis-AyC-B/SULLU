@@ -1,12 +1,13 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v12';
+const VERSION = 'v14';
 const STATIC_CACHE   = `portal-static-${VERSION}`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
+const RSC_CACHE      = `portal-rsc-${VERSION}`;
 const IMAGES_CACHE   = `portal-images-${VERSION}`;
 const OPERATOR_CACHE = `operator-pages-${VERSION}`;
-const CACHES_VALIDAS = [STATIC_CACHE, PAGES_CACHE, IMAGES_CACHE, OPERATOR_CACHE];
+const CACHES_VALIDAS = [STATIC_CACHE, PAGES_CACHE, RSC_CACHE, IMAGES_CACHE, OPERATOR_CACHE];
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -22,6 +23,7 @@ self.addEventListener('install', (event) => {
         const cache = await caches.open(OPERATOR_CACHE);
         await cache.addAll([
           '/control-ingreso',
+          '/control-ingreso/escanear',
           '/registro-ingresos',
           '/ingresos-rechazados',
         ]);
@@ -56,20 +58,63 @@ async function cacheFirst(request) {
   return res;
 }
 
-// Páginas: red primero, y si no hay red, la última copia guardada
-async function networkFirst(request, cacheName, fallbackUrl) {
+// Navegación de páginas HTML completas (F5, recarga o navegación directa de URL)
+async function navigationNetworkFirst(request, cacheName, fallbackUrl) {
   const cache = await caches.open(cacheName);
+  try {
+    const res = await fetch(request);
+    // CRÍTICO: Asegurar que solo se almacenen respuestas HTML genuinas.
+    // Nunca guardar respuestas RSC (text/x-component, texto plano de streaming) en la caché de navegación.
+    const contentType = res.headers.get('content-type') || '';
+    if (res && res.ok && contentType.includes('text/html')) {
+      cache.put(request, res.clone());
+    }
+    return res;
+  } catch {
+    let hit = await cache.match(request);
+    if (hit && !hit.headers.get('content-type')?.includes('text/html')) {
+      hit = null;
+    }
+    if (!hit && fallbackUrl) {
+      hit = await cache.match(fallbackUrl);
+      if (hit && !hit.headers.get('content-type')?.includes('text/html')) {
+        hit = null;
+      }
+    }
+    if (!hit && cacheName === OPERATOR_CACHE) {
+      hit = await cache.match('/control-ingreso');
+      if (hit && !hit.headers.get('content-type')?.includes('text/html')) {
+        hit = null;
+      }
+    }
+    return hit || Response.error();
+  }
+}
+
+// Componentes y datos RSC: se almacenan en una caché separada (RSC_CACHE) para NUNCA pisar las páginas HTML
+async function rscNetworkFirst(request) {
+  const cache = await caches.open(RSC_CACHE);
+  try {
+    const res = await fetch(request);
+    if (res && res.ok) {
+      cache.put(request, res.clone());
+    }
+    return res;
+  } catch {
+    const hit = await cache.match(request);
+    return hit || Response.error();
+  }
+}
+
+// Next.js chunks y assets estáticos: Network-first con fallback a caché
+async function staticNetworkFirst(request) {
+  const cache = await caches.open(STATIC_CACHE);
   try {
     const res = await fetch(request);
     if (res && res.ok) cache.put(request, res.clone());
     return res;
   } catch {
-    let hit =
-      (await cache.match(request, { ignoreVary: true })) ||
-      (fallbackUrl ? await cache.match(fallbackUrl, { ignoreVary: true }) : null);
-    if (!hit && cacheName === OPERATOR_CACHE) {
-      hit = await cache.match('/control-ingreso', { ignoreVary: true });
-    }
+    const hit = await cache.match(request);
     return hit || Response.error();
   }
 }
@@ -100,10 +145,10 @@ self.addEventListener('fetch', (event) => {
   // QRs de prueba y dashboard de testing: NO interceptar ni cachear
   if (url.pathname.startsWith('/qrs_offline/') || url.pathname.includes('qrs-offline')) return;
 
-  // Next.js chunks y assets estáticos: Network-first (red cuando hay conexión para no interferir con HMR, y fallback a caché cuando está offline)
+  // Next.js chunks y assets estáticos
   if (mismoOrigen && url.pathname.startsWith('/_next/static/')) {
     if (url.pathname.includes('hot-update')) return;
-    event.respondWith(networkFirst(request, STATIC_CACHE));
+    event.respondWith(staticNetworkFirst(request));
     return;
   }
 
@@ -116,8 +161,13 @@ self.addEventListener('fetch', (event) => {
   const esNavegacion = request.mode === 'navigate';
   const esRsc = request.headers.get('RSC') === '1' || url.searchParams.has('_rsc');
 
-  // Módulos del operador: network-first con cache propio
-  // Incluye: /control-ingreso, /registro-ingresos, /ingresos-rechazados
+  // Si es una petición RSC (datos de componentes en navegación cliente Next.js)
+  if (esRsc) {
+    event.respondWith(rscNetworkFirst(request));
+    return;
+  }
+
+  // Módulos del operador: navegación de páginas HTML
   const RUTAS_OPERADOR = [
     '/control-ingreso',
     '/registro-ingresos',
@@ -128,18 +178,16 @@ self.addEventListener('fetch', (event) => {
   const esRutaOperador =
     mismoOrigen && RUTAS_OPERADOR.some((r) => url.pathname.startsWith(r));
 
-  if (esRutaOperador && (esNavegacion || esRsc)) {
-    const fallback = esNavegacion
-      ? '/' + url.pathname.split('/').filter(Boolean)[0]
-      : null;
-    event.respondWith(networkFirst(request, OPERATOR_CACHE, fallback));
+  if (esRutaOperador && esNavegacion) {
+    const fallback = '/' + url.pathname.split('/').filter(Boolean)[0];
+    event.respondWith(navigationNetworkFirst(request, OPERATOR_CACHE, fallback));
     return;
   }
 
-  // Portal del estudiante: network-first con cache propio
-  if (mismoOrigen && url.pathname.startsWith('/portal') && (esNavegacion || esRsc)) {
+  // Portal del estudiante: navegación de páginas HTML
+  if (mismoOrigen && url.pathname.startsWith('/portal') && esNavegacion) {
     event.respondWith(
-      networkFirst(request, PAGES_CACHE, esNavegacion ? '/portal' : null),
+      navigationNetworkFirst(request, PAGES_CACHE, '/portal'),
     );
   }
 });
