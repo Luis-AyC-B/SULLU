@@ -12,7 +12,14 @@ import { ExcludePasswordInterceptor } from './common/interceptors/exclude-passwo
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
-  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+  app.use(
+    '/uploads',
+    express.static(join(process.cwd(), 'uploads'), {
+      setHeaders: (res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      },
+    }),
+  );
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ExcludePasswordInterceptor());
   app.useGlobalPipes(

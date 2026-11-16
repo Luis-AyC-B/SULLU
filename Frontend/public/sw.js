@@ -1,13 +1,15 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v16';
+const VERSION = 'v17';
 const STATIC_CACHE   = `portal-static-stable`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
-const RSC_CACHE      = `portal-rsc-${VERSION}`;
-const IMAGES_CACHE   = `portal-images-${VERSION}`;
-const OPERATOR_CACHE = `operator-pages-${VERSION}`;
+const RSC_CACHE      = `portal-rsc-stable`;
+const IMAGES_CACHE   = `portal-images-stable`;
+const OPERATOR_CACHE = `operator-pages-stable`;
 const CACHES_VALIDAS = [STATIC_CACHE, PAGES_CACHE, RSC_CACHE, IMAGES_CACHE, OPERATOR_CACHE];
+
+const PRESERVED_PREFIXES = ['portal-static', 'portal-images', 'operator-pages', 'portal-rsc'];
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -25,15 +27,17 @@ self.addEventListener('install', (event) => {
           '/control-ingreso',
           '/control-ingreso/escanear',
           '/registro-ingresos',
+          '/ingresos',
           '/ingresos-rechazados',
         ];
         await Promise.all(
           rutas.map(async (ruta) => {
             try {
-              const res = await fetch(ruta);
+              const res = await fetch(ruta, { headers: { Accept: 'text/html' } });
               const ct = res.headers.get('content-type') || '';
               if (res && res.ok && ct.includes('text/html')) {
-                await cache.put(ruta, res);
+                await cache.put(ruta, res.clone());
+                await cache.put(new URL(ruta, self.location.origin).href, res);
               }
             } catch {
               // Silencioso por ruta si redirige a login durante el install
@@ -53,7 +57,11 @@ self.addEventListener('activate', (event) => {
       const claves = await caches.keys();
       await Promise.all(
         claves
-          .filter((k) => !CACHES_VALIDAS.includes(k) && !k.startsWith('portal-static'))
+          .filter(
+            (k) =>
+              !CACHES_VALIDAS.includes(k) &&
+              !PRESERVED_PREFIXES.some((prefix) => k.startsWith(prefix))
+          )
           .map((k) => caches.delete(k)),
       );
       await self.clients.claim();
@@ -77,6 +85,8 @@ async function cacheFirst(request) {
 // Navegación de páginas HTML completas (F5, recarga o navegación directa de URL)
 async function navigationNetworkFirst(request, cacheName, fallbackUrl) {
   const cache = await caches.open(cacheName);
+  const url = new URL(request.url);
+
   try {
     const res = await fetch(request);
     // CRÍTICO: Asegurar que solo se almacenen respuestas HTML genuinas.
@@ -84,23 +94,39 @@ async function navigationNetworkFirst(request, cacheName, fallbackUrl) {
     const contentType = res.headers.get('content-type') || '';
     if (res && res.ok && contentType.includes('text/html')) {
       cache.put(request, res.clone());
-      const url = new URL(request.url);
+      cache.put(url.pathname, res.clone());
       if (url.pathname === '/control-ingreso') {
         cache.put('/control-ingreso', res.clone());
       }
     }
     return res;
   } catch {
-    let hit = await cache.match(request, { ignoreVary: true });
+    let hit =
+      (await cache.match(request, { ignoreVary: true })) ||
+      (await cache.match(url.pathname, { ignoreVary: true }));
+
     if (!hit && fallbackUrl) {
-      hit = await cache.match(fallbackUrl, { ignoreVary: true });
+      hit =
+        (await cache.match(fallbackUrl, { ignoreVary: true })) ||
+        (await cache.match(new URL(fallbackUrl, request.url).href, { ignoreVary: true }));
     }
+
     if (!hit && cacheName === OPERATOR_CACHE) {
-      hit = await cache.match('/control-ingreso', { ignoreVary: true });
+      // Fallback cruzado inteligente entre páginas del operador para evitar ERR_FAILED
+      hit =
+        (await cache.match('/control-ingreso', { ignoreVary: true })) ||
+        (await cache.match('/ingresos', { ignoreVary: true })) ||
+        (await cache.match('/ingresos-rechazados', { ignoreVary: true })) ||
+        (await cache.match('/registro-ingresos', { ignoreVary: true }));
     }
+
     if (!hit) {
       hit = await caches.match(request, { ignoreVary: true });
     }
+    if (!hit) {
+      hit = await caches.match(url.pathname, { ignoreVary: true });
+    }
+
     return hit || Response.error();
   }
 }
@@ -108,14 +134,21 @@ async function navigationNetworkFirst(request, cacheName, fallbackUrl) {
 // Componentes y datos RSC: se almacenan en una caché separada (RSC_CACHE) para NUNCA pisar las páginas HTML
 async function rscNetworkFirst(request) {
   const cache = await caches.open(RSC_CACHE);
+  const url = new URL(request.url);
+
   try {
     const res = await fetch(request);
     if (res && res.ok) {
       cache.put(request, res.clone());
+      cache.put(url.pathname + url.search, res.clone());
     }
     return res;
   } catch {
-    let hit = await cache.match(request, { ignoreVary: true });
+    let hit =
+      (await cache.match(request, { ignoreVary: true })) ||
+      (await cache.match(url.pathname + url.search, { ignoreVary: true })) ||
+      (await cache.match(url.pathname, { ignoreVary: true }));
+
     if (!hit) {
       hit = await caches.match(request, { ignoreVary: true });
     }
@@ -142,13 +175,20 @@ async function staticNetworkFirst(request) {
 // Fotos de perfil: muestra la copia guardada y la actualiza en segundo plano
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(IMAGES_CACHE);
-  const hit = await cache.match(request, { ignoreVary: true });
+  let hit = await cache.match(request, { ignoreVary: true });
+  if (!hit) {
+    hit = await caches.match(request, { ignoreVary: true });
+  }
+
   const red = fetch(request)
     .then((res) => {
-      if (res && (res.ok || res.type === 'opaque')) cache.put(request, res.clone());
+      if (res && (res.ok || res.type === 'opaque')) {
+        cache.put(request, res.clone());
+      }
       return res;
     })
     .catch(() => null);
+
   return hit || (await red) || Response.error();
 }
 
@@ -172,14 +212,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Imágenes y fotos de perfil
-  if (request.destination === 'image' || url.pathname.startsWith('/uploads/')) {
+  // Imágenes y fotos de perfil (tanto del frontend como del backend /uploads/)
+  if (
+    request.destination === 'image' ||
+    url.pathname.startsWith('/uploads/') ||
+    /\.(jpe?g|png|webp|gif|svg|ico)$/i.test(url.pathname)
+  ) {
     event.respondWith(staleWhileRevalidate(request));
     return;
   }
 
   const esNavegacion = request.mode === 'navigate';
   const esRsc = request.headers.get('RSC') === '1' || url.searchParams.has('_rsc');
+  const esHtml =
+    request.headers.get('accept')?.includes('text/html') ||
+    request.destination === 'document';
 
   // Si es una petición RSC (datos de componentes en navegación cliente Next.js)
   if (esRsc) {
@@ -187,7 +234,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Módulos del operador: navegación de páginas HTML
+  // Módulos del operador: navegación de páginas HTML o prefetch de documentos HTML
   const RUTAS_OPERADOR = [
     '/control-ingreso',
     '/registro-ingresos',
@@ -198,14 +245,14 @@ self.addEventListener('fetch', (event) => {
   const esRutaOperador =
     mismoOrigen && RUTAS_OPERADOR.some((r) => url.pathname.startsWith(r));
 
-  if (esRutaOperador && esNavegacion) {
+  if (esRutaOperador && (esNavegacion || esHtml)) {
     const fallback = '/' + url.pathname.split('/').filter(Boolean)[0];
     event.respondWith(navigationNetworkFirst(request, OPERATOR_CACHE, fallback));
     return;
   }
 
   // Portal del estudiante: navegación de páginas HTML
-  if (mismoOrigen && url.pathname.startsWith('/portal') && esNavegacion) {
+  if (mismoOrigen && url.pathname.startsWith('/portal') && (esNavegacion || esHtml)) {
     event.respondWith(
       navigationNetworkFirst(request, PAGES_CACHE, '/portal'),
     );

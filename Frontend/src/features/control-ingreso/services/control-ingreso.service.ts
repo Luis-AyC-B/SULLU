@@ -28,6 +28,20 @@ const NOMINA_CACHE_PREFIX = "sullu_nomina_estudiantes_";
 const fotosPrecargadasSet = new Set<string>();
 const ultimaCargaNominaPorExamen: Record<number, number> = {};
 
+export function formatearFotoUrl(fotoUrl?: string | null): string | null {
+  if (!fotoUrl) return null;
+  if (
+    fotoUrl.startsWith("http://") ||
+    fotoUrl.startsWith("https://") ||
+    fotoUrl.startsWith("data:") ||
+    fotoUrl.startsWith("blob:")
+  ) {
+    return fotoUrl;
+  }
+  const backendBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:6002";
+  return `${backendBase}${fotoUrl.startsWith("/") ? "" : "/"}${fotoUrl}`;
+}
+
 interface IngresadoCacheItem {
   estudianteId?: number;
   codSis: string;
@@ -521,7 +535,7 @@ export const controlIngresoService = {
           ci: e.ci,
           nombre: e.nombre,
           apellido: e.apellido,
-          fotoUrl: e.fotoUrl,
+          fotoUrl: formatearFotoUrl(e.fotoUrl),
           estadoHabilitado: e.estadoHabilitado,
           motivoInhabilitacion: e.motivoInhabilitacion,
           ambienteAsignado: e.ambienteAsignado,
@@ -541,6 +555,7 @@ export const controlIngresoService = {
               fotosPrecargadasSet.add(item.fotoUrl);
               const img = new Image();
               img.src = item.fotoUrl;
+              fetch(item.fotoUrl, { mode: "no-cors" }).catch(() => {});
             }
           }
         }
@@ -596,7 +611,7 @@ export const controlIngresoService = {
               ci: e.ci,
               nombre: e.nombre,
               apellido: e.apellido,
-              fotoUrl: e.fotoUrl,
+              fotoUrl: formatearFotoUrl(e.fotoUrl),
               estadoHabilitado: e.estadoHabilitado,
               motivoInhabilitacion: e.motivoInhabilitacion,
               ambienteAsignado: e.ambienteAsignado,
@@ -1100,7 +1115,7 @@ export const controlIngresoService = {
             carrera: "Estudiante",
             horaIngreso: "",
             estadoHabilitado: true,
-            fotoUrl: estudianteNomina.fotoUrl || null,
+            fotoUrl: formatearFotoUrl(estudianteNomina.fotoUrl),
           },
         };
       }
@@ -1117,7 +1132,7 @@ export const controlIngresoService = {
           horaIngreso: "",
           estadoHabilitado: true,
           yaIngreso: false,
-          fotoUrl: estudianteNomina.fotoUrl || null,
+          fotoUrl: formatearFotoUrl(estudianteNomina.fotoUrl),
         },
         mensaje: "Código QR válido para confirmación",
       };
@@ -1284,7 +1299,7 @@ export const controlIngresoService = {
           horaIngreso: horaFormateada,
           estadoHabilitado: true,
           yaIngreso: true,
-          fotoUrl: estudianteNomina?.fotoUrl || null,
+          fotoUrl: formatearFotoUrl(estudianteNomina?.fotoUrl),
         },
         mensaje: "Ingreso confirmado y guardado sin conexión",
         pendientesOffline: totalPendientes,

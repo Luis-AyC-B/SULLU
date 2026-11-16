@@ -22,10 +22,32 @@ export function BottomNav() {
   // Precargar proactivamente las páginas y chunks cuando hay conexión para soporte offline inmediato
   useEffect(() => {
     if (typeof window === "undefined" || !navigator.onLine) return;
+    const rutasOperador = [
+      "/control-ingreso",
+      "/ingresos",
+      "/ingresos-rechazados",
+      "/registro-ingresos",
+      "/incidencias",
+    ];
+
+    // 1. Prefetch RSC y chunks de Next.js
     modulosPermitidos.forEach((m) => {
       try {
         router.prefetch(m.ruta);
       } catch {}
+    });
+    rutasOperador.forEach((r) => {
+      try {
+        router.prefetch(r);
+      } catch {}
+    });
+
+    // 2. Prefetch HTML completo en la sesión autenticada para el Service Worker
+    rutasOperador.forEach((r) => {
+      fetch(r, {
+        credentials: "same-origin",
+        headers: { Accept: "text/html" },
+      }).catch(() => {});
     });
   }, [modulosPermitidos, router]);
 
