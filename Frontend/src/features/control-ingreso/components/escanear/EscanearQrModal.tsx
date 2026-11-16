@@ -467,12 +467,18 @@ export function EscanearQrModal({
       </div>
 
       {/* 2. Contenido principal a pantalla completa: Visor de cámara fluido */}
-      <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Ocultar el visor mientras el modal de confirmación esté activo para evitar que
+          el video/laser se superponga al modal en viewports de escritorio */}
+      <div
+        className={`relative flex-1 min-h-0 flex flex-col overflow-hidden ${
+          estudiantePendienteConfirmar ? "invisible pointer-events-none" : ""
+        }`}
+      >
         <QrViewfinder
           examen={examen}
           videoRef={videoRef}
           canvasRef={canvasRef}
-          cameraActiva={cameraActiva && !permisoDenegado}
+          cameraActiva={cameraActiva && !permisoDenegado && !estudiantePendienteConfirmar}
           pendientesCount={pendientesOfflineCount}
           onSincronizar={handleSincronizarOffline}
           isVerificando={isVerificando}
@@ -484,7 +490,7 @@ export function EscanearQrModal({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-55 flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-[200] flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setEstudiantePendienteConfirmar(null);
