@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { ClockAlert, AlertTriangle } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -25,6 +26,7 @@ import {
   OBSERVACIONES_MAX,
   crearIncidenciaFormSchema,
   toCrearIncidenciaPayload,
+  isExamenConcluido,
   type CrearIncidenciaFormValues,
   type ExamenIncidencia,
   type Incidencia,
@@ -73,7 +75,7 @@ export function RegisterIncidenceModal({
         className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto p-6 sm:max-w-[560px] sm:p-8"
       >
         <DialogTitle className="text-headline text-primary">
-          Registrar incidencia
+          Registrar Observación
         </DialogTitle>
         {/* El formulario se monta de nuevo cada vez que se abre el modal, así
             parte siempre de valores limpios (o de la precarga). */}
@@ -138,16 +140,27 @@ function RegisterIncidenceForm({
   });
 
   const observaciones = watch("observaciones");
+  const examenIdSeleccionado = watch("examenId");
+
+  const examenSeleccionadoObj = examenes.find(
+    (e) => String(e.id) === String(examenIdSeleccionado)
+  );
+  const examenEstaConcluido = isExamenConcluido(examenSeleccionadoObj);
 
   async function onSubmit(values: CrearIncidenciaFormValues) {
     setErrorGeneral(null);
+
+    if (examenEstaConcluido) {
+      setErrorGeneral("El examen ya finalizó. No se pueden registrar observaciones en exámenes concluidos.");
+      return;
+    }
 
     // Solo viajan SIS, examen, motivo y observaciones: la hora y el usuario
     // los asigna el servidor.
     const resultado = await registrar(toCrearIncidenciaPayload(values));
 
     if (resultado.ok) {
-      toast.success("Incidencia registrada");
+      toast.success("Observación registrada con éxito");
       onRegistrada(resultado.incidencia);
       onCerrar();
       return;
@@ -179,7 +192,7 @@ function RegisterIncidenceForm({
           inputMode="numeric"
           autoComplete="off"
           placeholder="Ej. 202104321"
-          disabled={isSubmitting}
+          disabled={isSubmitting || examenEstaConcluido}
           aria-invalid={!!errors.codigoSis}
           className="h-11 bg-card"
           {...register("codigoSis")}
@@ -206,6 +219,20 @@ function RegisterIncidenceForm({
         )}
       />
 
+      {examenEstaConcluido && (
+        <div className="rounded-xl border border-amber-200/90 bg-amber-50/70 p-3.5 text-left">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-900 leading-normal">
+              <strong className="font-semibold">Ya se ha finalizado el examen</strong>
+              <p className="mt-0.5 text-amber-800">
+                El horario programado para este examen ha concluido. No se pueden registrar observaciones una vez finalizado el examen.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Controller
         control={control}
         name="motivo"
@@ -217,7 +244,7 @@ function RegisterIncidenceForm({
             <Select
               value={field.value}
               onValueChange={(valor) => field.onChange(valor as MotivoIncidencia)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || examenEstaConcluido}
             >
               <SelectTrigger
                 id="incidencia-motivo"
@@ -251,7 +278,7 @@ function RegisterIncidenceForm({
           id="incidencia-observaciones"
           placeholder="Describe lo ocurrido (opcional)"
           maxLength={OBSERVACIONES_MAX}
-          disabled={isSubmitting}
+          disabled={isSubmitting || examenEstaConcluido}
           aria-invalid={!!errors.observaciones}
           className={TEXTAREA_CLASES}
           {...register("observaciones")}
@@ -287,14 +314,16 @@ function RegisterIncidenceForm({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || examenEstaConcluido}
           className="h-11 w-full sm:w-auto sm:min-w-28"
         >
           {isSubmitting
             ? "Registrando…"
-            : errorGeneral
-              ? "Reintentar"
-              : "Registrar"}
+            : examenEstaConcluido
+              ? "Examen finalizado"
+              : errorGeneral
+                ? "Reintentar"
+                : "Registrar"}
         </Button>
       </div>
     </form>

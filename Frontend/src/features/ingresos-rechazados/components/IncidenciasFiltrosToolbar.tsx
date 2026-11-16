@@ -116,7 +116,7 @@ export function IncidenciasFiltrosToolbar({
     examenesPorCarrera.forEach((e) => {
       const id = e.docenteId ? String(e.docenteId) : e.docente || "";
       const nombre = e.docente || id;
-      if (id && nombre) {
+      if (id && nombre && nombre !== "Docente asignado" && id !== "Docente asignado") {
         map.set(id, nombre);
       }
     });
