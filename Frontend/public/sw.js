@@ -1,7 +1,7 @@
 /* Service worker unificado: portal del estudiante + módulos operador (offline).
  * Ubicación: Frontend/public/sw.js
  * Subir VERSION cada vez que se quiera invalidar la caché. */
-const VERSION = 'v10';
+const VERSION = 'v11';
 const STATIC_CACHE   = `portal-static-${VERSION}`;
 const PAGES_CACHE    = `portal-pages-${VERSION}`;
 const IMAGES_CACHE   = `portal-images-${VERSION}`;

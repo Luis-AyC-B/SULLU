@@ -353,17 +353,22 @@ async function main() {
 
     // Asegurar archivo físico en disco para que no dé 404 y se descargue limpiamente en caché offline
     const uploadsDir = path.resolve(__dirname, '../uploads/estudiantes');
+    const seedPhotosDir = path.resolve(__dirname, 'seed-photos');
     const targetPhoto = path.join(uploadsDir, `foto_${item.cod_sis}.jpg`);
+    const seedPhoto = path.join(seedPhotosDir, `foto_${item.cod_sis}.jpg`);
     const samplePhoto = path.join(
       uploadsDir,
       '486f4563-ce0c-4332-83aa-8ada6be1d950.jpg',
     );
-    if (fs.existsSync(samplePhoto) && !fs.existsSync(targetPhoto)) {
-      try {
+
+    try {
+      if (fs.existsSync(seedPhoto)) {
+        fs.copyFileSync(seedPhoto, targetPhoto);
+      } else if (fs.existsSync(samplePhoto) && !fs.existsSync(targetPhoto)) {
         fs.copyFileSync(samplePhoto, targetPhoto);
-      } catch (e) {
-        void e;
       }
+    } catch (e) {
+      void e;
     }
 
     // Generar Token JWT firmado válido
@@ -469,6 +474,31 @@ async function main() {
   await prisma.examen_Estudiante.deleteMany({
     where: { estudianteId: estOtro.id, examenId: 1 },
   });
+
+  // Asegurar foto para estudiante de otro examen
+  await prisma.fotoEstudiante.deleteMany({
+    where: { estudianteId: estOtro.id },
+  });
+  await prisma.fotoEstudiante.create({
+    data: {
+      estudianteId: estOtro.id,
+      archivo: `/uploads/estudiantes/foto_${estOtro.cod_sis}.jpg`,
+      hashSha256: `hash_${estOtro.cod_sis}`,
+      estado: 'ACTIVA',
+    },
+  });
+
+  const uploadsDir = path.resolve(__dirname, '../uploads/estudiantes');
+  const seedPhotosDir = path.resolve(__dirname, 'seed-photos');
+  const targetOtroPhoto = path.join(uploadsDir, `foto_${estOtro.cod_sis}.jpg`);
+  const seedOtroPhoto = path.join(seedPhotosDir, `foto_${estOtro.cod_sis}.jpg`);
+  try {
+    if (fs.existsSync(seedOtroPhoto)) {
+      fs.copyFileSync(seedOtroPhoto, targetOtroPhoto);
+    }
+  } catch (e) {
+    void e;
+  }
 
   const tokenOtro = jwtService.sign(
     { sub: estOtro.id, codSis: estOtro.cod_sis, examenId: 999, tipo: 'examen' },
