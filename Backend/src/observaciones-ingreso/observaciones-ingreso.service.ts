@@ -4,7 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TipoIncidencia } from '@prisma/client';
+import { EstadoExamen, Prisma, TipoIncidencia } from '@prisma/client';
+import { combinarBolivia, estadoEfectivo } from '../common/estado-examen.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import {
@@ -28,6 +29,7 @@ export const ETIQUETAS_MOTIVO: Record<string, string> = {
   QR_CADUCADO: 'QR de examen vencido',
   NO_ENCONTRADO: 'No habilitado',
   IDENTIDAD_NO_COINCIDE: 'QR no válido',
+  NO_ASISTIO: 'No asistió',
 };
 
 const formatearHoraBolivia = (date: Date): string =>
@@ -35,7 +37,6 @@ const formatearHoraBolivia = (date: Date): string =>
     timeZone: TIMEZONE_BOLIVIA,
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
     hour12: false,
   }).format(date);
 
@@ -279,7 +280,17 @@ export class ObservacionesIngresoService {
     }
 
     const esDocente = rolStr.includes('docente');
-    const esControl = rolStr.includes('control');
+    const esControl =
+      rolStr.includes('control') ||
+      rolStr.includes('estudiante') ||
+      rolStr.includes('colaborador') ||
+      (Array.isArray(user.permisos) &&
+        user.permisos.some(
+          (p: string) =>
+            p.includes('control') ||
+            p.includes('registro_ingresos') ||
+            p.includes('ingreso'),
+        ));
     const esRolPersonalizado = !esDocente && !esControl;
 
     return {
@@ -391,7 +402,7 @@ export class ObservacionesIngresoService {
         );
       }
 
-      // Si envía examenId, debe haber sido asignado
+      // Si envía examenId, debe haber sido asignado como controlador
       if (filtros.examenId) {
         const exId = Number(filtros.examenId);
         if (Number.isNaN(exId)) {
@@ -441,24 +452,6 @@ export class ObservacionesIngresoService {
           throw new ForbiddenException(
             'No tienes asignaciones de control para la materia solicitada',
           );
-        }
-      }
-
-      // Si envía docenteId, debe tener asignaciones en exámenes de ese docente
-      if (filtros.docenteId) {
-        const docId = Number(filtros.docenteId);
-        if (!Number.isNaN(docId)) {
-          const asignadoDocente = await this.prisma.examen.findFirst({
-            where: {
-              usuarioId: docId,
-              controladores: { some: { colaboradorId: user.id } },
-            },
-          });
-          if (!asignadoDocente) {
-            throw new ForbiddenException(
-              'No tienes asignaciones de control en exámenes del docente solicitado',
-            );
-          }
         }
       }
 
@@ -579,6 +572,7 @@ export class ObservacionesIngresoService {
       const exId = Number(filtros.examenId);
       if (!Number.isNaN(exId)) {
         where.examenId = exId;
+        examenWhere.id = exId;
       }
     }
 
@@ -665,6 +659,7 @@ export class ObservacionesIngresoService {
     if (rolInfo.esDocente) {
       examenWhere.usuarioId = user.id;
     } else if (rolInfo.esControl) {
+      // El controlador solo puede ver exámenes asignados a él
       examenWhere.controladores = {
         some: { colaboradorId: user.id },
       };
@@ -701,7 +696,9 @@ export class ObservacionesIngresoService {
       } else if (filtros.motivo === MotivoObservacion.QR_NO_VALIDO) {
         where.tipoIncidencia = TipoIncidencia.IDENTIDAD_NO_COINCIDE;
       } else if (filtros.motivo === MotivoObservacion.QR_OTRO_EXAMEN) {
-        where.tipoIncidencia = 'QR_OTRO_EXAMEN' as unknown as TipoIncidencia;
+        where.tipoIncidencia = 'QR_OTRO_EXAMEN';
+      } else if (filtros.motivo === MotivoObservacion.NO_ASISTIO) {
+        where.id = -1;
       }
     }
 
@@ -764,7 +761,20 @@ export class ObservacionesIngresoService {
       },
     });
 
-    const items = registros.map((r) => {
+    const items: Array<{
+      id: number | string;
+      hora: string;
+      codigoSis: string;
+      estudiante: string;
+      motivo: string;
+      motivoEtiqueta: string;
+      registradoPor: string;
+      fechaHora: string;
+      examenId: number;
+      materia: string;
+      carrera: string;
+      facultad: string;
+    }> = registros.map((r) => {
       const est = r.estudiante;
       const ctrl = r.controlador;
       const examen = r.examen as ExamenCompleto | undefined;
@@ -803,6 +813,82 @@ export class ObservacionesIngresoService {
         facultad: facultadNombre,
       };
     });
+
+    // Si el filtro incluye NO_ASISTIO (o no hay filtro de motivo / es TODOS):
+    // Se agregan automáticamente los estudiantes inscritos al examen que no tienen ingreso registrado
+    if (!filtros.motivo || filtros.motivo === MotivoObservacion.NO_ASISTIO) {
+      const examenWhere = (where.examen ?? {}) as Prisma.ExamenWhereInput;
+      const examenesParaNoAsistieron = await this.prisma.examen.findMany({
+        where: examenWhere,
+        include: {
+          ...INCLUDE_EXAMEN_COMPLETO,
+          estudiantes: {
+            include: { estudiante: true },
+          },
+          ingresos: {
+            select: { estudianteId: true },
+          },
+        },
+      });
+
+      for (const ex of examenesParaNoAsistieron) {
+        // El "no asistió" solo se coloca cuando el examen ya ha terminado (finalizado)
+        if (estadoEfectivo(ex) !== EstadoExamen.FINALIZADO) {
+          continue;
+        }
+
+        const resAmb = ex.reservaAmbiente;
+        const horFijo = resAmb?.horarioFijo;
+        let horaTermino = '09:45';
+        let fechaHoraFin: Date = resAmb?.fecha ?? new Date();
+
+        if (resAmb?.fecha && horFijo?.horaFin) {
+          const finInstant = combinarBolivia(resAmb.fecha, horFijo.horaFin);
+          horaTermino = formatearHoraBolivia(finInstant);
+          fechaHoraFin = finInstant;
+        } else if (horFijo?.horaFin) {
+          const hFin = horFijo.horaFin;
+          const hh = String((hFin.getUTCHours() + 4) % 24).padStart(2, '0');
+          const mm = String(hFin.getUTCMinutes()).padStart(2, '0');
+          horaTermino = `${hh}:${mm}`;
+        }
+
+        const pares =
+          ex.carrerasMaterias?.map((cm) => cm.carrera_materia) ?? [];
+        const materiaNombre =
+          pares.map((p) => p.materia.nombre).join(' / ') || 'Materia';
+        const carreraNombre =
+          pares.map((p) => p.carrera.nombre).join(' / ') || 'Carrera';
+        const facultadNombre =
+          pares[0]?.carrera?.facultad?.nombre ||
+          ex.reservaAmbiente?.ambiente?.facultad?.nombre ||
+          'Facultad de Ciencias y Tecnología';
+
+        const ingresadosIds = new Set(ex.ingresos.map((i) => i.estudianteId));
+
+        for (const inscripcion of ex.estudiantes) {
+          if (!ingresadosIds.has(inscripcion.estudianteId)) {
+            const est = inscripcion.estudiante;
+            items.push({
+              id: `no-asistio-${ex.id}-${inscripcion.estudianteId}`,
+              hora: horaTermino,
+              codigoSis: est?.cod_sis ? String(est.cod_sis) : '—',
+              estudiante: est
+                ? [est.nombre, est.apellido].filter(Boolean).join(' ')
+                : 'Estudiante no identificado',
+              motivo: MotivoObservacion.NO_ASISTIO,
+              motivoEtiqueta: 'No asistió',
+              registradoPor: 'Sistema (Automático)',
+              fechaHora: fechaHoraFin.toISOString(),
+              examenId: ex.id,
+              materia: materiaNombre,
+              carrera: carreraNombre,
+              facultad: facultadNombre,
+            });
+          }
+        }
+      }
+    }
 
     // Paginación si se especifica
     const page = filtros.page ?? 1;
@@ -845,12 +931,6 @@ export class ObservacionesIngresoService {
         },
       },
     });
-
-    if (registros.length === 0) {
-      throw new BadRequestException(
-        'No hay observaciones de ingreso que coincidan con los filtros seleccionados.',
-      );
-    }
 
     // Agrupar observaciones por examen
     const gruposMap = new Map<number, ExamenPdfGrupo>();
@@ -922,6 +1002,124 @@ export class ObservacionesIngresoService {
           : 'Controlador no identificado',
       });
       grupo.totalExamen = grupo.filas.length;
+    }
+
+    // Incluir estudiantes que no asistieron en el PDF si corresponde al filtro
+    if (!filtros.motivo || filtros.motivo === MotivoObservacion.NO_ASISTIO) {
+      const examenWhere = (where.examen ?? {}) as Prisma.ExamenWhereInput;
+      const examenesParaNoAsistieron = await this.prisma.examen.findMany({
+        where: examenWhere,
+        include: {
+          ...INCLUDE_EXAMEN_COMPLETO,
+          estudiantes: {
+            include: { estudiante: true },
+          },
+          ingresos: {
+            select: { estudianteId: true },
+          },
+        },
+      });
+
+      for (const ex of examenesParaNoAsistieron) {
+        // El "no asistió" solo se coloca cuando el examen ya ha terminado (finalizado)
+        if (estadoEfectivo(ex) !== EstadoExamen.FINALIZADO) {
+          continue;
+        }
+
+        const exId = ex.id;
+        const ingresadosIds = new Set(ex.ingresos.map((i) => i.estudianteId));
+        const faltantes = ex.estudiantes.filter(
+          (ins) => !ingresadosIds.has(ins.estudianteId),
+        );
+
+        if (faltantes.length > 0) {
+          if (!gruposMap.has(exId)) {
+            const pares =
+              ex.carrerasMaterias?.map((cm) => cm.carrera_materia) ?? [];
+            const materiaNombre =
+              Array.from(new Set(pares.map((p) => p.materia.nombre))).join(
+                ' / ',
+              ) || 'Materia';
+            const carreraNombre =
+              Array.from(new Set(pares.map((p) => p.carrera.nombre))).join(
+                ' / ',
+              ) || 'Carrera';
+            const facultadNombre =
+              pares[0]?.carrera?.facultad?.nombre ||
+              ex.reservaAmbiente?.ambiente?.facultad?.nombre ||
+              'Facultad de Ciencias y Tecnología';
+
+            const resAmb = ex.reservaAmbiente;
+            const horFijo = resAmb?.horarioFijo;
+            const horaIni = horFijo?.horaIni
+              ? horFijo.horaIni.toISOString().substring(11, 16)
+              : '08:00';
+            const horaFin = horFijo?.horaFin
+              ? horFijo.horaFin.toISOString().substring(11, 16)
+              : '09:30';
+
+            const fechaExamenStr = resAmb?.fecha
+              ? formatearFechaBolivia(resAmb.fecha)
+              : new Date().toISOString().slice(0, 10);
+
+            const resp = ex.responsable;
+            const nombreDocente = resp
+              ? [resp.nombre, resp.apellido].filter(Boolean).join(' ')
+              : 'Docente responsable';
+
+            gruposMap.set(exId, {
+              materia: materiaNombre,
+              examen: ex.tipoExamen,
+              carrera: carreraNombre,
+              facultad: facultadNombre,
+              docente: nombreDocente,
+              ambiente: resAmb?.ambiente?.nombre ?? 'Ambiente no asignado',
+              fechaExamen: fechaExamenStr,
+              horario: `${horaIni} - ${horaFin}`,
+              totalExamen: 0,
+              filas: [],
+            });
+          }
+
+          const grupo = gruposMap.get(exId)!;
+          const resAmb = ex.reservaAmbiente;
+          const horFijo = resAmb?.horarioFijo;
+          let horaTermino = '09:45';
+          if (resAmb?.fecha && horFijo?.horaFin) {
+            horaTermino = formatearHoraBolivia(
+              combinarBolivia(resAmb.fecha, horFijo.horaFin),
+            );
+          } else if (horFijo?.horaFin) {
+            const hFin = horFijo.horaFin;
+            const hh = String((hFin.getUTCHours() + 4) % 24).padStart(2, '0');
+            const mm = String(hFin.getUTCMinutes()).padStart(2, '0');
+            horaTermino = `${hh}:${mm}`;
+          }
+
+          for (const ins of faltantes) {
+            const est = ins.estudiante;
+            grupo.filas.push({
+              hora: horaTermino,
+              codigoSis: est?.cod_sis ? String(est.cod_sis) : '—',
+              estudiante: est
+                ? [est.nombre, est.apellido].filter(Boolean).join(' ')
+                : 'Estudiante no identificado',
+              motivo: 'No asistió',
+              registradoPor: 'Sistema (Automático)',
+            });
+          }
+          grupo.totalExamen = grupo.filas.length;
+        }
+      }
+    }
+
+    if (
+      gruposMap.size === 0 ||
+      Array.from(gruposMap.values()).every((g) => g.filas.length === 0)
+    ) {
+      throw new BadRequestException(
+        'No hay observaciones de ingreso que coincidan con los filtros seleccionados.',
+      );
     }
 
     // Ordenar los grupos por facultad, carrera, materia y fecha
