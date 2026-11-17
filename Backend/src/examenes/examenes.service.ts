@@ -829,7 +829,7 @@ export class ExamenesService {
     if (horaIni) {
       const horaStr = ahora.toLocaleTimeString('en-US', {
         timeZone: 'America/La_Paz',
-        hour12: false,
+        hourCycle: 'h23',
         hour: '2-digit',
         minute: '2-digit',
       });
