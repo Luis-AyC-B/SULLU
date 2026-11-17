@@ -520,6 +520,44 @@ model TokenRecuperacion {
 // MÃ“DULO DE AUDITORÃA
 // ==========================================
 
+model ProgramacionRespaldos {
+  id                  Int       @id
+  proximoAutomatico   DateTime? @map("proximo_automatico") @db.Timestamptz(3)
+  latido              DateTime? @db.Timestamptz(3)
+  ejecucion           String?
+  manualPendiente     Boolean   @default(false) @map("manual_pendiente")
+  resultadoManual     String?   @map("resultado_manual")
+
+  @@map("programacion_respaldos")
+}
+
+model EjecucionRespaldo {
+  fechaHora            DateTime @map("fecha_hora") @db.Timestamptz(3)
+  archivo              String
+  estado               String
+  tamanoBytes          BigInt?  @map("tamano_bytes")
+  restauradoEnPrueba   Boolean  @map("restaurado_en_prueba")
+  restauracion         RestauracionRespaldo?
+
+  @@id([fechaHora, archivo])
+  @@map("ejecuciones_respaldo")
+}
+
+model RestauracionRespaldo {
+  id              Int      @id @default(autoincrement())
+  fechaRespaldo   DateTime @map("fecha_respaldo") @db.Timestamptz(3)
+  archivo         String
+  estado          String
+  solicitadoPor   Int      @map("solicitado_por")
+  solicitadaEn    DateTime @default(now()) @map("solicitada_en") @db.Timestamptz(3)
+  baseRestaurada  String?  @map("base_restaurada")
+  error           String?
+  respaldo        EjecucionRespaldo @relation(fields: [fechaRespaldo, archivo], references: [fechaHora, archivo], onDelete: Restrict)
+
+  @@unique([fechaRespaldo, archivo])
+  @@map("restauraciones_respaldo")
+}
+
 model Bitacora_Auditoria {
   id               Int      @id @default(autoincrement())
   usuarioId        Int?     @map("usuario_id") // Identidad histórica del responsable.
