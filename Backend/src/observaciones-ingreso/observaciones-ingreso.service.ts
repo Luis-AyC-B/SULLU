@@ -37,7 +37,7 @@ const formatearHoraBolivia = (date: Date): string =>
     timeZone: TIMEZONE_BOLIVIA,
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   }).format(date);
 
 const formatearFechaBolivia = (date: Date): string =>
@@ -59,7 +59,7 @@ const formatearFechaHoraServidor = (date: Date): string =>
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   })
     .format(date)
     .replace(',', '');

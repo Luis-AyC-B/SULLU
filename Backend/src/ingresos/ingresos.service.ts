@@ -186,7 +186,7 @@ export class IngresosService {
       const ahora = new Date();
       const horaStr = ahora.toLocaleTimeString('en-US', {
         timeZone: 'America/La_Paz',
-        hour12: false,
+        hourCycle: 'h23',
         hour: '2-digit',
         minute: '2-digit',
       });
