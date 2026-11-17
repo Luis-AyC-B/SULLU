@@ -1,3 +1,4 @@
+import { leerFotoEstudiante } from '../portal-estudiante/supabase-storage';
 import {
   BadRequestException,
   HttpException,
@@ -6,7 +7,6 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import * as fs from 'fs';
 import * as path from 'path';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
@@ -253,28 +253,25 @@ export class CodigosQrService {
       );
     }
 
-    const rutaLimpia = archivoRelativo.replace(/^\/?(uploads\/)?/, '');
-    const rutaCompleta = path.resolve(process.cwd(), 'uploads', rutaLimpia);
-
-    if (!fs.existsSync(rutaCompleta)) {
+    let buffer: Buffer;
+    try {
+      buffer = await leerFotoEstudiante(archivoRelativo);
+    } catch {
       throw new NotFoundException(
         'Archivo de fotografía no encontrado en el servidor',
       );
     }
 
-    const ext = path.extname(rutaCompleta).toLowerCase();
+    const ext = path.extname(archivoRelativo.split('?')[0]).toLowerCase();
     const mimeMap: Record<string, string> = {
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
       '.png': 'image/png',
       '.webp': 'image/webp',
     };
-    const contentType = mimeMap[ext] || 'image/jpeg';
-
-    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Type', mimeMap[ext] || 'image/jpeg');
     res.setHeader('Cache-Control', 'no-store, must-revalidate');
-    const stream = fs.createReadStream(rutaCompleta);
-    stream.pipe(res);
+    res.end(buffer);
   }
 
   /**

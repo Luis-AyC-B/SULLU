@@ -1,3 +1,4 @@
+import { subirFotoEstudiante } from './supabase-storage';
 import {
   BadRequestException,
   Inject,
@@ -8,7 +9,6 @@ import {
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import * as path from 'path';
 import sizeOf from 'image-size';
 import { PrismaService } from '../prisma/prisma.service';
 import { QrTokenService } from './qr-token.service';
@@ -370,21 +370,12 @@ export class EstudianteMeService {
     // 4. Renombrar con UUID para seguridad
     const extension = esPng ? '.png' : '.jpg';
     const uuidNombre = `${crypto.randomUUID()}${extension}`;
-    const directorioDestino = path.resolve(
-      process.cwd(),
-      'uploads/estudiantes',
+    const rutaRelativa = await subirFotoEstudiante(
+      fileBuffer,
+      uuidNombre,
+      esPng ? 'image/png' : 'image/jpeg',
     );
-
-    if (!fs.existsSync(directorioDestino)) {
-      fs.mkdirSync(directorioDestino, { recursive: true });
-    }
-
-    const rutaFinalFisica = path.join(directorioDestino, uuidNombre);
-    fs.copyFileSync(file.path, rutaFinalFisica);
-
     borrarTemporal(file.path);
-
-    const rutaRelativa = `/uploads/estudiantes/${uuidNombre}`;
     const hashSha256 = crypto
       .createHash('sha256')
       .update(fileBuffer)
