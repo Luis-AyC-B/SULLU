@@ -1,6 +1,5 @@
+import { leerFotoEstudiante } from './supabase-storage';
 import { HttpException, HttpStatus, Injectable, Inject } from '@nestjs/common';
-import { readFile } from 'fs/promises';
-import { resolve, sep } from 'path';
 import {
   COMPARADOR_FACIAL_TOKEN,
   type ComparadorFacial,
@@ -95,16 +94,12 @@ export class QrExamenService {
         'FOTO_NO_DISPONIBLE',
         'No tienes una fotografía original activa',
       );
-    const directorio = resolve('uploads/estudiantes');
-    const archivo = resolve('.', foto.archivo.replace(/^\/+/, ''));
-    if (!archivo.startsWith(directorio + sep))
-      throw err(503, 'FOTO_NO_DISPONIBLE', 'Fotografía original no disponible');
     const threshold = Number(process.env.HU23_FACE_THRESHOLD || 0.45);
     if (!Number.isFinite(threshold) || threshold < 0.3 || threshold > 1)
       throw err(503, 'ERROR_SERVIDOR', 'Configuración facial inválida');
     let resultado;
     try {
-      const original = await readFile(archivo);
+      const original = await leerFotoEstudiante(foto.archivo);
       resultado = await this.facial.comparar(original, selfie.buffer);
     } catch {
       throw err(
