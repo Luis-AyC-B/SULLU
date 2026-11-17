@@ -1,12 +1,40 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useUserPermissions } from "@/shared/hooks/useUserPermissions";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const modulosPermitidos = useUserPermissions();
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.onLine) return;
+    const rutasOperador = [
+      "/control-ingreso",
+      "/ingresos",
+      "/ingresos-rechazados",
+      "/registro-ingresos",
+      "/incidencias",
+    ];
+
+    modulosPermitidos.forEach((m) => {
+      try {
+        router.prefetch(m.ruta);
+      } catch {}
+    });
+    rutasOperador.forEach((r) => {
+      try {
+        router.prefetch(r);
+      } catch {}
+      fetch(r, {
+        credentials: "same-origin",
+        headers: { Accept: "text/html" },
+      }).catch(() => {});
+    });
+  }, [modulosPermitidos, router]);
 
   if (modulosPermitidos.length === 0) {
     return (
@@ -29,6 +57,7 @@ export function Sidebar() {
             <Link
               key={modulo.clave}
               href={modulo.ruta}
+              prefetch={true}
               className={`flex items-center gap-3 rounded-md px-4 py-3.5 text-sm font-medium transition-all duration-200 ${
                 isActive
                   ? "border-l-4 border-destructive bg-primary-foreground/15 text-primary-foreground font-semibold"

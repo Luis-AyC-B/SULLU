@@ -786,6 +786,21 @@ export class IngresosService {
       }
     }
 
+    const { fueraDeGrupo, advertencia, grupoCorrecto } =
+      await this.validarGrupoAsignado(
+        dto.examenId,
+        registradoPorId,
+        estudiante.id,
+      );
+
+    if (fueraDeGrupo) {
+      throw new BadRequestException({
+        code: 'FUERA_DE_GRUPO',
+        message: advertencia,
+        grupoCorrecto,
+      });
+    }
+
     const nuevoIngreso = await this.prisma.ingreso.create({
       data: {
         estudianteId: estudiante.id,
@@ -815,18 +830,11 @@ export class IngresosService {
       },
     });
 
-    const { fueraDeGrupo, advertencia, grupoCorrecto } =
-      await this.validarGrupoAsignado(
-        dto.examenId,
-        registradoPorId,
-        estudiante.id,
-      );
-
     return {
       mensaje: 'Ingreso registrado exitosamente',
-      fueraDeGrupo,
-      advertencia,
-      grupoCorrecto,
+      fueraDeGrupo: false,
+      advertencia: undefined,
+      grupoCorrecto: undefined,
       ingreso: nuevoIngreso,
     };
   }
@@ -943,6 +951,9 @@ export class IngresosService {
             estudianteId: estudianteIdJwt,
             examenId: dto.examenId,
           },
+          include: {
+            estudiante: true,
+          },
         });
         if (yaIngreso) {
           await this.prisma.incidenciaIngreso.create({
@@ -954,9 +965,28 @@ export class IngresosService {
               descripcion: 'Intento de reingreso con código QR',
             },
           });
-          throw new ConflictException(
-            'El estudiante ya registró su ingreso a este examen',
-          );
+          const horaIngresoPrevio = yaIngreso.fechaHora?.toLocaleTimeString
+            ? yaIngreso.fechaHora.toLocaleTimeString('es-BO', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZone: 'America/La_Paz',
+              })
+            : undefined;
+          throw new ConflictException({
+            code: 'DOBLE_MARCACION',
+            message: 'El estudiante ya registró su ingreso a este examen',
+            estudiante: yaIngreso.estudiante
+              ? {
+                  id: yaIngreso.estudiante.id,
+                  codSis: yaIngreso.estudiante.cod_sis,
+                  nombre: yaIngreso.estudiante.nombre,
+                  apellido: yaIngreso.estudiante.apellido,
+                  ci: yaIngreso.estudiante.ci,
+                }
+              : undefined,
+            horaIngresoPrevio,
+          });
         }
       }
 
@@ -969,6 +999,53 @@ export class IngresosService {
         },
       });
       throw new NotFoundException('Código QR no válido o inexistente');
+    }
+
+    // Verificar primero si el estudiante ya registró su ingreso a este examen
+    // (evita que un QR consumido/quemado reporte "expirado" en lugar de "ya registrado")
+    const ingresoExistentePrevio = await this.prisma.ingreso.findFirst({
+      where: {
+        estudianteId: qrRegistro.estudianteId,
+        examenId: dto.examenId,
+      },
+      include: {
+        estudiante: true,
+      },
+    });
+
+    if (ingresoExistentePrevio) {
+      await this.prisma.incidenciaIngreso.create({
+        data: {
+          examenId: dto.examenId,
+          registradoPor: registradoPorId,
+          estudianteId: qrRegistro.estudianteId,
+          tipoIncidencia: TipoIncidencia.DOBLE_MARCACION,
+          descripcion: 'Intento de reingreso con código QR',
+        },
+      });
+      const horaIngresoPrevio = ingresoExistentePrevio.fechaHora
+        ?.toLocaleTimeString
+        ? ingresoExistentePrevio.fechaHora.toLocaleTimeString('es-BO', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZone: 'America/La_Paz',
+          })
+        : undefined;
+      throw new ConflictException({
+        code: 'DOBLE_MARCACION',
+        message: 'El estudiante ya registró su ingreso a este examen',
+        estudiante: qrRegistro.estudiante
+          ? {
+              id: qrRegistro.estudiante.id,
+              codSis: qrRegistro.estudiante.cod_sis,
+              nombre: qrRegistro.estudiante.nombre,
+              apellido: qrRegistro.estudiante.apellido,
+              ci: qrRegistro.estudiante.ci,
+            }
+          : undefined,
+        horaIngresoPrevio,
+      });
     }
 
     if (new Date() > qrRegistro.expiraEn) {
@@ -1101,8 +1178,6 @@ export class IngresosService {
         where: { estudianteId: estudiante.id, estado: 'ACTIVA' },
         orderBy: { creadaEn: 'desc' },
       });
-      if (!foto)
-        throw new BadRequestException('Fotografía original no disponible');
       return {
         success: true,
         ...grupo,
@@ -1111,7 +1186,7 @@ export class IngresosService {
           nombre: estudiante.nombre,
           apellido: estudiante.apellido,
           codSis: estudiante.cod_sis,
-          fotoUrl: foto.archivo,
+          fotoUrl: foto?.archivo ?? null,
           requiereConfirmacion: true,
           examen: examen.tipoExamen,
           estadoHabilitado: true,
@@ -1129,6 +1204,22 @@ export class IngresosService {
           'Este registro de sincronización ya fue procesado',
         );
       }
+    }
+
+    // Validar grupo ANTES de registrar o quemar el QR
+    const { fueraDeGrupo, advertencia, grupoCorrecto } =
+      await this.validarGrupoAsignado(
+        dto.examenId,
+        registradoPorId,
+        estudiante.id,
+      );
+
+    if (fueraDeGrupo) {
+      throw new BadRequestException({
+        code: 'FUERA_DE_GRUPO',
+        message: advertencia,
+        grupoCorrecto,
+      });
     }
 
     const nuevoIngreso = await this.prisma.ingreso
@@ -1178,18 +1269,11 @@ export class IngresosService {
       data: { expiraEn: new Date() },
     });
 
-    const { fueraDeGrupo, advertencia, grupoCorrecto } =
-      await this.validarGrupoAsignado(
-        dto.examenId,
-        registradoPorId,
-        estudiante.id,
-      );
-
     return {
       mensaje: 'Ingreso por QR registrado exitosamente',
-      fueraDeGrupo,
-      advertencia,
-      grupoCorrecto,
+      fueraDeGrupo: false,
+      advertencia: undefined,
+      grupoCorrecto: undefined,
       ingreso: nuevoIngreso,
     };
   }
@@ -1454,6 +1538,22 @@ export class IngresosService {
         continue;
       }
 
+      const { fueraDeGrupo, advertencia } = await this.validarGrupoAsignado(
+        item.examenId,
+        registradoPorId,
+        estudianteId,
+      );
+
+      if (fueraDeGrupo) {
+        rechazados.push({
+          clienteSyncId: item.clienteSyncId,
+          motivo:
+            advertencia ||
+            'El estudiante no pertenece a la fila/grupo asignado a este controlador',
+        });
+        continue;
+      }
+
       const nuevoIngreso = await this.prisma.ingreso.create({
         data: {
           estudianteId,
@@ -1525,7 +1625,7 @@ export class IngresosService {
   async buscarEstudiantesExamen(
     examenId: number,
     query?: string,
-    colaboradorId?: number,
+    _colaboradorId?: number,
   ) {
     const examen = await this.prisma.examen.findUnique({
       where: { id: examenId },
@@ -1535,34 +1635,42 @@ export class IngresosService {
       throw new NotFoundException('Examen no encontrado');
     }
 
-    let estudianteIdsFiltrados: number[] | undefined;
-    if (colaboradorId && this.particionService) {
-      const grupo = await this.particionService.obtenerGrupoDeControlador(
-        examenId,
-        colaboradorId,
-      );
-      if (grupo) {
-        estudianteIdsFiltrados = grupo.estudianteIds;
+    // Obtener partición completa para enriquecer resultados con nombreLista/rango
+    let particion:
+      import('./particion-controlador.service').ResumenParticionExamen | null =
+      null;
+
+    if (this.particionService) {
+      try {
+        particion = await this.particionService.calcularParticion(examenId);
+      } catch {
+        particion = null;
       }
     }
 
     const q = query?.trim();
+    // Tokenizar para búsqueda multipalabra (ej. "Valeria Soria" → ["Valeria","Soria"])
+    const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+
+    const buildTokenCondition = (token: string) => ({
+      OR: [
+        { nombre: { contains: token, mode: 'insensitive' as const } },
+        { apellido: { contains: token, mode: 'insensitive' as const } },
+        { cod_sis: { contains: token, mode: 'insensitive' as const } },
+        { ci: { contains: token, mode: 'insensitive' as const } },
+      ],
+    });
+
+    const estudianteWhere =
+      tokens.length > 1
+        ? { AND: tokens.map(buildTokenCondition) }
+        : tokens.length === 1
+          ? buildTokenCondition(tokens[0])
+          : undefined;
 
     const where: Prisma.Examen_EstudianteWhereInput = {
       examenId,
-      ...(estudianteIdsFiltrados && {
-        estudianteId: { in: estudianteIdsFiltrados },
-      }),
-      ...(q && {
-        estudiante: {
-          OR: [
-            { nombre: { contains: q, mode: 'insensitive' as const } },
-            { apellido: { contains: q, mode: 'insensitive' as const } },
-            { cod_sis: { contains: q, mode: 'insensitive' as const } },
-            { ci: { contains: q, mode: 'insensitive' as const } },
-          ],
-        },
-      }),
+      ...(estudianteWhere && { estudiante: estudianteWhere }),
     };
 
     const inscripciones = await this.prisma.examen_Estudiante.findMany({
@@ -1575,6 +1683,11 @@ export class IngresosService {
               orderBy: { fechaHora: 'desc' },
               take: 1,
             },
+            fotos: {
+              where: { estado: 'ACTIVA' },
+              orderBy: { creadaEn: 'desc' },
+              take: 1,
+            },
           },
         },
       },
@@ -1582,14 +1695,30 @@ export class IngresosService {
       orderBy: { estudiante: { apellido: 'asc' } },
     });
 
+    // Función auxiliar para obtener datos de lista de un estudiante en la partición
+    const getListaInfo = (estudianteId: number) => {
+      if (!particion)
+        return { nombreLista: undefined, rangoAsignado: undefined };
+      const grupo = particion.grupos.find((g) =>
+        g.estudianteIds.includes(estudianteId),
+      );
+      return grupo
+        ? { nombreLista: grupo.nombreLista, rangoAsignado: grupo.rango }
+        : { nombreLista: undefined, rangoAsignado: undefined };
+    };
+
     return inscripciones.map((ee) => {
       const ultimoIngreso = ee.estudiante.ingresos?.[0];
+      const { nombreLista, rangoAsignado } = getListaInfo(ee.estudianteId);
+      const fotoActiva =
+        ee.estudiante.fotos?.[0]?.archivo || ee.estudiante.fotoUrl;
       return {
         id: ee.estudianteId,
         codSis: ee.estudiante.cod_sis,
         ci: ee.estudiante.ci || '',
         nombre: ee.estudiante.nombre,
         apellido: ee.estudiante.apellido || '',
+        fotoUrl: fotoActiva || null,
         estadoHabilitado: ee.estado_habilitado,
         motivoInhabilitacion: ee.motivo_inhabilitacion,
         ambienteAsignado: '',
@@ -1598,10 +1727,14 @@ export class IngresosService {
           ? new Date(ultimoIngreso.fechaHora).toLocaleTimeString('es-BO', {
               hour: '2-digit',
               minute: '2-digit',
+              second: '2-digit',
+              timeZone: 'America/La_Paz',
             })
           : undefined,
         metodoIngresoPrevio: ultimoIngreso?.metodo as
           'QR' | 'MANUAL' | undefined,
+        nombreLista,
+        rangoAsignado,
       };
     });
   }

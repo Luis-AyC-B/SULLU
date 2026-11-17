@@ -23,6 +23,7 @@ export interface GrupoControladorParticion {
   nombreControlador: string;
   emailControlador: string;
   rolAsignacion: string;
+  nombreLista: string;
   rango: string;
   letraInicio: string;
   letraFin: string;
@@ -131,20 +132,9 @@ export class ParticionControladorService {
     // Caso 2: 1 solo controlador asignado (cubre toda la lista)
     if (numControladores === 1) {
       const c = controladores[0];
-      const letraIni =
-        totalEstudiantes > 0
-          ? this.obtenerLetraInicial(estudiantesMapeados[0])
-          : 'A';
-      const letraFin =
-        totalEstudiantes > 0
-          ? this.obtenerLetraInicial(estudiantesMapeados[totalEstudiantes - 1])
-          : 'Z';
-      const rango =
-        totalEstudiantes === 0
-          ? 'A - Z'
-          : letraIni === letraFin
-            ? letraIni
-            : `${letraIni} - ${letraFin}`;
+      const letraIni = 'A';
+      const letraFin = 'Z';
+      const rango = 'A - Z';
 
       return {
         examenId,
@@ -157,6 +147,7 @@ export class ParticionControladorService {
               `${c.colaborador.nombre} ${c.colaborador.apellido ?? ''}`.trim(),
             emailControlador: c.colaborador.correo ?? '',
             rolAsignacion: c.rolAsignacion,
+            nombreLista: 'Lista A',
             rango,
             letraInicio: letraIni,
             letraFin: letraFin,
@@ -184,16 +175,37 @@ export class ParticionControladorService {
       );
       indiceActual += tamanoGrupo;
 
+      const nombreLista = `Lista ${String.fromCharCode(65 + i)}`;
       let letraIni = '-';
       let letraFin = '-';
       let rango = '-';
 
       if (estudiantesGrupo.length > 0) {
-        letraIni = this.obtenerLetraInicial(estudiantesGrupo[0]);
         letraFin = this.obtenerLetraInicial(
           estudiantesGrupo[estudiantesGrupo.length - 1],
         );
+
+        // El primer grupo siempre comienza en 'A'
+        if (i === 0) {
+          letraIni = 'A';
+        } else {
+          // Los grupos intermedios/último inician justo en la letra siguiente
+          // a donde terminó el grupo anterior, evitando letras "huérfanas"
+          const letraFinAnterior = grupos[i - 1].letraFin;
+          letraIni =
+            letraFinAnterior !== '-' && letraFinAnterior !== 'Z'
+              ? String.fromCharCode(letraFinAnterior.charCodeAt(0) + 1)
+              : this.obtenerLetraInicial(estudiantesGrupo[0]);
+        }
+
+        // El último grupo siempre debe abarcar hasta 'Z'
+        if (i === numControladores - 1) {
+          letraFin = 'Z';
+        }
         rango = letraIni === letraFin ? letraIni : `${letraIni} - ${letraFin}`;
+      } else {
+        if (i === 0) letraIni = 'A';
+        if (i === numControladores - 1) letraFin = 'Z';
       }
 
       grupos.push({
@@ -202,6 +214,7 @@ export class ParticionControladorService {
           `${c.colaborador.nombre} ${c.colaborador.apellido ?? ''}`.trim(),
         emailControlador: c.colaborador.correo ?? '',
         rolAsignacion: c.rolAsignacion,
+        nombreLista,
         rango,
         letraInicio: letraIni,
         letraFin: letraFin,
@@ -296,6 +309,7 @@ export class ParticionControladorService {
         nombreControlador: user.nombre ?? 'Docente / Admin',
         emailControlador: user.email ?? '',
         rolAsignacion: esDocente ? 'Docente responsable' : 'Administrador',
+        nombreLista: 'Lista Completa',
         rango: 'A - Z',
         letraInicio: 'A',
         letraFin: 'Z',
@@ -369,6 +383,7 @@ export class ParticionControladorService {
       nombreControlador:
         grupoSeleccionado?.nombreControlador ?? user.nombre ?? 'Controlador',
       rolAsignacion: rol,
+      nombreLista: grupoSeleccionado?.nombreLista ?? 'Lista A',
       rango: grupoSeleccionado?.rango ?? '-',
       letraInicio: grupoSeleccionado?.letraInicio ?? '-',
       letraFin: grupoSeleccionado?.letraFin ?? '-',
@@ -431,15 +446,46 @@ export class ParticionControladorService {
       : 'El estudiante';
 
     const detalleDestino = grupoCorrecto
-      ? `Debe dirigirse al controlador ${grupoCorrecto.nombreControlador} (Fila/Rango ${grupoCorrecto.rango})`
+      ? `Debe dirigirse al controlador ${grupoCorrecto.nombreControlador} (${grupoCorrecto.nombreLista}: ${grupoCorrecto.rango})`
       : 'no se encuentra asignado a ningún grupo habilitado';
 
     return {
       pertenece: false,
       grupoAsignado: grupoControlador,
       grupoCorrecto,
-      mensaje: `${nombreEstudiante} no pertenece a tu grupo asignado (Rango ${grupoControlador.rango}). ${detalleDestino}.`,
+      mensaje: `${nombreEstudiante} no pertenece a tu grupo asignado (${grupoControlador.nombreLista}: ${grupoControlador.rango}). ${detalleDestino}.`,
     };
+  }
+
+  /**
+   * Obtiene la asignación de lista y rango de un estudiante para un examen específico.
+   */
+  async obtenerGrupoDeEstudiante(
+    examenId: number,
+    estudianteId: number,
+  ): Promise<{
+    nombreLista: string;
+    rango: string;
+    nombreControlador: string;
+  } | null> {
+    try {
+      const particion = await this.calcularParticion(examenId);
+      if (!particion || particion.grupos.length === 0) return null;
+
+      const grupo = particion.grupos.find((g) =>
+        g.estudianteIds.includes(estudianteId),
+      );
+      if (grupo) {
+        return {
+          nombreLista: grupo.nombreLista,
+          rango: grupo.rango,
+          nombreControlador: grupo.nombreControlador,
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   private obtenerLetraInicial(estudiante: EstudianteParticion): string {

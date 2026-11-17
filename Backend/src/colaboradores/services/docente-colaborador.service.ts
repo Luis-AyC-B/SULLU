@@ -5,13 +5,13 @@ import {
   ConflictException,
   NotFoundException,
   ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { EstadoSolicitud } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SolicitarColaboradorDto } from '../dto/solicitar-colaborador.dto';
 
-const ROL_PERSONAL_CONTROL = 3; // Personal de control
-const ROL_ESTUDIANTE = 5;       // Estudiante
+const ROL_PERSONAL_CONTROL = 'Personal de control';
 
 @Injectable()
 export class DocenteColaboradorService {
@@ -58,200 +58,90 @@ export class DocenteColaboradorService {
   // SOLICITUD (DOCENTE)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * HU13: Registra una nueva solicitud de colaborador para el docente autenticado.
-   * Recibe solo el código SIS del estudiante ya registrado en el sistema.
-   * NO asigna ningún rol — el estudiante sigue siendo solo Estudiante hasta que el admin apruebe.
-   */
+  /** Confirma un colaborador y le asigna el rol de control en la misma transacción. */
   async solicitarColaborador(docenteId: number, dto: SolicitarColaboradorDto) {
     const codSis = dto.codSis.trim();
 
-    // 1. Buscar el estudiante en el sistema por cod_sis
-    const estudiante = await this.prisma.estudiante.findUnique({
-      where: { cod_sis: codSis },
-      include: { usuario: true },
-    });
+    const nueva = await this.prisma.$transaction(async (tx) => {
+      // Serializa confirmaciones simultáneas para el mismo estudiante.
+      const [estudiante] = await tx.$queryRaw<
+        { usuarioId: number | null }[]
+      >`
+        SELECT u.id AS "usuarioId"
+        FROM estudiantes e
+        LEFT JOIN usuarios u ON u.id = e.usuario_id AND u.deleted_at IS NULL
+        WHERE e.cod_sis = ${codSis}
+        FOR UPDATE OF e
+      `;
 
-    if (!estudiante) {
-      throw new NotFoundException(
-        'El código SIS no corresponde a un estudiante registrado.',
-      );
-    }
+      if (!estudiante) {
+        throw new NotFoundException(
+          'El código SIS no corresponde a un estudiante registrado.',
+        );
+      }
 
-    // 2. El estudiante debe tener cuenta de usuario (creada por HU6)
-    if (!estudiante.usuarioId || !estudiante.usuario) {
-      throw new BadRequestException(
-        'Este estudiante aún no tiene cuenta de usuario en el sistema.',
-      );
-    }
+      const colaboradorId = estudiante.usuarioId;
+      if (colaboradorId === null) {
+        throw new BadRequestException(
+          'Este estudiante aún no tiene cuenta de usuario en el sistema.',
+        );
+      }
 
-    const colaboradorUsuarioId = estudiante.usuarioId;
+      if (colaboradorId === docenteId) {
+        throw new BadRequestException(
+          'No puedes agregarte a ti mismo como colaborador.',
+        );
+      }
 
-    // 3. Auto-invitación: el docente no puede solicitarse a sí mismo
-    if (colaboradorUsuarioId === docenteId) {
-      throw new BadRequestException(
-        'No puedes agregarte a ti mismo como colaborador.',
-      );
-    }
+      const relaciones = await tx.docenteColaborador.findMany({
+        where: {
+          docenteId,
+          colaboradorId,
+          estadoSolicitud: { in: [EstadoSolicitud.APROBADO, EstadoSolicitud.PENDIENTE] },
+        },
+        select: { id: true, estadoSolicitud: true },
+        orderBy: { id: 'desc' },
+      });
+      if (relaciones.some((rel) => rel.estadoSolicitud === EstadoSolicitud.APROBADO)) {
+        throw new ConflictException(
+          'Este colaborador ya forma parte de tu equipo activo.',
+        );
+      }
 
-    // 4. Verificar que no esté ya APROBADO en la nómina del docente
-    const solicitudAprobada = await this.prisma.docenteColaborador.findFirst({
-      where: {
-        docenteId,
-        colaboradorId: colaboradorUsuarioId,
-        estadoSolicitud: EstadoSolicitud.APROBADO,
-      },
-    });
+      const rol = await tx.rol.findUnique({
+        where: { nombre: ROL_PERSONAL_CONTROL, deletedAt: null },
+        select: { id: true },
+      });
+      if (!rol) {
+        throw new InternalServerErrorException('El rol Personal de control no está configurado.');
+      }
 
-    if (solicitudAprobada) {
-      throw new ConflictException(
-        'Este colaborador ya forma parte de tu equipo activo.',
-      );
-    }
+      await tx.usuario_Rol.createMany({
+        data: { usuarioId: colaboradorId, rolId: rol.id },
+        skipDuplicates: true,
+      });
 
-    // 5. Verificar que no haya una solicitud PENDIENTE duplicada
-    const solicitudPendiente = await this.prisma.docenteColaborador.findFirst({
-      where: {
-        docenteId,
-        colaboradorId: colaboradorUsuarioId,
-        estadoSolicitud: EstadoSolicitud.PENDIENTE,
-      },
-    });
-
-    if (solicitudPendiente) {
-      throw new ConflictException(
-        'Ya existe una solicitud pendiente para este colaborador.',
-      );
-    }
-
-    // 6. Crear la solicitud en PENDIENTE — colaboradorId YA se conoce desde el inicio
-    const nueva = await this.prisma.docenteColaborador.create({
-      data: {
-        docenteId,
-        colaboradorId: colaboradorUsuarioId,
-        estadoSolicitud: EstadoSolicitud.PENDIENTE,
-      },
-      include: {
+      const include = {
         colaborador: {
           include: { estudiante: { select: { cod_sis: true } } },
         },
-      },
+      } as const;
+      const pendiente = relaciones[0];
+      if (pendiente) {
+        return tx.docenteColaborador.update({
+          where: { id: pendiente.id },
+          data: { estadoSolicitud: EstadoSolicitud.APROBADO, fechaSolicitud: new Date() },
+          include,
+        });
+      }
+
+      return tx.docenteColaborador.create({
+        data: { docenteId, colaboradorId, estadoSolicitud: EstadoSolicitud.APROBADO },
+        include,
+      });
     });
 
     return this.mapearNominaItem(nueva, docenteId);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // APROBACIÓN / RECHAZO (ADMINISTRADOR)
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /**
-   * HU13: Aprueba una solicitud de colaborador (solo Administrador).
-   * Agrega el rol "Personal de control" al estudiante SIN quitar su rol Estudiante
-   * (multi-rol: el usuario tendrá Estudiante + Personal de control simultáneamente).
-   */
-  async aprobarSolicitud(solicitudId: number, adminId: number) {
-    const solicitud = await this.prisma.docenteColaborador.findUnique({
-      where: { id: solicitudId },
-    });
-
-    if (!solicitud) {
-      throw new NotFoundException('Solicitud no encontrada.');
-    }
-
-    if (solicitud.estadoSolicitud !== EstadoSolicitud.PENDIENTE) {
-      throw new BadRequestException('La solicitud ya fue procesada anteriormente.');
-    }
-
-    if (!solicitud.colaboradorId) {
-      throw new BadRequestException(
-        'La solicitud no tiene un colaborador vinculado.',
-      );
-    }
-
-    const colaboradorUsuarioId = solicitud.colaboradorId;
-
-    // Transacción: agregar rol + actualizar solicitud
-    const [, solicitudActualizada] = await this.prisma.$transaction([
-      // Agrega rol "Personal de control" sin quitar rol "Estudiante"
-      this.prisma.usuario_Rol.upsert({
-        where: {
-          usuarioId_rolId: {
-            usuarioId: colaboradorUsuarioId,
-            rolId: ROL_PERSONAL_CONTROL,
-          },
-        },
-        create: {
-          usuarioId: colaboradorUsuarioId,
-          rolId: ROL_PERSONAL_CONTROL,
-        },
-        update: {}, // ya existe, no hacer nada
-      }),
-      // Actualizar estado de la solicitud
-      this.prisma.docenteColaborador.update({
-        where: { id: solicitudId },
-        data: {
-          estadoSolicitud: EstadoSolicitud.APROBADO,
-          aprobadoPor: adminId,
-          fechaRespuesta: new Date(),
-        },
-        include: {
-          docente: { select: { id: true, nombre: true, apellido: true, correo: true } },
-          colaborador: {
-            select: {
-              id: true,
-              nombre: true,
-              apellido: true,
-              correo: true,
-              estudiante: { select: { cod_sis: true } },
-            },
-          },
-        },
-      }),
-    ]);
-
-    return this.mapearSolicitudAdmin(solicitudActualizada);
-  }
-
-  /**
-   * HU13: Rechaza una solicitud pendiente (solo Administrador).
-   * NO toca Usuario_Rol — el estudiante conserva únicamente su rol Estudiante.
-   */
-  async rechazarSolicitud(solicitudId: number, adminId: number) {
-    const solicitud = await this.prisma.docenteColaborador.findUnique({
-      where: { id: solicitudId },
-    });
-
-    if (!solicitud) {
-      throw new NotFoundException('Solicitud no encontrada.');
-    }
-
-    if (solicitud.estadoSolicitud !== EstadoSolicitud.PENDIENTE) {
-      throw new BadRequestException('La solicitud ya fue procesada anteriormente.');
-    }
-
-    const actualizada = await this.prisma.docenteColaborador.update({
-      where: { id: solicitudId },
-      data: {
-        estadoSolicitud: EstadoSolicitud.RECHAZADO,
-        aprobadoPor: adminId,
-        fechaRespuesta: new Date(),
-      },
-      include: {
-        docente: { select: { id: true, nombre: true, apellido: true, correo: true } },
-        colaborador: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true,
-            correo: true,
-            estudiante: { select: { cod_sis: true } },
-          },
-        },
-      },
-    });
-
-    return this.mapearSolicitudAdmin(actualizada);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -278,6 +168,25 @@ export class DocenteColaboradorService {
       throw new BadRequestException(
         'Solo se puede dar de baja a un colaborador aprobado.',
       );
+    }
+
+    if (relacion.colaboradorId) {
+      const examenesAsignados = await this.prisma.examenControlador.count({
+        where: {
+          colaboradorId: relacion.colaboradorId,
+          deletedAt: null,
+          OR: [
+            { asignadoPor: docenteId },
+            { examen: { usuarioId: docenteId } },
+          ],
+        },
+      });
+
+      if (examenesAsignados > 0) {
+        throw new BadRequestException(
+          'No se puede dar de baja a un colaborador que tiene exámenes asignados. Primero debes retirarlo de sus exámenes.',
+        );
+      }
     }
 
     const actualizada = await this.prisma.docenteColaborador.update({
@@ -329,7 +238,14 @@ export class DocenteColaboradorService {
 
         if (rel.colaboradorId) {
           const asignaciones = await this.prisma.examenControlador.findMany({
-            where: { colaboradorId: rel.colaboradorId, asignadoPor: docenteId },
+            where: {
+              colaboradorId: rel.colaboradorId,
+              deletedAt: null,
+              OR: [
+                { asignadoPor: docenteId },
+                { examen: { usuarioId: docenteId } },
+              ],
+            },
             select: { examenId: true },
           });
           examenesAsignadosIds = asignaciones.map((a) => a.examenId);
@@ -342,30 +258,6 @@ export class DocenteColaboradorService {
         };
       }),
     );
-  }
-
-  /**
-   * HU13: Obtiene solo las solicitudes PENDIENTES para el panel del Administrador.
-   */
-  async getSolicitudesPendientesAdmin() {
-    const solicitudes = await this.prisma.docenteColaborador.findMany({
-      where: { estadoSolicitud: EstadoSolicitud.PENDIENTE },
-      include: {
-        docente: { select: { id: true, nombre: true, apellido: true, correo: true } },
-        colaborador: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true,
-            correo: true,
-            estudiante: { select: { cod_sis: true } },
-          },
-        },
-      },
-      orderBy: { fechaSolicitud: 'desc' },
-    });
-
-    return solicitudes.map((sol) => this.mapearSolicitudAdmin(sol));
   }
 
   /**
@@ -442,7 +334,6 @@ export class DocenteColaboradorService {
       email,
       estado: sol.estadoSolicitud,
       fechaSolicitud: this.formatearFecha(sol.fechaSolicitud),
-      fechaRespuesta: sol.fechaRespuesta ? this.formatearFecha(sol.fechaRespuesta) : '—',
       docenteId: sol.docenteId,
       docenteNombre,
       docenteEmail: sol.docente?.correo ?? '',

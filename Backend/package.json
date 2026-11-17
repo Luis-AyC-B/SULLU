@@ -26,6 +26,7 @@
     "seed:reservas": "ts-node prisma/seed-mock-reservas.ts",
     "seed:hu11": "ts-node prisma/seed-hu11.ts",
     "seed:hu6": "ts-node prisma/seed-hu6.ts",
+    "seed:qrs": "ts-node prisma/seed-qrs-escenarios.ts",
     "seed:test-control": "ts-node prisma/seed-test-examen.ts",
     "seed:full": "ts-node prisma/seed.ts && ts-node prisma/seed-mock-reservas.ts",
     "cleanup:test-control": "ts-node prisma/cleanup-test-examen.ts"

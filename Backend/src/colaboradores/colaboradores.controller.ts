@@ -49,9 +49,15 @@ export class ColaboradoresController {
     summary:
       'Búsqueda predictiva de estudiantes por código SIS (autocompletado del modal - HU13)',
   })
-  @ApiQuery({ name: 'codSis', required: true, description: 'Código SIS parcial o completo' })
+  @ApiQuery({
+    name: 'codSis',
+    required: true,
+    description: 'Código SIS parcial o completo',
+  })
   async buscarEstudiantes(@Query('codSis') codSis: string) {
-    return this.docenteColaboradorService.buscarEstudiantesPorCodSis(codSis ?? '');
+    return this.docenteColaboradorService.buscarEstudiantesPorCodSis(
+      codSis ?? '',
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -69,8 +75,14 @@ export class ColaboradoresController {
 
   @Post('solicitar')
   @Permissions('colaboradores.solicitar')
-  @ApiOperation({ summary: 'Enviar solicitud de colaborador por código SIS (Docente - HU13)' })
-  @ApiResponse({ status: 201, description: 'Solicitud creada en estado PENDIENTE' })
+  @ApiOperation({
+    summary: 'Confirmar colaborador por código SIS (Docente - HU13)',
+  })
+  @ApiResponse({
+    status: 201,
+    description:
+      'Colaborador confirmado en estado APROBADO y con rol Personal de control',
+  })
   async solicitar(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SolicitarColaboradorDto,
@@ -94,16 +106,6 @@ export class ColaboradoresController {
   // PANEL ADMINISTRADOR
   // ─────────────────────────────────────────────────────────────────────────
 
-  @Get('solicitudes')
-  @Permissions('colaboradores.ver_solicitudes', 'colaboradores.aprobar')
-  @ApiOperation({
-    summary:
-      'Listar solicitudes PENDIENTES de colaboradores (Administrador - HU13)',
-  })
-  async getSolicitudes() {
-    return this.docenteColaboradorService.getSolicitudesPendientesAdmin();
-  }
-
   @Get('todos')
   @Permissions('colaboradores.ver_solicitudes', 'colaboradores.aprobar')
   @ApiOperation({
@@ -112,32 +114,6 @@ export class ColaboradoresController {
   })
   async getTodos() {
     return this.docenteColaboradorService.getTodosAdmin();
-  }
-
-  @Patch('solicitudes/:id/aprobar')
-  @Permissions('colaboradores.aprobar')
-  @ApiOperation({
-    summary:
-      'Aprobar solicitud: agrega rol Personal de control al estudiante (Administrador - HU13)',
-  })
-  async aprobarSolicitud(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    return this.docenteColaboradorService.aprobarSolicitud(id, user.id);
-  }
-
-  @Patch('solicitudes/:id/rechazar')
-  @Permissions('colaboradores.aprobar')
-  @ApiOperation({
-    summary:
-      'Rechazar solicitud: el estudiante conserva solo rol Estudiante (Administrador - HU13)',
-  })
-  async rechazarSolicitud(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    return this.docenteColaboradorService.rechazarSolicitud(id, user.id);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -180,13 +156,17 @@ export class ColaboradoresController {
   @HttpCode(HttpStatus.OK)
   @Permissions('colaboradores.desasignar_examen')
   @ApiOperation({
-    summary: 'Retirar colaborador de un examen futuro vía DELETE (Docente - HU13)',
+    summary:
+      'Retirar colaborador de un examen futuro vía DELETE (Docente - HU13)',
   })
   async desasignarExamen(
     @Param('examenId', ParseIntPipe) examenId: number,
     @Param('colaboradorId', ParseIntPipe) colaboradorId: number,
   ) {
-    return this.examenControladorService.desasignarControlador(examenId, colaboradorId);
+    return this.examenControladorService.desasignarControlador(
+      examenId,
+      colaboradorId,
+    );
   }
 
   @Post('desasignar-examen')

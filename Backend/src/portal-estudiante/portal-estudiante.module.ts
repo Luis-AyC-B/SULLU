@@ -14,8 +14,10 @@ import { ValidadorFotoFacialService } from './validador-foto/validador-foto-faci
 import { QrExamenController } from './qr-examen.controller';
 import { QrExamenService } from './qr-examen.service';
 
+import { IngresosModule } from '../ingresos/ingresos.module';
+
 @Module({
-  imports: [PrismaModule, JwtModule.register({}), ComparadorFacialModule],
+  imports: [PrismaModule, JwtModule.register({}), ComparadorFacialModule, IngresosModule],
   controllers: [
     EstudianteAuthController,
     EstudianteMeController,

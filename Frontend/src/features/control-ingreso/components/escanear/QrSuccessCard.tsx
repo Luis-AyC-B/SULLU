@@ -10,6 +10,14 @@ interface QrSuccessCardProps {
 }
 
 export function QrSuccessCard({ estudiante, onConfirmar }: QrSuccessCardProps) {
+  const backendUrl =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:6002";
+  const fotoSrc = estudiante.fotoUrl
+    ? estudiante.fotoUrl.startsWith("http") || estudiante.fotoUrl.startsWith("data:")
+      ? estudiante.fotoUrl
+      : `${backendUrl}${estudiante.fotoUrl.startsWith("/") ? "" : "/"}${estudiante.fotoUrl}`
+    : null;
+
   return (
     <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-30 animate-in zoom-in-95 fade-in duration-200">
       <div className="bg-[#0D5C3A] text-white rounded-3xl p-6 sm:p-7 shadow-2xl flex flex-col items-center text-center border border-emerald-400/30">
@@ -25,7 +33,7 @@ export function QrSuccessCard({ estudiante, onConfirmar }: QrSuccessCardProps) {
 
         {/* Datos del Estudiante */}
         {/* eslint-disable-next-line @next/next/no-img-element -- Referencia local, no se envía al optimizador. */}
-        {estudiante.fotoUrl && <img src={estudiante.fotoUrl} alt="Fotografía original registrada" className="h-24 w-24 rounded-full object-cover" />}
+        {fotoSrc && <img src={fotoSrc} alt="Fotografía original registrada" className="h-24 w-24 rounded-full object-cover" />}
         {estudiante.examen && <p>{estudiante.examen} · {estudiante.ambienteAsignado}</p>}
         {onConfirmar && !estudiante.yaIngreso && <Button onClick={onConfirmar}>Confirmar ingreso</Button>}
         <p className="text-base sm:text-lg font-semibold text-white">

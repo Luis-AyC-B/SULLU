@@ -13,10 +13,19 @@ export function ServiceWorkerRegister() {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((reg) => {
-        // Si hay una nueva versión del SW esperando, activarla
         if (reg.waiting) {
           reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
+        reg.addEventListener('updatefound', () => {
+          const installing = reg.installing;
+          if (installing) {
+            installing.addEventListener('statechange', () => {
+              if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                installing.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          }
+        });
       })
       .catch((err) => {
         console.warn('No se pudo registrar el Service Worker:', err);

@@ -20,10 +20,9 @@ import {
 } from "../types/incidencias.types";
 import { offlineIncidenciasService } from "../services/offline-incidencias.service";
 import {
-  generarPdfReporteObservaciones,
   formatearNombreArchivoObservaciones,
   obtenerNombreMateriaIncidencia,
-} from "../lib/generarPdfReporteObservaciones";
+} from "../lib/formatoReporteUtils";
 
 /* -------------------------------------------------------------------------- */
 /* Errores                                                                    */
@@ -119,13 +118,21 @@ function enriquecerExamenIncidencia(e: any): ExamenIncidencia {
     e.materia ||
     obtenerNombreMateriaIncidencia(nombre);
   const docente =
-    e.docenteNombre ||
+    (e.docenteNombre && e.docenteNombre !== "Docente asignado"
+      ? e.docenteNombre
+      : "") ||
     (typeof e.docente === "object"
       ? `${e.docente.nombre || ""} ${e.docente.apellido || ""}`.trim()
-      : e.docente) ||
+      : typeof e.docente === "string" && e.docente !== "Docente asignado"
+      ? e.docente
+      : "") ||
     (e.responsable
       ? `${e.responsable.nombre || ""} ${e.responsable.apellido || ""}`.trim()
-      : "Docente asignado");
+      : "") ||
+    (e.usuario
+      ? `${e.usuario.nombre || ""} ${e.usuario.apellido || ""}`.trim()
+      : "") ||
+    "";
 
   return {
     id: String(e.id),
@@ -158,7 +165,11 @@ function enriquecerExamenIncidencia(e: any): ExamenIncidencia {
       ? String(e.usuarioId)
       : e.responsable?.id
       ? String(e.responsable.id)
-      : "doc-1",
+      : e.usuario?.id
+      ? String(e.usuario.id)
+      : docente
+      ? docente
+      : "",
     gestion: e.gestion || obtenerGestionPorFecha(e.fecha || "2026-09-20"),
     ambiente: e.ambienteNombre || e.ambiente?.nombre || e.ambiente || "Aula",
     horario:
@@ -205,6 +216,23 @@ export function obtenerExamenesIncidenciasFallback(): ExamenIncidencia[] {
     } catch {}
   }
 
+  // 4. Probar examen activo en sesión (control-ingreso)
+  try {
+    const rawActive = sessionStorage.getItem("exacontrol_active_exam");
+    if (rawActive) {
+      const active = JSON.parse(rawActive) as {
+        id?: number | string;
+        examenId?: number | string;
+        nombre?: string;
+        asignatura?: string;
+        fecha?: string;
+      };
+      if (active && (active.id || active.examenId)) {
+        return [enriquecerExamenIncidencia(active)];
+      }
+    }
+  } catch {}
+
   return [];
 }
 
@@ -220,7 +248,26 @@ export async function getExamenesIncidencias(): Promise<ExamenIncidencia[]> {
 
   const mapa = new Map<string, ExamenIncidencia>();
 
-  // 1. Intentar endpoint de incidencias/examenes
+  // 1. Intentar endpoint /examenes/control (endpoint real del backend con docentes, materias y alcances por rol)
+  try {
+    const { data } = await apiClient.get("/examenes/control");
+    const list = Array.isArray(data) ? data : (data as any)?.data;
+    if (Array.isArray(list) && list.length > 0) {
+      list.forEach((e) => {
+        const enriched = enriquecerExamenIncidencia(e);
+        mapa.set(String(enriched.id), enriched);
+      });
+      const resultado = Array.from(mapa.values());
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(EXAMENES_CACHE_KEY, JSON.stringify(resultado));
+        } catch {}
+      }
+      return resultado;
+    }
+  } catch {}
+
+  // 2. Intentar endpoint de incidencias/examenes
   try {
     const { data } = await apiClient.get("/incidencias/examenes");
     const parsed = examenesIncidenciaSchema.parse(data);
@@ -234,7 +281,7 @@ export async function getExamenesIncidencias(): Promise<ExamenIncidencia[]> {
     }
   }
 
-  // 2. Intentar endpoint general /examenes (para Admin y catálogo completo)
+  // 3. Intentar endpoint general /examenes (para Admin y catálogo completo)
   try {
     const { data } = await apiClient.get("/examenes");
     const list = Array.isArray(data) ? data : (data as any)?.data;
@@ -433,15 +480,38 @@ export async function getIncidenciasConsolidadas(
     );
   }
 
-  if (examenIds.length === 0) {
-    return [];
+  // Pendientes locales que aún no se sincronizan
+  const pendientesLocales: Incidencia[] = offlineIncidenciasService
+    .obtenerTodosSync()
+    .filter((p) => !p.sincronizado)
+    .map((p) => ({
+      id: String(p.id),
+      examenId: String(p.examenId),
+      fechaHora: p.fechaHoraCaptura,
+      codigoSis: String(p.codigoSis),
+      estudianteNombre: p.estudianteNombre || "Estudiante",
+      motivo: p.motivo,
+      observaciones: p.observaciones ?? null,
+      registradoPor: "Controlador (offline)",
+    }));
+
+  let targetIds = examenIds.filter((id) => id !== "TODOS");
+
+  if (targetIds.length === 0) {
+    const fallbackExamenes = obtenerExamenesIncidenciasFallback();
+    if (fallbackExamenes.length > 0) {
+      targetIds = fallbackExamenes.map((e) => String(e.id));
+    }
   }
 
-  const promesas = examenIds
-    .filter((id) => id !== "TODOS")
-    .map((id) => getIncidenciasExamen(id).catch(() => []));
+  if (targetIds.length === 0) {
+    return ordenarMasRecientes(pendientesLocales);
+  }
+
+  const promesas = targetIds.map((id) => getIncidenciasExamen(id).catch(() => []));
   const resultados = await Promise.all(promesas);
   const mapa = new Map<string, Incidencia>();
+  pendientesLocales.forEach((inc) => mapa.set(String(inc.id), inc));
   resultados.flat().forEach((inc) => mapa.set(String(inc.id), inc));
   return ordenarMasRecientes(Array.from(mapa.values()));
 }
@@ -488,6 +558,18 @@ export async function getObservacionesIngreso(
     return { total: filtradas.length, items: filtradas };
   }
 
+  // Si no hay conexión en el navegador, responder inmediatamente desde la caché e incidencias locales
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (filtros.examenId && filtros.examenId !== "TODOS") {
+      const local = await getIncidenciasExamen(filtros.examenId);
+      const filtradas = filtrarIncidenciasPorMotivo(local, filtros.motivo);
+      return { total: filtradas.length, items: filtradas };
+    }
+    const all = await getIncidenciasConsolidadas([]);
+    const filtradas = filtrarIncidenciasPorMotivo(all, filtros.motivo);
+    return { total: filtradas.length, items: filtradas };
+  }
+
   const params: Record<string, string> = {};
   if (filtros.gestion) params.gestion = filtros.gestion;
   if (filtros.facultadId && filtros.facultadId !== "TODAS") {
@@ -506,12 +588,7 @@ export async function getObservacionesIngreso(
     params.examenId = filtros.examenId;
   }
   if (filtros.motivo && filtros.motivo !== "TODOS") {
-    // Si el motivo es NO_ASISTIO (perteneciente a HU20 / Casos excepcionales),
-    // el backend de HU18 aún no lo tiene en su enum MotivoObservacion y responde 400.
-    // Solo enviamos los motivos soportados por el backend y filtramos en el cliente.
-    if (filtros.motivo !== "NO_ASISTIO") {
-      params.motivo = filtros.motivo;
-    }
+    params.motivo = filtros.motivo;
   }
 
   try {
@@ -521,16 +598,27 @@ export async function getObservacionesIngreso(
     );
 
     const rawItems = Array.isArray(data) ? data : (data?.items || []);
-    const items: Incidencia[] = rawItems.map((r: any) => ({
-      id: String(r.id),
-      examenId: String(r.examenId ?? ""),
-      fechaHora: r.fechaHora || (r.hora ? `2026-01-01T${r.hora}` : new Date().toISOString()),
-      codigoSis: String(r.codigoSis ?? ""),
-      estudianteNombre: r.estudiante || r.estudianteNombre || "Estudiante",
-      motivo: r.motivo,
-      observaciones: r.observaciones ?? null,
-      registradoPor: r.registradoPor || "Controlador",
-    }));
+    const items: Incidencia[] = rawItems.map((r: any) => {
+      let fh = r.fechaHora;
+      if (r.hora && r.hora !== "—") {
+        if (!fh || fh.endsWith("T00:00:00.000Z") || fh.includes("00:00:00")) {
+          const baseDate = fh ? fh.slice(0, 10) : new Date().toISOString().slice(0, 10);
+          fh = `${baseDate}T${r.hora.slice(0, 5)}`;
+        } else if (r.motivo === "NO_ASISTIO") {
+          fh = r.hora.slice(0, 5);
+        }
+      }
+      return {
+        id: String(r.id),
+        examenId: String(r.examenId ?? ""),
+        fechaHora: fh || new Date().toISOString(),
+        codigoSis: String(r.codigoSis ?? ""),
+        estudianteNombre: r.estudiante || r.estudianteNombre || "Estudiante",
+        motivo: r.motivo,
+        observaciones: r.observaciones ?? null,
+        registradoPor: r.registradoPor || "Controlador",
+      };
+    });
 
     // Filtramos en cliente para asegurar soporte de motivos extendidos como NO_ASISTIO
     const filtradas = filtrarIncidenciasPorMotivo(items, filtros.motivo);
@@ -540,7 +628,14 @@ export async function getObservacionesIngreso(
       items: ordenarMasRecientes(filtradas),
     };
   } catch (error) {
-    if (esRutaInexistente(error)) {
+    const sinConexion =
+      (typeof navigator !== "undefined" && !navigator.onLine) ||
+      (isAxiosError(error) &&
+        (!error.response ||
+          error.code === "ERR_NETWORK" ||
+          error.code === "ECONNABORTED"));
+
+    if (sinConexion || esRutaInexistente(error)) {
       if (filtros.examenId && filtros.examenId !== "TODOS") {
         const local = await getIncidenciasExamen(filtros.examenId);
         const filtradas = filtrarIncidenciasPorMotivo(local, filtros.motivo);
@@ -553,8 +648,7 @@ export async function getObservacionesIngreso(
 
     if (isAxiosError(error)) {
       if (error.response?.status === 403) {
-        const msg = error.response.data?.message || "No tienes permisos para consultar estas observaciones.";
-        throw new Error(Array.isArray(msg) ? msg.join(", ") : msg);
+        return { total: 0, items: [] };
       }
       if (error.response?.status === 400) {
         const rawMsg = error.response.data?.message || "Parámetros de búsqueda inválidos.";
@@ -568,9 +662,6 @@ export async function getObservacionesIngreso(
       }
       if (error.response?.status === 401) {
         throw new Error("Sesión no autorizada o expirada. Por favor, inicia sesión nuevamente.");
-      }
-      if (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") {
-        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.");
       }
     }
 
@@ -602,164 +693,30 @@ export async function descargarReporteObservacionesPdf(
     motivo?: string;
   }
 ): Promise<{ blob: Blob; filename: string }> {
-  let filename = formatearNombreArchivoObservaciones({
+  const filename = formatearNombreArchivoObservaciones({
     facultad: filtrosAplicados?.facultad,
-    materia: filtrosAplicados?.materia || (filtrosAplicados?.materiaId !== "TODAS" ? filtrosAplicados?.materiaId : undefined),
+    materia:
+      filtrosAplicados?.materia ||
+      (filtrosAplicados?.materiaId !== "TODAS"
+        ? filtrosAplicados?.materiaId
+        : undefined),
     gestion: filtrosAplicados?.gestion,
     fecha: examen?.fecha || new Date().toISOString().slice(0, 10),
     nombreExamen: examen?.nombre,
   });
 
-  if (USE_MOCKS) {
-    const blob = generarPdfReporteObservaciones({
-      examen,
-      incidencias,
-      filtroMotivo,
-      filtrosAplicados,
-      generadoPor,
-    });
-    return { blob, filename };
-  }
-
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    throw new Error("Necesitas conexión para descargar el reporte");
-  }
-
-  try {
-    const params: Record<string, string> = {};
-    if (filtrosAplicados?.gestion) params.gestion = filtrosAplicados.gestion;
-    if (filtrosAplicados?.facultadId && filtrosAplicados.facultadId !== "TODAS") {
-      params.facultadId = filtrosAplicados.facultadId;
-    } else if (filtrosAplicados?.facultad && filtrosAplicados.facultad !== "TODAS") {
-      params.facultadId = filtrosAplicados.facultad;
-    }
-    if (filtrosAplicados?.carreraId && filtrosAplicados.carreraId !== "TODAS") {
-      params.carreraId = filtrosAplicados.carreraId;
-    } else if (filtrosAplicados?.carrera && filtrosAplicados.carrera !== "TODAS") {
-      params.carreraId = filtrosAplicados.carrera;
-    }
-    if (filtrosAplicados?.docenteId && filtrosAplicados.docenteId !== "TODOS") {
-      params.docenteId = filtrosAplicados.docenteId;
-    } else if (filtrosAplicados?.docente && filtrosAplicados.docente !== "TODOS") {
-      params.docenteId = filtrosAplicados.docente;
-    }
-    if (filtrosAplicados?.materiaId && filtrosAplicados.materiaId !== "TODAS") {
-      params.materiaId = filtrosAplicados.materiaId;
-    } else if (filtrosAplicados?.materia && filtrosAplicados.materia !== "TODAS") {
-      params.materiaId = filtrosAplicados.materia;
-    }
-    const esExamenTodos =
-      !filtrosAplicados?.examenId ||
-      filtrosAplicados.examenId === "TODOS" ||
-      filtrosAplicados?.examen === "TODOS" ||
-      examen?.id === "TODOS";
-
-    if (filtrosAplicados?.examenId && filtrosAplicados.examenId !== "TODOS") {
-      params.examenId = filtrosAplicados.examenId;
-    } else if (filtrosAplicados?.examen && filtrosAplicados.examen !== "TODOS") {
-      params.examenId = filtrosAplicados.examen;
-    } else if (!esExamenTodos && examen?.id && examen.id !== "TODOS" && !filtrosAplicados?.examenId) {
-      params.examenId = String(examen.id);
-    }
-    const motivoFinal = filtrosAplicados?.motivo || filtroMotivo;
-    if (motivoFinal && motivoFinal !== "TODOS" && motivoFinal !== "NO_ASISTIO") {
-      params.motivo = motivoFinal;
-    }
-
-    const response = await apiClient.get("/observaciones-ingreso/pdf", {
-      params,
-      responseType: "blob",
-      timeout: 15000,
-    });
-
-    if (response.data) {
-      const disposition =
-        response.headers["content-disposition"] ||
-        response.headers["Content-Disposition"];
-      if (disposition) {
-        const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
-        if (match && match[1]) {
-          filename = decodeURIComponent(match[1].trim());
-        }
-      }
-
-      const blob =
-        response.data instanceof Blob
-          ? response.data
-          : new Blob([response.data], { type: "application/pdf" });
-      return { blob, filename };
-    }
-  } catch (error) {
-    // Si en el cliente ya tenemos incidencias visibles en pantalla, generamos el PDF localmente
-    // para no bloquear al usuario ante discrepancias de filtros o errores del backend.
-    if (incidencias && incidencias.length > 0) {
-      const blob = generarPdfReporteObservaciones({
-        examen,
-        incidencias,
-        filtroMotivo,
-        filtrosAplicados,
-        generadoPor,
-      });
-      return { blob, filename };
-    }
-
-    if (isAxiosError(error) && error.response?.data) {
-      const data = error.response.data;
-      if (data instanceof Blob) {
-        try {
-          const text = await data.text();
-          const parsed = JSON.parse(text);
-          if (parsed && parsed.message) {
-            const msg = Array.isArray(parsed.message)
-              ? parsed.message.join(", ")
-              : parsed.message;
-            throw new Error(msg);
-          }
-        } catch (e: any) {
-          if (e instanceof Error && e.message && !e.message.includes("JSON")) {
-            throw e;
-          }
-        }
-      }
-      if (error.response.status === 400) {
-        throw new Error(
-          "No hay observaciones de ingreso que coincidan con los filtros seleccionados."
-        );
-      }
-      if (error.response.status === 403) {
-        throw new Error(
-          "No tienes permisos para descargar el reporte de observaciones."
-        );
-      }
-      if (error.response.status === 401) {
-        throw new Error("Sesión expirada. Por favor, inicia sesión nuevamente.");
-      }
-    }
-
-    if (
-      esRutaInexistente(error) ||
-      (isAxiosError(error) && (!error.response || error.response.status >= 500))
-    ) {
-      const blob = generarPdfReporteObservaciones({
-        examen,
-        incidencias,
-        filtroMotivo,
-        filtrosAplicados,
-        generadoPor,
-      });
-      return { blob, filename };
-    }
-    throw error;
-  }
-
-  const fallbackBlob = generarPdfReporteObservaciones({
+  const { generarPdfReporteObservaciones } = await import(
+    "../lib/generarPdfReporteObservaciones"
+  );
+  const blob = await generarPdfReporteObservaciones({
     examen,
     incidencias,
     filtroMotivo,
     filtrosAplicados,
     generadoPor,
   });
-  return { blob: fallbackBlob, filename };
+
+  return { blob, filename };
 }
 
 /* -------------------------------------------------------------------------- */

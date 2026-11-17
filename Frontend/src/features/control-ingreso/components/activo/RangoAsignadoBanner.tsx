@@ -26,47 +26,68 @@ export function RangoAsignadoBanner({ miGrupo }: RangoAsignadoBannerProps) {
   return (
     <div
       className="
-        rounded-xl border border-blue-200 bg-blue-50
-        px-4 py-3
-        flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2
+        my-4 rounded-xl border border-blue-200/90 bg-[#F0F6FD]
+        px-5 py-4
+        flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3
         shadow-xs
       "
       role="status"
-      aria-label={`Tu fila asignada: ${miGrupo.rango}`}
+      aria-label={`Tu fila asignada: ${miGrupo.nombreLista ? `${miGrupo.nombreLista} ` : ""}${miGrupo.rango}`}
     >
       {/* Lado izquierdo: ícono + rango */}
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="shrink-0 flex items-center justify-center w-9 h-9 rounded-lg bg-blue-600 text-white">
-          <Users className="w-5 h-5" />
+      <div className="flex items-center gap-3.5 min-w-0">
+        <span
+          className="shrink-0 flex items-center justify-center w-10 h-10 rounded-xl shadow-xs"
+          style={{ backgroundColor: "#002D62", color: "#ffffff" }}
+        >
+          <Users className="w-5 h-5" style={{ color: "#ffffff" }} />
         </span>
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-blue-600 leading-none mb-0.5">
-            Tu fila asignada
+          <p
+            className="text-[11px] font-bold uppercase tracking-widest leading-none mb-1"
+            style={{ color: "#002D62" }}
+          >
+            {miGrupo.nombreLista
+              ? `Tu fila asignada · ${miGrupo.nombreLista}`
+              : "Tu fila asignada"}
           </p>
           {/* Rango de letras: prominente */}
-          <p className="text-2xl font-extrabold text-blue-900 leading-tight tracking-tight">
-            {miGrupo.letraInicio} – {miGrupo.letraFin}
+          <p
+            className="text-2xl font-extrabold leading-tight tracking-tight"
+            style={{ color: "#002D62" }}
+          >
+            {miGrupo.rango || `${miGrupo.letraInicio} – ${miGrupo.letraFin}`}
           </p>
           {/* Primer y último apellido */}
           {primerApellido && ultimoApellido && (
-            <p className="text-xs text-blue-700 font-medium mt-0.5 truncate">
-              {primerApellido} → {ultimoApellido}
+            <p className="text-xs text-slate-600 font-medium mt-1 truncate">
+              <span className="font-semibold text-slate-800">{primerApellido}</span>
+              {" → "}
+              <span className="font-semibold text-slate-800">{ultimoApellido}</span>
             </p>
           )}
         </div>
       </div>
 
       {/* Lado derecho: conteo */}
-      <div className="flex items-center gap-1.5 shrink-0 sm:text-right">
-        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-600 text-white text-sm font-bold">
-          {miGrupo.totalEstudiantesGrupo}
-          <span className="font-normal opacity-80">
-            / {miGrupo.totalEstudiantesExamen}
+      <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-bold shadow-xs"
+            style={{ backgroundColor: "#002D62", color: "#ffffff" }}
+          >
+            <span>{miGrupo.totalEstudiantesGrupo}</span>
+            <span className="font-normal opacity-85" style={{ color: "#ffffff" }}>
+              / {miGrupo.totalEstudiantesExamen}
+            </span>
           </span>
-        </span>
-        <span className="text-xs text-blue-700 font-medium hidden sm:inline">
-          estudiantes
-        </span>
+          <span className="text-xs text-slate-700 font-semibold">
+            estudiantes
+          </span>
+        </div>
+        <p className="text-[11px] text-slate-500 font-medium">
+          {miGrupo.totalEstudiantesGrupo} en tu fila de {miGrupo.totalEstudiantesExamen} en total del examen
+        </p>
       </div>
     </div>
   );

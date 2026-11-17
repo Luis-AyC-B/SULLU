@@ -1,12 +1,10 @@
 "use client";
 
 import {
-  CheckCircle2,
   ChevronLeft,
-  ShieldCheck,
   Building2,
-  UserCheck,
   AlertTriangle,
+  User,
 } from "lucide-react";
 import type {
   EstudianteBusquedaItem,
@@ -23,6 +21,7 @@ interface ConfirmarIngresoStepProps {
   isSubmitting: boolean;
   errorEnvio: string | null;
   miGrupo?: MiGrupoControlador | null;
+  textoVolver?: string;
 }
 
 export function ConfirmarIngresoStep({
@@ -34,6 +33,7 @@ export function ConfirmarIngresoStep({
   isSubmitting,
   errorEnvio,
   miGrupo,
+  textoVolver,
 }: ConfirmarIngresoStepProps) {
   const nombreCompleto = `${estudiante.nombre} ${
     estudiante.apellido ?? ""
@@ -48,32 +48,57 @@ export function ConfirmarIngresoStep({
       (e) => e.id === estudiante.id || e.codSis === estudiante.codSis
     );
 
+  const backendUrl =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:6002";
+  const fotoSrc = estudiante.fotoUrl
+    ? estudiante.fotoUrl.startsWith("http") || estudiante.fotoUrl.startsWith("data:")
+      ? estudiante.fotoUrl
+      : `${backendUrl}${estudiante.fotoUrl.startsWith("/") ? "" : "/"}${estudiante.fotoUrl}`
+    : null;
+
   return (
     <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-      {/* Botón Volver a resultados */}
+      {/* Botón Volver */}
       <button
         type="button"
         onClick={onVolver}
         className="inline-flex items-center gap-1 text-xs md:text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer self-start -ml-1 group"
       >
         <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
-        <span>Volver a resultados</span>
+        <span>{textoVolver ?? "Volver a resultados"}</span>
       </button>
 
-      {/* Cabecera de Identidad del Estudiante */}
-      <div className="flex items-start justify-between gap-3 pt-1">
-        <div className="min-w-0">
-          <h4 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
-            {nombreCompleto}
-          </h4>
-          <p className="text-xs md:text-sm text-slate-500 font-mono mt-1">
-            {estudiante.codSis.replace(/-/g, "")}
-            {estudiante.ci && ` · ${estudiante.ci}`}
-          </p>
+      {/* Tarjeta de Identidad Principal con Foto Prioritaria */}
+      <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80">
+        {/* Fotografía destacada del estudiante */}
+        <div className="relative h-40 w-40 sm:h-48 sm:w-48 shrink-0 overflow-hidden rounded-2xl border-4 border-white shadow-md bg-slate-100 mb-3.5">
+          {fotoSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={fotoSrc}
+              alt={nombreCompleto}
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.dataset.triedFallback && estudiante.fotoUrl) {
+                  target.dataset.triedFallback = "true";
+                  const cleanPath = estudiante.fotoUrl.startsWith("http")
+                    ? new URL(estudiante.fotoUrl).pathname
+                    : estudiante.fotoUrl;
+                  target.src = cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`;
+                }
+              }}
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 text-slate-400">
+              <User className="h-16 w-16 text-slate-300 stroke-[1.5]" />
+              <span className="text-xs font-semibold text-slate-400 mt-1">Sin fotografía</span>
+            </div>
+          )}
         </div>
 
         {/* Badge de Habilitación */}
-        <div className="shrink-0">
+        <div className="mb-2">
           {estudiante.estadoHabilitado ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#E6F8F0] text-[#059669] border border-[#059669]/20 shadow-2xs">
               <span className="h-1.5 w-1.5 rounded-full bg-[#059669]" />
@@ -86,10 +111,21 @@ export function ConfirmarIngresoStep({
             </span>
           )}
         </div>
+
+        {/* Nombre completo */}
+        <h4 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight break-words max-w-full">
+          {nombreCompleto}
+        </h4>
+
+        {/* SIS y Carnet de Identidad */}
+        <p className="text-xs md:text-sm text-slate-500 font-mono mt-1">
+          {estudiante.codSis.replace(/-/g, "")}
+          {estudiante.ci && ` · ${estudiante.ci}`}
+        </p>
       </div>
 
       {/* Ambiente del Examen */}
-      <div className="p-3.5 md:p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 shadow-2xs mt-1">
+      <div className="p-3.5 md:p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 shadow-2xs">
         <div className="flex items-center gap-1.5 text-slate-500 mb-1">
           <Building2 className="h-3.5 w-3.5 text-slate-400" />
           <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider">
@@ -116,36 +152,6 @@ export function ConfirmarIngresoStep({
         </div>
       )}
 
-      {/* Panel de Validación de Identidad y Elegibilidad de Ingreso */}
-      <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-2.5">
-        <div className="flex items-center gap-2 text-slate-700">
-          <ShieldCheck className="h-4 w-4 text-[#002D62]" />
-          <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            Verificación de identidad para ingreso
-          </h5>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          <div className="flex items-center gap-2 text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100">
-            <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-            <div>
-              <span className="text-[11px] text-slate-400 block font-medium">Nómina del examen</span>
-              <span className="font-semibold text-slate-800">Inscrito en la materia</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-            <div>
-              <span className="text-[11px] text-slate-400 block font-medium">Marcación previa</span>
-              <span className="font-semibold text-slate-800">
-                {estudiante.yaIngreso ? "Ya registrado" : "Sin ingreso previo"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Error de Red o Envío */}
       {errorEnvio && (
         <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
@@ -166,23 +172,31 @@ export function ConfirmarIngresoStep({
           </button>
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || esFueraDeGrupo}
             onClick={onConfirmar}
             className="px-6 py-2.5 bg-[#002D62] hover:bg-[#001D42] text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
           >
-            {isSubmitting ? "Confirmando ingreso..." : "Confirmar ingreso"}
+            {esFueraDeGrupo
+              ? "No corresponde a tu fila"
+              : isSubmitting
+              ? "Confirmando ingreso..."
+              : "Confirmar ingreso"}
           </button>
         </div>
 
-        {/* Versión Mobile (< md) según Mockup media_1791763180977.jpg */}
+        {/* Versión Mobile (< md) según Mockup */}
         <div className="flex md:hidden flex-col gap-2.5 w-full">
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || esFueraDeGrupo}
             onClick={onConfirmar}
             className="w-full py-3 bg-[#002D62] hover:bg-[#001D42] text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
           >
-            {isSubmitting ? "Confirmando ingreso..." : "Confirmar ingreso"}
+            {esFueraDeGrupo
+              ? "No corresponde a tu fila"
+              : isSubmitting
+              ? "Confirmando ingreso..."
+              : "Confirmar ingreso"}
           </button>
           <button
             type="button"

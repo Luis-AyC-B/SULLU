@@ -29,6 +29,12 @@ export function useIngresosExamen(
     setConexion(typeof navigator !== "undefined" && !navigator.onLine ? "desconectado" : "conectado");
 
     const cargar = async () => {
+      if (
+        typeof window !== "undefined" &&
+        sessionStorage.getItem("exacontrol_voluntary_logout") === "true"
+      ) {
+        return;
+      }
       try {
         const resultado = await getIngresosExamen(examenId);
         if (cancelled) return;

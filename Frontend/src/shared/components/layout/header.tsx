@@ -14,6 +14,7 @@ import {
   obtenerUsuarioOperadorOffline,
   limpiarSesionOffline,
 } from "@/shared/lib/offline-auth";
+import { marcarCierreSesionVoluntario } from "@/shared/lib/api-client";
 import { User, LogOut } from "lucide-react";
 
 /**
@@ -150,10 +151,14 @@ export function Header({ showProfile = true }: HeaderProps = {}) {
     }
 
     setIsMenuOpen(false);
+    marcarCierreSesionVoluntario();
     limpiarCacheOfflineEstudiante();
     limpiarSesionOffline();
-    await signOut({ redirect: false });
-    router.push("/login");
+    try {
+      sessionStorage.clear();
+      localStorage.removeItem("sullu_registro_ingresos_filtros");
+    } catch {}
+    await signOut({ callbackUrl: "/login" });
   };
 
   return (

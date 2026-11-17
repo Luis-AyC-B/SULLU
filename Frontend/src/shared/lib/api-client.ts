@@ -24,19 +24,45 @@ apiClient.interceptors.request.use(async (config) => {
     config.baseURL = `http://${window.location.hostname}:3001`;
   }
 
-  const session = await getSession();
-  if (session?.user?.accessToken) {
-    config.headers.Authorization = `Bearer ${session.user.accessToken}`;
+  // Si el navegador está sin conexión, evitar llamar a getSession() de Next-Auth
+  // para no provocar [CLIENT_FETCH_ERROR] al intentar consultar /api/auth/session
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return config;
+  }
+
+  try {
+    const session = await getSession();
+    if (session?.user?.accessToken) {
+      config.headers.Authorization = `Bearer ${session.user.accessToken}`;
+    }
+  } catch {
+    // Silenciar error en caso de corte o desconexión
   }
   return config;
 });
 
 let isRedirecting = false;
 
+export function marcarCierreSesionVoluntario() {
+  isRedirecting = true;
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.setItem('exacontrol_voluntary_logout', 'true');
+      sessionStorage.removeItem('sullu_registro_ingresos_filtros');
+      localStorage.removeItem('sullu_registro_ingresos_filtros');
+    } catch {}
+  }
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !isRedirecting) {
+    const isVoluntaryLogout =
+      typeof window !== 'undefined' &&
+      (sessionStorage.getItem('exacontrol_voluntary_logout') === 'true' ||
+        window.location.pathname.includes('/login'));
+
+    if (error.response?.status === 401 && !isRedirecting && !isVoluntaryLogout) {
       isRedirecting = true;
       toast.error('Sesión inválida o iniciada en otro dispositivo.', {
         id: 'session-expired',

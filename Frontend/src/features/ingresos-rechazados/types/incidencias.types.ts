@@ -230,12 +230,16 @@ export function labelExamen(examen: ExamenIncidencia): string {
   return `${examen.nombre} · ${formatFechaExamen(examen.fecha)}`;
 }
 
-// ISO -> "09:03:44"
+// ISO o "HH:mm(:ss)" -> "09:03" (solo horas y minutos)
 export function formatHoraIncidencia(fechaHora: string): string {
+  if (!fechaHora) return "--:--";
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(fechaHora)) {
+    return fechaHora.slice(0, 5);
+  }
   const fecha = new Date(fechaHora);
-  if (Number.isNaN(fecha.getTime())) return "--:--:--";
+  if (Number.isNaN(fecha.getTime())) return "--:--";
   const dos = (n: number) => String(n).padStart(2, "0");
-  return `${dos(fecha.getHours())}:${dos(fecha.getMinutes())}:${dos(fecha.getSeconds())}`;
+  return `${dos(fecha.getHours())}:${dos(fecha.getMinutes())}`;
 }
 
 // Criterio 13: "N observaciones registradas" según los filtros aplicados
@@ -243,4 +247,33 @@ export function labelContadorIncidencias(total: number): string {
   return total === 1
     ? "1 observación registrada"
     : `${total} observaciones registradas`;
+}
+
+export function isExamenConcluido(examen: ExamenIncidencia | null | undefined): boolean {
+  if (!examen) return false;
+  const estadoUpper = String(examen.estado || "").toUpperCase();
+  if (estadoUpper === "FINALIZADO" || estadoUpper === "CANCELADO") {
+    return true;
+  }
+  if (!examen.fecha || !examen.horario) return false;
+
+  try {
+    const partes = examen.horario.split("-");
+    if (partes.length < 2) return false;
+    const [hFinStr, mFinStr] = partes[1].trim().split(":");
+    const [yearStr, monthStr, dayStr] = examen.fecha.split("-");
+
+    const finDate = new Date(
+      Number(yearStr),
+      Number(monthStr) - 1,
+      Number(dayStr),
+      Number(hFinStr),
+      Number(mFinStr),
+      0
+    );
+
+    return Date.now() >= finDate.getTime();
+  } catch {
+    return false;
+  }
 }

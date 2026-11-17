@@ -28,6 +28,7 @@ export async function getMisExamenes(): Promise<ExamenEstudiante[]> {
       horaInicio,
       horaFin,
       estado: e.habilitado ? 'Habilitado' : 'Inhabilitado',
+      listaAsignada: e.listaAsignada,
     };
   });
 }

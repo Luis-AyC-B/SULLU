@@ -79,6 +79,12 @@ export class GrupoControladorDescargaDto {
   })
   rolAsignacion!: string;
 
+  @ApiProperty({
+    description: 'Nombre asignado a la fila/lista (ej: Lista A)',
+    example: 'Lista A',
+  })
+  nombreLista!: string;
+
   @ApiProperty({ description: 'Rango alfabético asignado', example: 'A - G' })
   rango!: string;
 

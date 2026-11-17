@@ -33,6 +33,8 @@ export interface Examen {
   token?: string | null;
   facultad?: string;
   esLegado?: boolean; // Marca si provino del formato antiguo del backend
+  /** Fila / lista asignada al estudiante (ej. "Lista A (A - L)") */
+  listaAsignada?: string;
 }
 
 export interface RespuestaExamenes {

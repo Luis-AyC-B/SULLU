@@ -217,8 +217,8 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
     );
   });
 
-  // Caso 6: Estudiante de otro grupo al escanear QR: permite el ingreso pero marca fueraDeGrupo y advertencia
-  it('6. QR con estudiante de otro grupo: permite el ingreso pero marca fueraDeGrupo: true y genera advertencia', async () => {
+  // Caso 6: Estudiante de otro grupo al escanear QR: bloquea el ingreso con FUERA_DE_GRUPO y no crea ingreso
+  it('6. QR con estudiante de otro grupo: bloquea con BadRequestException FUERA_DE_GRUPO sin crear ingreso', async () => {
     mockParticion.validarEstudianteEnGrupo.mockResolvedValueOnce({
       pertenece: false,
       mensaje:
@@ -230,16 +230,12 @@ describe('UT01-HU09: Validar la lógica de negocio y excepciones de validación 
       },
     });
 
-    const result = await service.registrarIngresoQr(
-      { examenId: 1, token: validToken },
-      2,
-    );
+    await expect(
+      service.registrarIngresoQr({ examenId: 1, token: validToken }, 2),
+    ).rejects.toThrow(BadRequestException);
 
-    expect(result.mensaje).toContain('exitosamente');
-    expect(result.fueraDeGrupo).toBe(true);
-    expect(result.advertencia).toContain('no pertenece a tu grupo asignado');
-    expect(result.grupoCorrecto?.nombreControlador).toBe('Fernando Aguilar');
-    expect(prismaMock.ingreso.create).toHaveBeenCalled();
+    expect(prismaMock.ingreso.create).not.toHaveBeenCalled();
+    expect(prismaMock.codigoQr.updateMany).not.toHaveBeenCalled();
   });
 
   // Caso 7: Estudiante de su propio grupo al escanear QR: fueraDeGrupo es false y sin advertencia
