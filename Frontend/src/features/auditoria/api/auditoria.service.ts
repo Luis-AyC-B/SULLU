@@ -42,12 +42,46 @@ export interface OpcionesAuditoria {
   primerAnio: number;
 }
 
+export interface EjecucionRespaldo {
+  fechaHora: string;
+  archivo: string;
+  estado: 'EXITOSO' | 'FALLIDO';
+  tamanoBytes: string | null;
+  restauradoEnPrueba: boolean;
+  restauracion: {
+    estado: 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADA' | 'FALLIDA';
+    baseRestaurada: string | null;
+    error: string | null;
+  } | null;
+}
+
+export interface ProgramacionRespaldos {
+  proximoAutomatico: string | null;
+  horaServidor: string;
+  activo: boolean;
+  ejecucion: 'AUTOMATICA' | 'MANUAL' | null;
+  manualPendiente: boolean;
+  resultadoManual: 'EXITOSO' | 'FALLIDO' | null;
+}
+
 export const auditoriaApi = {
   async listar(filtros: FiltrosAuditoria, pagina: number, signal?: AbortSignal) {
     return (await apiClient.get<PaginaAuditoria>('/auditoria', { params: { ...filtros, pagina }, signal })).data;
   },
   async opciones(signal?: AbortSignal) {
     return (await apiClient.get<OpcionesAuditoria>('/auditoria/opciones', { signal })).data;
+  },
+  async respaldos(signal?: AbortSignal) {
+    return (await apiClient.get<EjecucionRespaldo[]>('/auditoria/respaldos', { signal })).data;
+  },
+  async programacionRespaldos(signal?: AbortSignal) {
+    return (await apiClient.get<ProgramacionRespaldos>('/auditoria/respaldos/programacion', { signal })).data;
+  },
+  async solicitarRespaldo() {
+    return (await apiClient.post<{ aceptada: boolean }>('/auditoria/respaldos/solicitudes')).data;
+  },
+  async restaurarRespaldo(respaldo: Pick<EjecucionRespaldo, 'fechaHora' | 'archivo'>) {
+    await apiClient.post('/auditoria/respaldos/restauraciones', respaldo);
   },
   async detalle(id: number, signal?: AbortSignal) {
     return (await apiClient.get<DetalleAuditoria>(`/auditoria/${id}`, { signal })).data;

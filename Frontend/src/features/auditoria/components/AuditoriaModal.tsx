@@ -5,7 +5,7 @@ import { ClipboardList, Download, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import { auditoriaApi, type DetalleAuditoria, type EventoAuditoria, type FiltrosAuditoria, type OpcionesAuditoria, type PaginaAuditoria } from '../api/auditoria.service';
+import { auditoriaApi, type DetalleAuditoria, type EjecucionRespaldo, type EventoAuditoria, type FiltrosAuditoria, type OpcionesAuditoria, type PaginaAuditoria, type ProgramacionRespaldos } from '../api/auditoria.service';
 export function formatearFechaAuditoria(valor: unknown): string {
   if (typeof valor !== 'string' || !valor.trim()) return 'Fecha no disponible';
   const fecha = new Date(valor);
@@ -34,8 +34,174 @@ function Accion({ accion }: { accion: string }) {
   return <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${clase}`}>{accionNombre(accion)}</span>;
 }
 
+function tamanoRespaldo(bytes: string | null) {
+  if (bytes === null) return '—';
+  const cantidad = Number(bytes);
+  const escala = cantidad >= 1e9 ? 1e9 : cantidad >= 1e6 ? 1e6 : cantidad >= 1e3 ? 1e3 : 1;
+  const unidad = ({ 1: 'B', 1000: 'KB', 1000000: 'MB', 1000000000: 'GB' })[escala];
+  return `${new Intl.NumberFormat('es-BO', { maximumFractionDigits: 1 }).format(cantidad / escala)} ${unidad}`;
+}
+
+function HistorialRespaldos() {
+  const [intento, setIntento] = useState(0);
+  const [resultado, setResultado] = useState<{ intento: number; datos: EjecucionRespaldo[]; programacion: ProgramacionRespaldos; desfase: number } | { intento: number; datos: null } | null>(null);
+  const [ahora, setAhora] = useState(Date.now);
+  const [creando, setCreando] = useState(false);
+  const [errorCreacion, setErrorCreacion] = useState('');
+  const [seleccion, setSeleccion] = useState<EjecucionRespaldo | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [errorRestauracion, setErrorRestauracion] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let siguiente: ReturnType<typeof setTimeout>;
+    function consultar() {
+      void Promise.all([
+        auditoriaApi.respaldos(controller.signal),
+        auditoriaApi.programacionRespaldos(controller.signal),
+      ]).then(([datos, programacion]) => {
+        if (controller.signal.aborted) return;
+        const recibido = Date.now();
+        setAhora(recibido);
+        setResultado({ intento, datos, programacion, desfase: Date.parse(programacion.horaServidor) - recibido });
+        siguiente = setTimeout(consultar, 5000);
+      }).catch(() => {
+        if (!controller.signal.aborted) setResultado({ intento, datos: null });
+      });
+    }
+    consultar();
+    return () => { controller.abort(); clearTimeout(siguiente); };
+  }, [intento]);
+
+  useEffect(() => {
+    const reloj = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(reloj);
+  }, []);
+
+  async function crearRespaldo() {
+    setCreando(true);
+    setErrorCreacion('');
+    try {
+      const { aceptada } = await auditoriaApi.solicitarRespaldo();
+      if (!aceptada) setErrorCreacion('El servicio está ocupado o no responde. Intenta de nuevo cuando esté disponible.');
+      setIntento((actual) => actual + 1);
+    } catch {
+      setErrorCreacion('No se pudo solicitar el respaldo. Intenta nuevamente.');
+    } finally {
+      setCreando(false);
+    }
+  }
+
+  async function restaurar() {
+    if (!seleccion || enviando) return;
+    setEnviando(true);
+    setErrorRestauracion('');
+    try {
+      await auditoriaApi.restaurarRespaldo({ fechaHora: seleccion.fechaHora, archivo: seleccion.archivo });
+      setSeleccion(null);
+      setIntento((actual) => actual + 1);
+      toast.success('Restauración solicitada.');
+    } catch {
+      setErrorRestauracion('No se pudo solicitar la restauración. Intenta nuevamente.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (resultado?.intento !== intento) {
+    return <p role="status" className="flex items-center justify-center gap-2 py-12 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando respaldos...</p>;
+  }
+  const { datos } = resultado;
+  if (!datos) {
+    return <div className="rounded-xl border border-destructive/30 p-4 text-sm">
+      <p role="alert" className="text-destructive">No se pudo consultar el historial de respaldos.</p>
+      <Button className="mt-3" variant="outline" onClick={() => setIntento(intento + 1)}>Reintentar</Button>
+    </div>;
+  }
+  const { programacion, desfase } = resultado;
+  const proximo = programacion.proximoAutomatico;
+  const segundos = proximo ? Math.max(0, Math.ceil((Date.parse(proximo) - ahora - desfase) / 1000)) : 0;
+  const restante = [Math.floor(segundos / 3600), Math.floor(segundos / 60) % 60, segundos % 60]
+    .map((unidad) => String(unidad).padStart(2, '0')).join(':');
+  return <>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 p-4">
+      <div>
+        <p className="text-sm font-semibold">Próximo respaldo automático</p>
+        {programacion.ejecucion === 'AUTOMATICA' && programacion.activo ? <p className="text-sm text-muted-foreground">En ejecución</p>
+          : !programacion.activo ? <p className="text-sm text-muted-foreground">Servicio de respaldos sin señal</p>
+          : proximo && segundos > 0 ? <>
+            <p role="timer" className="text-2xl font-bold tabular-nums text-primary">{restante}</p>
+            <p className="text-xs text-muted-foreground">{fecha(proximo)} · Hora de Bolivia</p>
+          </> : <p className="text-sm text-muted-foreground">En espera de ejecución</p>}
+      </div>
+      <div>
+        <Button onClick={() => void crearRespaldo()} disabled={creando || !programacion.activo || programacion.manualPendiente || !!programacion.ejecucion}>Crear respaldo ahora</Button>
+        {programacion.manualPendiente || programacion.ejecucion === 'MANUAL' ? <p role="status" className="mt-1 text-xs text-muted-foreground">
+          {programacion.ejecucion === 'MANUAL' ? 'Creando respaldo manual…' : 'Respaldo manual en espera'}
+        </p> : programacion.resultadoManual && <p role="status" className="mt-1 text-xs text-muted-foreground">
+          {programacion.resultadoManual === 'EXITOSO' ? 'Último respaldo manual verificado.' : 'El último respaldo manual falló.'}
+        </p>}
+      </div>
+      {errorCreacion && <p role="alert" className="w-full text-sm text-destructive">{errorCreacion}</p>}
+    </div>
+    {datos.length === 100 && <p className="text-xs text-muted-foreground">Últimas 100 ejecuciones</p>}
+    {!datos.length ? <p className="py-12 text-center text-muted-foreground">Todavía no hay ejecuciones de respaldo registradas.</p> : <div className="min-w-0 overflow-x-auto rounded-xl border border-border">
+      <table aria-label="Historial de respaldos" className="w-full min-w-[40rem] text-left text-xs">
+        <thead className="bg-muted/50 text-primary">
+          <tr>{['Fecha y hora (Bolivia)', 'Estado', 'Archivo', 'Tamaño', 'Restauración de prueba', 'Recuperación'].map((titulo) =>
+            <th key={titulo} scope="col" className="px-3 py-3 font-semibold">{titulo}</th>,
+          )}</tr>
+        </thead>
+        <tbody>{datos.map((respaldo) => (
+          <tr key={`${respaldo.fechaHora}-${respaldo.archivo}`} className="border-t border-border">
+            <td className="whitespace-nowrap px-3 py-3">{fecha(respaldo.fechaHora)}</td>
+            <td className="px-3 py-3">
+              <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${respaldo.estado === 'EXITOSO' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                {respaldo.estado === 'EXITOSO' ? 'Exitoso' : 'Fallido'}
+              </span>
+            </td>
+            <td className="break-all px-3 py-3">{respaldo.estado === 'EXITOSO' ? respaldo.archivo : '—'}</td>
+            <td className="whitespace-nowrap px-3 py-3">{tamanoRespaldo(respaldo.tamanoBytes)}</td>
+            <td className="px-3 py-3">{respaldo.restauradoEnPrueba ? 'Verificada' : 'Sin verificar'}</td>
+            <td className="min-w-36 px-3 py-3">
+              {respaldo.restauracion?.estado === 'COMPLETADA' ? <>
+                <p className="font-semibold text-success">Copia restaurada</p>
+                <code className="break-all text-muted-foreground">{respaldo.restauracion.baseRestaurada}</code>
+              </> : respaldo.restauracion?.estado === 'PENDIENTE' || respaldo.restauracion?.estado === 'EN_PROCESO' ? (
+                <span role="status">{respaldo.restauracion.estado === 'PENDIENTE' ? 'En espera' : 'Restaurando…'}</span>
+              ) : respaldo.restauradoEnPrueba && respaldo.estado === 'EXITOSO' ? <>
+                {respaldo.restauracion?.estado === 'FALLIDA' && (
+                  <p className="mb-2 text-destructive">{respaldo.restauracion.error === 'ARCHIVO_NO_DISPONIBLE' ? 'El archivo ya no está disponible.' : 'La restauración falló.'}</p>
+                )}
+                {respaldo.restauracion?.error !== 'ARCHIVO_NO_DISPONIBLE' && (
+                  <Button variant="outline" size="sm" onClick={() => { setErrorRestauracion(''); setSeleccion(respaldo); }}>Restaurar</Button>
+                )}
+              </> : '—'}
+            </td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>}
+    <Dialog open={seleccion !== null} onOpenChange={(open) => { if (!open && !enviando) setSeleccion(null); }}>
+      <DialogContent className="rounded-2xl bg-card p-6 sm:max-w-md" showCloseButton={!enviando}>
+        <DialogHeader>
+          <DialogTitle>Restaurar respaldo</DialogTitle>
+          <DialogDescription>Se creará una base separada para revisar los datos de esta copia. ExaControl seguirá usando la base actual.</DialogDescription>
+        </DialogHeader>
+        <p className="break-all rounded-xl bg-muted/50 p-3 text-sm">{seleccion?.archivo}</p>
+        {errorRestauracion && <p role="alert" className="text-sm text-destructive">{errorRestauracion}</p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" disabled={enviando} onClick={() => setSeleccion(null)}>Cancelar</Button>
+          <Button disabled={enviando} onClick={() => void restaurar()}>{enviando ? 'Solicitando…' : 'Confirmar restauración'}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  </>;
+}
+
 export function AuditoriaModal() {
   const [abierto, setAbierto] = useState(false);
+  const [vista, setVista] = useState<'operaciones' | 'respaldos'>('operaciones');
   const [borrador, setBorrador] = useState<FiltrosAuditoria>(periodoActual);
   const [consulta, setConsulta] = useState({ filtros: periodoActual(), pagina: 1, intento: 0 });
   const [opciones, setOpciones] = useState<OpcionesAuditoria | null>(null);
@@ -51,7 +217,7 @@ export function AuditoriaModal() {
   const bloqueoDescarga = useRef(false);
 
   useEffect(() => {
-    if (!abierto) return;
+    if (!abierto || vista !== 'operaciones') return;
     const controller = new AbortController();
     setCargando(true);
     setError('');
@@ -68,7 +234,7 @@ export function AuditoriaModal() {
       if (!controller.signal.aborted) setCargando(false);
     });
     return () => controller.abort();
-  }, [abierto, consulta]);
+  }, [abierto, consulta, vista]);
 
   useEffect(() => {
     if (detalleId === null) return;
@@ -112,6 +278,7 @@ export function AuditoriaModal() {
     if (bloqueoDescarga.current) return;
     if (open) {
       const actual = periodoActual();
+      setVista('operaciones');
       setBorrador(actual);
       setConsulta({ filtros: actual, pagina: 1, intento: 0 });
       setDatos(null);
@@ -138,8 +305,16 @@ export function AuditoriaModal() {
       <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:max-w-5xl sm:p-7">
         <DialogHeader className="pr-7">
           <DialogTitle className="flex items-center gap-2 text-xl font-bold text-primary"><ClipboardList className="h-5 w-5" />Auditoría</DialogTitle>
-          <DialogDescription>Consulta y descarga el historial de operaciones del sistema.</DialogDescription>
+          <DialogDescription>{vista === 'respaldos' ? 'Historial de respaldos de la base de datos.' : 'Consulta y descarga el historial de operaciones del sistema.'}</DialogDescription>
         </DialogHeader>
+        <div role="group" aria-label="Secciones de auditoría" className="flex flex-wrap gap-2">
+          <Button variant={vista === 'operaciones' ? 'default' : 'outline'} size="sm" aria-pressed={vista === 'operaciones'} onClick={() => setVista('operaciones')}>Operaciones</Button>
+          <Button variant={vista === 'respaldos' ? 'default' : 'outline'} size="sm" aria-pressed={vista === 'respaldos'} onClick={() => setVista('respaldos')}>Respaldos</Button>
+        </div>
+        {vista === 'respaldos' ? <>
+          <HistorialRespaldos />
+          <div className="flex justify-end border-t border-border pt-4"><Button variant="outline" onClick={() => cambiarAbierto(false)}>Cerrar</Button></div>
+        </> : <>
         <form className="grid grid-cols-2 gap-3 rounded-xl bg-muted/50 p-4 md:grid-cols-5" onSubmit={(e) => {
           e.preventDefault();
           setConsulta({ filtros: { ...borrador }, pagina: 1, intento: consulta.intento + 1 });
@@ -214,6 +389,7 @@ export function AuditoriaModal() {
             <Button disabled={cargando || !!error || !datos?.total} onClick={() => { setErrorDescarga(''); setConfirmar(true); }}><Download />Descargar PDF</Button>
           </div>
         </div>
+        </>}
       </DialogContent>
     </Dialog>
 
