@@ -1,8 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   ParseIntPipe,
+  Post,
   Query,
   Res,
   UseGuards,
@@ -14,6 +16,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { AuditoriaService } from './auditoria.service';
 import { ConsultaAuditoriaDto } from './dto/consulta-auditoria.dto';
+import { RestaurarRespaldoDto } from './dto/restaurar-respaldo.dto';
 
 @ApiTags('auditoria')
 @ApiBearerAuth()
@@ -33,6 +36,37 @@ export class AuditoriaController {
   @Get('opciones')
   opciones(@CurrentUser() user: AuthenticatedUser) {
     return this.auditoria.opciones(user.id);
+  }
+
+  @Get('respaldos')
+  respaldos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.set('Cache-Control', 'no-store');
+    return this.auditoria.respaldos(user.id);
+  }
+
+  @Post('respaldos/restauraciones')
+  restaurar(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RestaurarRespaldoDto,
+  ) {
+    return this.auditoria.solicitarRestauracion(user.id, dto);
+  }
+
+  @Get('respaldos/programacion')
+  programacionRespaldos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.set('Cache-Control', 'no-store');
+    return this.auditoria.programacionRespaldos(user.id);
+  }
+
+  @Post('respaldos/solicitudes')
+  solicitarRespaldo(@CurrentUser() user: AuthenticatedUser) {
+    return this.auditoria.solicitarRespaldo(user.id);
   }
 
   @Get('reporte')

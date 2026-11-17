@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsultaAuditoriaDto } from './dto/consulta-auditoria.dto';
+import { RestaurarRespaldoDto } from './dto/restaurar-respaldo.dto';
 import { generarPdfAuditoria, type EventoAuditoriaPdf } from './auditoria.pdf';
 import {
   claveRegistro,
@@ -249,6 +250,83 @@ export class AuditoriaService {
         'Solo administradores pueden acceder a la auditoría.',
       );
     return usuario;
+  }
+
+  async respaldos(usuarioId: number) {
+    await this.administrador(usuarioId);
+    const ejecuciones = await this.prisma.ejecucionRespaldo.findMany({
+      select: {
+        fechaHora: true,
+        archivo: true,
+        estado: true,
+        tamanoBytes: true,
+        restauradoEnPrueba: true,
+        restauracion: {
+          select: { estado: true, baseRestaurada: true, error: true },
+        },
+      },
+      orderBy: [{ fechaHora: 'desc' }, { archivo: 'desc' }],
+      take: 100,
+    });
+    return ejecuciones.map(({ fechaHora, tamanoBytes, ...ejecucion }) => ({
+      ...ejecucion,
+      fechaHora: fechaHora.toISOString(),
+      tamanoBytes: tamanoBytes?.toString() ?? null,
+    }));
+  }
+
+  async programacionRespaldos(usuarioId: number) {
+    await this.administrador(usuarioId);
+    const estado = await this.prisma.programacionRespaldos.findUniqueOrThrow({
+      where: { id: 1 },
+    });
+    const ahora = Date.now();
+    return {
+      proximoAutomatico: estado.proximoAutomatico?.toISOString() ?? null,
+      horaServidor: new Date(ahora).toISOString(),
+      activo:
+        estado.latido !== null && ahora - estado.latido.getTime() < 120_000,
+      ejecucion: estado.ejecucion,
+      manualPendiente: estado.manualPendiente,
+      resultadoManual: estado.resultadoManual,
+    };
+  }
+
+  async solicitarRespaldo(usuarioId: number) {
+    await this.administrador(usuarioId);
+    const solicitadas = await this.prisma.programacionRespaldos.updateMany({
+      where: {
+        id: 1,
+        manualPendiente: false,
+        ejecucion: null,
+        latido: { gte: new Date(Date.now() - 120_000) },
+      },
+      data: { manualPendiente: true, resultadoManual: null },
+    });
+    return { aceptada: solicitadas.count === 1 };
+  }
+
+  async solicitarRestauracion(usuarioId: number, dto: RestaurarRespaldoDto) {
+    await this.administrador(usuarioId);
+    const fechaHora = new Date(dto.fechaHora);
+    const respaldo = await this.prisma.ejecucionRespaldo.findUnique({
+      where: { fechaHora_archivo: { fechaHora, archivo: dto.archivo } },
+      select: { estado: true, restauradoEnPrueba: true },
+    });
+    if (respaldo?.estado !== 'EXITOSO' || !respaldo.restauradoEnPrueba) {
+      throw new NotFoundException('El respaldo verificado no está registrado.');
+    }
+
+    await this.prisma.$executeRaw`
+      INSERT INTO public.restauraciones_respaldo
+        (fecha_respaldo, archivo, estado, solicitado_por)
+      VALUES (${fechaHora}, ${dto.archivo}, 'PENDIENTE', ${usuarioId})
+      ON CONFLICT (fecha_respaldo, archivo) DO UPDATE
+      SET estado = 'PENDIENTE', solicitado_por = EXCLUDED.solicitado_por,
+          solicitada_en = CURRENT_TIMESTAMP, base_restaurada = NULL, error = NULL
+      WHERE restauraciones_respaldo.estado = 'FALLIDA'
+    `;
+    return { aceptada: true };
   }
 
   private filtros(
